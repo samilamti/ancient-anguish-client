@@ -16,6 +16,8 @@ final battleStateProvider =
 /// the timer fires, battle mode ends.
 class BattleNotifier extends Notifier<BattleState> {
   static final RegExp battleLineRegex = RegExp(r'HP:\s+(\d+)\s+SP:\s+(\d+)');
+  static final RegExp _missPatternRegex =
+      RegExp(r'(^You missed | missed you\.$)');
 
   /// How long to wait after the last battle pattern before ending battle mode.
   static const Duration battleTimeout = Duration(seconds: 5);
@@ -34,6 +36,12 @@ class BattleNotifier extends Notifier<BattleState> {
     final match = battleLineRegex.firstMatch(plainText);
     if (match == null) return null;
     return (hp: int.parse(match.group(1)!), sp: int.parse(match.group(2)!));
+  }
+
+  /// Returns `true` if [plainText] matches a battle indicator that does not
+  /// contain HP/SP data (e.g. miss messages).
+  static bool isBattleIndicator(String plainText) {
+    return _missPatternRegex.hasMatch(plainText);
   }
 
   /// Called when a battle pattern line is detected in MUD output.

@@ -43,6 +43,45 @@ void main() {
     });
   });
 
+  group('BattleNotifier.isBattleIndicator', () {
+    test('matches "You missed" at start of line', () {
+      expect(
+        BattleNotifier.isBattleIndicator('You missed the orc.'),
+        isTrue,
+      );
+    });
+
+    test('matches "missed you." at end of line', () {
+      expect(
+        BattleNotifier.isBattleIndicator('The orc missed you.'),
+        isTrue,
+      );
+    });
+
+    test('does not match "missed" in unrelated context', () {
+      expect(
+        BattleNotifier.isBattleIndicator('You missed the bus yesterday.'),
+        isTrue, // still matches "^You missed "
+      );
+    });
+
+    test('does not match partial patterns', () {
+      expect(
+        BattleNotifier.isBattleIndicator('He missed the target.'),
+        isFalse,
+      );
+      expect(
+        BattleNotifier.isBattleIndicator('I missed you so much'),
+        isFalse, // no period at end
+      );
+    });
+
+    test('returns false for unrelated lines', () {
+      expect(BattleNotifier.isBattleIndicator('You see a forest.'), isFalse);
+      expect(BattleNotifier.isBattleIndicator('HP: 100  SP: 50'), isFalse);
+    });
+  });
+
   group('BattleNotifier - state management', () {
     late ProviderContainer container;
     late BattleNotifier notifier;

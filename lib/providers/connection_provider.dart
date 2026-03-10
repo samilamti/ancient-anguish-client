@@ -128,13 +128,15 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
               }
             }
 
-            // Battle pattern detection: "HP: 136  SP: 149".
+            // Battle pattern detection: "HP: 136  SP: 149" and miss messages.
             final battleVitals = BattleNotifier.parseBattleLine(plainText);
             if (battleVitals != null) {
               gameNotifier.updateCurrentVitals(
                 hp: battleVitals.hp,
                 sp: battleVitals.sp,
               );
+              battleNotifier.onBattlePatternDetected();
+            } else if (BattleNotifier.isBattleIndicator(plainText)) {
               battleNotifier.onBattlePatternDetected();
             }
 

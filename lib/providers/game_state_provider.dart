@@ -60,8 +60,19 @@ class GameStateNotifier extends Notifier<GameState> {
   void updateVitalsAndCoordinates(
     int hp, int maxHp, int sp, int maxSp, int x, int y,
   ) {
-    final coordConfig = ref.read(coordAreaConfigProvider);
-    final configEntry = coordConfig.lookup(x, y);
+    final coordsChanged = x != state.x || y != state.y;
+
+    // Only re-resolve area from coordinates when position actually changed.
+    // This preserves text-based overrides (e.g., "Inns" inside Tantallon).
+    String? area;
+    if (coordsChanged) {
+      final coordConfig = ref.read(coordAreaConfigProvider);
+      final configEntry = coordConfig.lookup(x, y);
+      area = configEntry?.areaName;
+    } else {
+      area = state.currentArea;
+    }
+
     state = GameState(
       hp: hp,
       maxHp: maxHp,
@@ -73,7 +84,7 @@ class GameStateNotifier extends Notifier<GameState> {
       playerClass: state.playerClass,
       coins: state.coins,
       xp: state.xp,
-      currentArea: configEntry?.areaName,
+      currentArea: area,
     );
   }
 

@@ -124,6 +124,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                   processedLines.add(result.styledLine);
                 }
                 gameNotifier.processLine(vitals.remainder);
+                gameNotifier.processRoomText(vitals.remainder);
                 continue;
               }
             }
@@ -148,6 +149,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
             // Feed to game state parser for HP/SP prompt detection.
             gameNotifier.processLine(plainText);
+            gameNotifier.processRoomText(plainText);
           }
 
           if (processedLines.isNotEmpty) {

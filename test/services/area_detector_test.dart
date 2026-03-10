@@ -100,6 +100,39 @@ void main() {
     });
   });
 
+  group('AreaDetector - Inns text detection', () {
+    test('detects inn rooms', () {
+      const rooms = [
+        'Ancient Inn of Tantallon',
+        'Dalair, Taverna',
+        'Entrance of Ancient Bliss Inn',
+        'The common room',
+        'Ancient Bliss chess room',
+        "The Inn's small bar",
+        'The inns reception',
+        'Village pub',
+        'Small room of pub',
+        'Golden Ducat draughts room',
+        'Common room',
+        'Reception area',
+      ];
+      for (final room in rooms) {
+        expect(detector.detectFromText(room), 'Inns',
+            reason: 'Expected "$room" to detect as Inns');
+      }
+    });
+
+    test('Ancient Inn of Tantallon resolves to Inns not Tantallon', () {
+      expect(
+          detector.detectFromText('Ancient Inn of Tantallon'), 'Inns');
+    });
+
+    test('inn detection is case-insensitive', () {
+      expect(detector.detectFromText('VILLAGE PUB'), 'Inns');
+      expect(detector.detectFromText('the common room'), 'Inns');
+    });
+  });
+
   group('AreaDetector - getAreaConfig', () {
     test('returns config for known area', () {
       final config = detector.getAreaConfig('Tantallon');

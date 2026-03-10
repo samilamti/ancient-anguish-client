@@ -75,6 +75,8 @@ class AreaDetector {
     }
 
     // Built-in heuristics for common AA areas.
+    // Inns checked first: "Ancient Inn of Tantallon" must match Inns, not Tantallon.
+    if (_matchesAny(roomText, _innsPatterns)) return 'Inns';
     if (_matchesAny(roomText, _tantallonPatterns)) return 'Tantallon';
     if (_matchesAny(roomText, _wildernessPatterns)) return 'Wilderness';
 
@@ -116,6 +118,21 @@ class AreaDetector {
   }
 
   // ── Built-in heuristics for common AA areas ──
+
+  static final List<RegExp> _innsPatterns = [
+    RegExp(r'Ancient Inn of Tantallon', caseSensitive: false),
+    RegExp(r'Dalair, Taverna', caseSensitive: false),
+    RegExp(r'Entrance of Ancient Bliss Inn', caseSensitive: false),
+    RegExp(r'The common room', caseSensitive: false),
+    RegExp(r'Ancient Bliss chess room', caseSensitive: false),
+    RegExp(r"The Inn's small bar", caseSensitive: false),
+    RegExp(r'The inns reception', caseSensitive: false),
+    RegExp(r'Village pub', caseSensitive: false),
+    RegExp(r'Small room of pub', caseSensitive: false),
+    RegExp(r'Golden Ducat draughts room', caseSensitive: false),
+    RegExp(r'Common room', caseSensitive: false),
+    RegExp(r'Reception area', caseSensitive: false),
+  ];
 
   static final List<RegExp> _tantallonPatterns = [
     RegExp(r'Tantallon', caseSensitive: false),

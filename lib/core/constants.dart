@@ -40,6 +40,4 @@ class AudioDefaults {
   AudioDefaults._();
 
   static const double masterVolume = 0.7;
-  static const int crossfadeDurationMs = 2000;
-  static const int fadeSteps = 20;
 }

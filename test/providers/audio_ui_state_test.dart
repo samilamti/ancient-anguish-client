@@ -12,6 +12,8 @@ void main() {
       expect(state.currentArea, isNull);
       expect(state.currentTrackPath, isNull);
       expect(state.audioEnabled, isTrue);
+      expect(state.isBattleAudioActive, isFalse);
+      expect(state.battleThemes, isEmpty);
     });
   });
 
@@ -91,6 +93,31 @@ void main() {
     test('copies audioEnabled', () {
       const state = AudioUiState();
       expect(state.copyWith(audioEnabled: false).audioEnabled, isFalse);
+    });
+
+    test('copies isBattleAudioActive', () {
+      const state = AudioUiState();
+      expect(
+          state.copyWith(isBattleAudioActive: true).isBattleAudioActive, isTrue);
+    });
+
+    test('preserves isBattleAudioActive when not specified', () {
+      const state = AudioUiState(isBattleAudioActive: true);
+      final copied = state.copyWith(isPlaying: true);
+      expect(copied.isBattleAudioActive, isTrue);
+    });
+
+    test('copies battleThemes', () {
+      const state = AudioUiState();
+      final copied =
+          state.copyWith(battleThemes: ['/a.mp3', '/b.mp3']);
+      expect(copied.battleThemes, ['/a.mp3', '/b.mp3']);
+    });
+
+    test('preserves battleThemes when not specified', () {
+      const state = AudioUiState(battleThemes: ['/a.mp3']);
+      final copied = state.copyWith(isPlaying: true);
+      expect(copied.battleThemes, ['/a.mp3']);
     });
   });
 }

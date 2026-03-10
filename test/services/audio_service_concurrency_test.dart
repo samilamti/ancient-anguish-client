@@ -66,21 +66,6 @@ void main() {
   });
 
   group('AudioService - Operation serialization', () {
-    test('concurrent crossfadeTo calls leave consistent state', () async {
-      // Both calls fire simultaneously. The _busy guard ensures the second
-      // is dropped, preventing interleaved player swap corruption.
-      final f1 = service.crossfadeTo('/path/a.mp3');
-      final f2 = service.crossfadeTo('/path/b.mp3');
-      await Future.wait([f1, f2]);
-
-      // State must be consistent: either playing with a track, or not.
-      if (service.isPlaying) {
-        expect(service.currentTrackPath, isNotNull);
-      } else {
-        expect(service.currentTrackPath, isNull);
-      }
-    });
-
     test('concurrent play calls leave consistent state', () async {
       final f1 = service.play('/path/a.mp3');
       final f2 = service.play('/path/b.mp3');
@@ -91,24 +76,6 @@ void main() {
       } else {
         expect(service.currentTrackPath, isNull);
       }
-    });
-
-    test('play then immediate crossfadeTo leaves consistent state', () async {
-      final f1 = service.play('/path/a.mp3');
-      final f2 = service.crossfadeTo('/path/b.mp3');
-      await Future.wait([f1, f2]);
-
-      if (service.isPlaying) {
-        expect(service.currentTrackPath, isNotNull);
-      } else {
-        expect(service.currentTrackPath, isNull);
-      }
-    });
-
-    test('fadeOut while not playing is a no-op', () async {
-      expect(service.isPlaying, false);
-      await service.fadeOut();
-      expect(service.isPlaying, false);
     });
 
     test('concurrent stop calls are safe', () async {
@@ -124,13 +91,13 @@ void main() {
       expect(service.currentTrackPath, isNull);
     });
 
-    test('crossfadeTo same track while playing is a no-op', () async {
-      await service.crossfadeTo('/path/a.mp3');
+    test('play same track while playing is a no-op', () async {
+      await service.play('/path/a.mp3');
       final trackBefore = service.currentTrackPath;
       final playingBefore = service.isPlaying;
 
       // Same track again — should return immediately.
-      await service.crossfadeTo('/path/a.mp3');
+      await service.play('/path/a.mp3');
       expect(service.currentTrackPath, trackBefore);
       expect(service.isPlaying, playingBefore);
     });

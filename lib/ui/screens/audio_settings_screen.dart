@@ -7,10 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/audio_provider.dart';
 import '../../providers/game_state_provider.dart';
 
-/// Screen for managing area-to-MP3 track mappings.
+/// Screen for managing area-to-MP3 track mappings and battle themes.
 ///
-/// Users can assign their own MP3 files to each detected area.
-/// Tracks are stored as absolute file paths.
+/// Users can assign their own MP3 files to each detected area and
+/// configure a playlist of battle themes played in sequence during combat.
 class AudioSettingsScreen extends ConsumerStatefulWidget {
   const AudioSettingsScreen({super.key});
 
@@ -29,6 +29,8 @@ class _AudioSettingsScreenState extends ConsumerState<AudioSettingsScreen> {
     final audioNotifier = ref.read(audioUiStateProvider.notifier);
     final audioManager = ref.read(areaAudioManagerProvider);
     final userTracks = audioManager.userTrackMap;
+    final audioState = ref.watch(audioUiStateProvider);
+    final battleThemes = audioState.battleThemes;
     final theme = Theme.of(context);
 
     final areas =
@@ -238,9 +240,159 @@ class _AudioSettingsScreenState extends ConsumerState<AudioSettingsScreen> {
                 ),
               );
             }),
+
+          const SizedBox(height: 24),
+
+          // ── Battle Themes section ──
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.shield,
+                          color: theme.colorScheme.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Battle Themes',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Add MP3 files to play during combat. Each new battle '
+                    'plays the next track in the list, cycling back to the first.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.colorScheme.onSurface.withAlpha(160),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Battle Theme'),
+                      onPressed: () => _pickBattleTheme(audioNotifier),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          if (battleThemes.isEmpty)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Text(
+                    'No battle themes added.\n'
+                    'Add MP3 files to hear music during combat.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface.withAlpha(100),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else
+            ...List.generate(battleThemes.length, (index) {
+              final path = battleThemes[index];
+              final fileName = path.split('/').last.split('\\').last;
+              final fileExists = File(path).existsSync();
+
+              return Card(
+                child: ListTile(
+                  leading: CircleAvatar(
+                    radius: 14,
+                    backgroundColor: theme.colorScheme.primary.withAlpha(30),
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  title: Text(fileName),
+                  subtitle: !fileExists
+                      ? Text(
+                          'File not found',
+                          style: TextStyle(color: theme.colorScheme.error),
+                        )
+                      : null,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (index > 0)
+                        IconButton(
+                          icon: const Icon(Icons.arrow_upward, size: 20),
+                          tooltip: 'Move up',
+                          onPressed: () {
+                            audioNotifier.reorderBattleThemes(
+                                index, index - 1);
+                          },
+                        ),
+                      if (index < battleThemes.length - 1)
+                        IconButton(
+                          icon: const Icon(Icons.arrow_downward, size: 20),
+                          tooltip: 'Move down',
+                          onPressed: () {
+                            audioNotifier.reorderBattleThemes(
+                                index, index + 2);
+                          },
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        color: theme.colorScheme.error,
+                        onPressed: () {
+                          audioNotifier.removeBattleThemeAt(index);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
         ],
       ),
     );
+  }
+
+  Future<void> _pickBattleTheme(AudioUiNotifier notifier) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['mp3'],
+      allowMultiple: true,
+    );
+    if (result == null) return;
+    for (final file in result.files) {
+      if (file.path == null) continue;
+      if (!File(file.path!).existsSync()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('File not found: ${file.path}'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+        continue;
+      }
+      notifier.addBattleTheme(file.path!);
+    }
   }
 
   Future<void> _pickFile() async {
@@ -306,6 +458,18 @@ class _AudioSettingsScreenState extends ConsumerState<AudioSettingsScreen> {
                 'the track will automatically start playing.\n'
                 '4. Moving to a different area crossfades to that area\'s track.\n'
                 '5. Areas with no assigned track will fade to silence.',
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Battle Themes:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text(
+                '1. Add MP3 files to the Battle Themes list.\n'
+                '2. When combat is detected, the next track in the list plays.\n'
+                '3. Each new battle advances to the next track, cycling back.\n'
+                '4. When combat ends, area audio resumes automatically.',
               ),
               SizedBox(height: 16),
               Text(

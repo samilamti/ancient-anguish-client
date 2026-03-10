@@ -8,4 +8,4 @@
 # 5,10	Northern Plains
 # -3,-7	Southern Forest	"C:\Users\samil\Music\forest_ambience.mp3"
 
-0,0	Tantallon	"C:\Users\samil\Music\Car\K-Pop Demon Hunters - MEDLEY ft. Grace Kinstler (acapella).mp3"
+0,0	Tantallon	"C:\Users\samil\Music\Car\CD01\008 - THE POKÉMON THEME - (METAL COVER) Jonathan Young & Jason Paige (the original singer).mp3"

@@ -8,7 +8,7 @@ import 'audio_service.dart';
 /// Manages area-based soundtrack playback.
 ///
 /// Listens for area changes (from [AreaDetector]) and triggers the appropriate
-/// audio track via [AudioService]. Handles crossfading between area tracks,
+/// audio track via [AudioService]. Handles switching between area tracks,
 /// silence for unmapped areas, and user-configured track overrides.
 class AreaAudioManager {
   final AudioService _audioService;
@@ -20,6 +20,18 @@ class AreaAudioManager {
   /// User-configured area-to-file path mappings.
   /// These override the defaults from area_definitions.json.
   final Map<String, String> _userTrackMap = {};
+
+  /// User-configured battle theme MP3 paths, played in sequence.
+  final List<String> _battleThemes = [];
+
+  /// Index of the next battle theme to play (advances per battle, wraps).
+  int _battleThemeIndex = 0;
+
+  /// Whether battle audio is currently active (prevents area audio changes).
+  bool _inBattle = false;
+
+  /// The area track that was playing when battle started (for restoration).
+  String? _areaTrackBeforeBattle;
 
   AreaAudioManager({
     required AudioService audioService,
@@ -37,16 +49,13 @@ class AreaAudioManager {
   AudioService get audioService => _audioService;
 
   /// Enables or disables area-based audio.
-  ///
-  /// When disabling, awaits the fade-out to prevent concurrent audio
-  /// operations if an area change arrives before the fade completes.
   Future<void> setEnabled(bool enabled) async {
     _enabled = enabled;
     if (!enabled) {
       try {
-        await _audioService.fadeOut();
+        await _audioService.stop();
       } catch (e) {
-        debugPrint('AreaAudioManager.setEnabled fadeOut error: $e');
+        debugPrint('AreaAudioManager.setEnabled stop error: $e');
       }
       _currentPlayingArea = null;
     }
@@ -71,6 +80,95 @@ class AreaAudioManager {
     _userTrackMap.addAll(map);
   }
 
+  // ── Battle themes ──
+
+  /// Whether battle audio is currently active.
+  bool get inBattle => _inBattle;
+
+  /// Returns the current battle themes list.
+  List<String> get battleThemes => List.unmodifiable(_battleThemes);
+
+  /// Adds a battle theme MP3 path to the end of the list.
+  void addBattleTheme(String filePath) {
+    _battleThemes.add(filePath);
+  }
+
+  /// Removes the battle theme at [index].
+  void removeBattleThemeAt(int index) {
+    if (index < 0 || index >= _battleThemes.length) return;
+    _battleThemes.removeAt(index);
+    if (_battleThemeIndex >= _battleThemes.length) {
+      _battleThemeIndex = 0;
+    }
+  }
+
+  /// Reorders battle themes (drag-and-drop support).
+  void reorderBattleThemes(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) newIndex--;
+    final item = _battleThemes.removeAt(oldIndex);
+    _battleThemes.insert(newIndex, item);
+    _battleThemeIndex = 0;
+  }
+
+  /// Loads battle themes from a list (e.g., from settings storage).
+  void loadBattleThemes(List<String> themes) {
+    _battleThemes.clear();
+    _battleThemes.addAll(themes);
+    _battleThemeIndex = 0;
+  }
+
+  /// Called when battle state transitions. Switches to/from battle audio.
+  ///
+  /// Returns the track path now playing, or null.
+  Future<String?> onBattleStateChanged(bool inBattle) async {
+    if (!_enabled) return null;
+
+    if (inBattle && !_inBattle) {
+      // Entering battle.
+      _inBattle = true;
+      if (_battleThemes.isEmpty) return null;
+
+      // Save current area audio for restoration after battle.
+      _areaTrackBeforeBattle = _audioService.currentTrackPath;
+
+      final theme = _battleThemes[_battleThemeIndex];
+      _battleThemeIndex = (_battleThemeIndex + 1) % _battleThemes.length;
+
+      if (!await File(theme).exists()) return null;
+      try {
+        await _audioService.play(theme);
+        return theme;
+      } catch (e) {
+        debugPrint('AreaAudioManager.onBattleStateChanged play error: $e');
+        return null;
+      }
+    } else if (!inBattle && _inBattle) {
+      // Leaving battle — restore area audio.
+      _inBattle = false;
+      final restorePath = _areaTrackBeforeBattle;
+      _areaTrackBeforeBattle = null;
+
+      if (restorePath != null && await File(restorePath).exists()) {
+        try {
+          await _audioService.play(restorePath);
+          return restorePath;
+        } catch (e) {
+          debugPrint(
+              'AreaAudioManager.onBattleStateChanged restore error: $e');
+        }
+      } else {
+        try {
+          await _audioService.stop();
+        } catch (e) {
+          debugPrint(
+              'AreaAudioManager.onBattleStateChanged stop error: $e');
+        }
+      }
+      return null;
+    }
+    return null;
+  }
+
   /// Called when the detected area changes. Triggers audio transition.
   ///
   /// This is the main entry point – call this whenever the area detector
@@ -79,53 +177,46 @@ class AreaAudioManager {
     if (!_enabled) return;
     if (newArea == _currentPlayingArea) return;
 
+    _currentPlayingArea = newArea;
+
+    // During battle, update what we'll restore but don't change audio.
+    if (_inBattle) {
+      _areaTrackBeforeBattle = _resolveTrackPath(newArea);
+      return;
+    }
+
     final trackPath = _resolveTrackPath(newArea);
 
     if (trackPath == null) {
-      // No track for this area – fade out to silence.
+      // No track for this area – stop.
       try {
-        if (_audioService.isPlaying) {
-          await _audioService.fadeOut();
-        }
+        await _audioService.stop();
       } catch (e) {
-        debugPrint('AreaAudioManager.onAreaChanged fadeOut error: $e');
+        debugPrint('AreaAudioManager.onAreaChanged stop error: $e');
       }
-      _currentPlayingArea = newArea;
       return;
     }
 
     // Verify the file exists.
     if (!await File(trackPath).exists()) {
-      // Track file missing – fade out gracefully.
       try {
-        if (_audioService.isPlaying) {
-          await _audioService.fadeOut();
-        }
+        await _audioService.stop();
       } catch (e) {
-        debugPrint('AreaAudioManager.onAreaChanged fadeOut error: $e');
+        debugPrint('AreaAudioManager.onAreaChanged stop error: $e');
       }
-      _currentPlayingArea = newArea;
       return;
     }
 
-    // Get area-specific volume and fade settings.
+    // Get area-specific volume.
     final areaConfig = _areaDetector.getAreaConfig(newArea);
     final volume = areaConfig?.audio?.volume ?? 0.7;
-    final fadeMs = areaConfig?.audio?.fadeMs ?? 2000;
 
-    // Crossfade to the new track.
+    // Play the new track.
     try {
-      await _audioService.crossfadeTo(
-        trackPath,
-        volume: volume,
-        fadeInMs: fadeMs,
-        fadeOutMs: fadeMs,
-      );
+      await _audioService.play(trackPath, volume: volume);
     } catch (e) {
-      debugPrint('AreaAudioManager.onAreaChanged crossfadeTo error: $e');
+      debugPrint('AreaAudioManager.onAreaChanged play error: $e');
     }
-
-    _currentPlayingArea = newArea;
   }
 
   /// Resolves the track file path for an area.
@@ -150,7 +241,9 @@ class AreaAudioManager {
     return null;
   }
 
-  /// Stops all audio and resets state.
+  /// Stops all audio and resets session state.
+  ///
+  /// Battle themes list and index are preserved (user config).
   Future<void> reset() async {
     try {
       await _audioService.stop();
@@ -158,6 +251,8 @@ class AreaAudioManager {
       debugPrint('AreaAudioManager.reset error: $e');
     }
     _currentPlayingArea = null;
+    _inBattle = false;
+    _areaTrackBeforeBattle = null;
   }
 
   /// Cleans up manager state. Does NOT dispose the AudioService

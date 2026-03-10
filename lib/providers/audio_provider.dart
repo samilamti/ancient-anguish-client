@@ -1,10 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/battle_state.dart';
 import '../models/game_state.dart';
 import '../services/area/area_detector.dart';
 import '../services/audio/area_audio_manager.dart';
 import '../services/audio/audio_service.dart';
+import 'battle_provider.dart';
 import 'coord_area_config_provider.dart';
 import 'game_state_provider.dart';
 
@@ -45,6 +49,8 @@ class AudioUiState {
   final String? currentArea;
   final String? currentTrackPath;
   final bool audioEnabled;
+  final bool isBattleAudioActive;
+  final List<String> battleThemes;
 
   const AudioUiState({
     this.isPlaying = false,
@@ -53,6 +59,8 @@ class AudioUiState {
     this.currentArea,
     this.currentTrackPath,
     this.audioEnabled = true,
+    this.isBattleAudioActive = false,
+    this.battleThemes = const [],
   });
 
   AudioUiState copyWith({
@@ -62,6 +70,8 @@ class AudioUiState {
     Object? currentArea = _absent,
     Object? currentTrackPath = _absent,
     bool? audioEnabled,
+    bool? isBattleAudioActive,
+    List<String>? battleThemes,
   }) {
     return AudioUiState(
       isPlaying: isPlaying ?? this.isPlaying,
@@ -74,6 +84,8 @@ class AudioUiState {
           ? this.currentTrackPath
           : currentTrackPath as String?,
       audioEnabled: audioEnabled ?? this.audioEnabled,
+      isBattleAudioActive: isBattleAudioActive ?? this.isBattleAudioActive,
+      battleThemes: battleThemes ?? this.battleThemes,
     );
   }
 }
@@ -113,31 +125,45 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       }
     });
 
+    // Listen for battle state transitions to trigger battle audio.
+    ref.listen<BattleState>(battleStateProvider, (previous, next) {
+      final wasInBattle = previous?.inBattle ?? false;
+      if (wasInBattle != next.inBattle) {
+        _onBattleStateChanged(next.inBattle);
+      }
+    });
+
     return const AudioUiState();
   }
 
   /// Fades out current audio if something is playing.
   Future<void> _fadeOutIfPlaying() async {
-    if (_toggling) return;
+    if (_loadingAudio || _toggling) return;
+    _loadingAudio = true;
     try {
+      if (ref.read(areaAudioManagerProvider).inBattle) return;
       final audioService = ref.read(audioServiceProvider);
       if (audioService.isPlaying) {
-        await audioService.fadeOut();
+        await audioService.stop();
         state = state.copyWith(isPlaying: false, currentTrackPath: null);
       }
     } catch (e) {
       debugPrint('AudioUiNotifier._fadeOutIfPlaying error: $e');
+    } finally {
+      _loadingAudio = false;
     }
   }
 
   /// Plays audio from a coordinate config entry.
   Future<void> _playConfigAudio(String audioPath, String areaName) async {
     if (_loadingAudio || _toggling) return;
+    if (ref.read(areaAudioManagerProvider).inBattle) return;
     _loadingAudio = true;
     try {
+      if (!await File(audioPath).exists()) return;
       final audioService = ref.read(audioServiceProvider);
       if (audioPath != audioService.currentTrackPath) {
-        await audioService.crossfadeTo(audioPath);
+        await audioService.play(audioPath);
       }
       state = state.copyWith(
         currentArea: areaName,
@@ -153,7 +179,8 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
 
   /// Called when the game state detects a new area.
   Future<void> onAreaChanged(String newArea) async {
-    if (_toggling) return;
+    if (_loadingAudio || _toggling) return;
+    _loadingAudio = true;
     try {
       final manager = ref.read(areaAudioManagerProvider);
       await manager.onAreaChanged(newArea);
@@ -165,6 +192,8 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       );
     } catch (e) {
       debugPrint('AudioUiNotifier.onAreaChanged error: $e');
+    } finally {
+      _loadingAudio = false;
     }
   }
 
@@ -222,6 +251,53 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
     } catch (e) {
       debugPrint('AudioUiNotifier.stop error: $e');
     }
-    state = state.copyWith(isPlaying: false, currentTrackPath: null);
+    state = state.copyWith(
+      isPlaying: false,
+      currentTrackPath: null,
+      isBattleAudioActive: false,
+    );
+  }
+
+  // ── Battle themes ──
+
+  /// Handles battle state transitions.
+  Future<void> _onBattleStateChanged(bool inBattle) async {
+    if (_loadingAudio || _toggling) return;
+    _loadingAudio = true;
+    try {
+      final manager = ref.read(areaAudioManagerProvider);
+      await manager.onBattleStateChanged(inBattle);
+
+      state = state.copyWith(
+        isBattleAudioActive: inBattle && manager.battleThemes.isNotEmpty,
+        isPlaying: manager.audioService.isPlaying,
+        currentTrackPath: manager.audioService.currentTrackPath,
+      );
+    } catch (e) {
+      debugPrint('AudioUiNotifier._onBattleStateChanged error: $e');
+    } finally {
+      _loadingAudio = false;
+    }
+  }
+
+  /// Adds a battle theme MP3 path.
+  void addBattleTheme(String filePath) {
+    final manager = ref.read(areaAudioManagerProvider);
+    manager.addBattleTheme(filePath);
+    state = state.copyWith(battleThemes: List.from(manager.battleThemes));
+  }
+
+  /// Removes a battle theme at [index].
+  void removeBattleThemeAt(int index) {
+    final manager = ref.read(areaAudioManagerProvider);
+    manager.removeBattleThemeAt(index);
+    state = state.copyWith(battleThemes: List.from(manager.battleThemes));
+  }
+
+  /// Reorders battle themes (drag-and-drop).
+  void reorderBattleThemes(int oldIndex, int newIndex) {
+    final manager = ref.read(areaAudioManagerProvider);
+    manager.reorderBattleThemes(oldIndex, newIndex);
+    state = state.copyWith(battleThemes: List.from(manager.battleThemes));
   }
 }

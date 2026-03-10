@@ -7,25 +7,26 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/constants.dart';
 
-/// Low-level audio playback service with dual-player crossfade support.
+/// Low-level audio playback service.
 ///
-/// Uses two [AudioPlayer] instances to enable smooth crossfading between
-/// area soundtracks. While one player fades out, the other fades in with
-/// the new track.
+/// Uses a single [AudioPlayer] instance. Switching tracks stops the current
+/// track and starts the new one immediately (no crossfade).
 class AudioService {
-  final AudioPlayer _playerA = AudioPlayer();
-  final AudioPlayer _playerB = AudioPlayer();
-  bool _aIsActive = true;
+  final AudioPlayer _player = AudioPlayer();
 
-  late final StreamSubscription<PlaybackEvent> _subA;
-  late final StreamSubscription<PlaybackEvent> _subB;
+  late final StreamSubscription<PlayerState> _stateSub;
+  late final StreamSubscription<PlaybackEvent> _eventSub;
 
   AudioService() {
+    // Monitor player state for unexpected track completion.
+    _stateSub = _player.playerStateStream.listen(
+      _onPlayerStateChanged,
+      onError: (_) {},
+    );
     // Absorb platform-level errors (e.g., "Operation aborted" on Windows)
-    // that just_audio emits on the playback event stream. Without these
-    // handlers, such errors are unhandled and crash the app.
-    _subA = _playerA.playbackEventStream.listen(null, onError: (_) {});
-    _subB = _playerB.playbackEventStream.listen(null, onError: (_) {});
+    // that just_audio emits on the playback event stream. These are on a
+    // separate stream from playerStateStream and must be caught independently.
+    _eventSub = _player.playbackEventStream.listen(null, onError: (_) {});
   }
 
   double _masterVolume = AudioDefaults.masterVolume;
@@ -33,12 +34,6 @@ class AudioService {
   String? _currentTrackPath;
   bool _isPlaying = false;
   bool _busy = false;
-
-  /// The currently active player.
-  AudioPlayer get _active => _aIsActive ? _playerA : _playerB;
-
-  /// The inactive (standby) player.
-  AudioPlayer get _inactive => _aIsActive ? _playerB : _playerA;
 
   /// Current master volume (0.0 – 1.0).
   double get masterVolume => _masterVolume;
@@ -56,7 +51,7 @@ class AudioService {
   void setMasterVolume(double volume) {
     _masterVolume = volume.clamp(0.0, 1.0);
     if (_isPlaying && !_muted) {
-      _active.setVolume(_masterVolume);
+      _player.setVolume(_masterVolume);
     }
   }
 
@@ -64,7 +59,7 @@ class AudioService {
   void toggleMute() {
     _muted = !_muted;
     if (_isPlaying) {
-      _active.setVolume(_muted ? 0.0 : _masterVolume);
+      _player.setVolume(_muted ? 0.0 : _masterVolume);
     }
   }
 
@@ -72,88 +67,30 @@ class AudioService {
   void setMuted(bool muted) {
     _muted = muted;
     if (_isPlaying) {
-      _active.setVolume(_muted ? 0.0 : _masterVolume);
+      _player.setVolume(_muted ? 0.0 : _masterVolume);
     }
   }
 
-  /// Plays a track immediately (no crossfade). Stops any current playback.
+  /// Plays a track. Stops any current playback first.
+  ///
+  /// If the same track is already playing, this is a no-op.
+  /// Concurrent calls are dropped to prevent player state corruption.
   Future<void> play(String filePath, {double volume = 0.7}) async {
+    if (filePath == _currentTrackPath && _isPlaying) return;
     if (_busy) return;
     _busy = true;
     try {
       await stop();
 
-      await _active.setFilePath(filePath);
-      await _active.setLoopMode(LoopMode.one);
-      await _active.setVolume(_muted ? 0.0 : volume * _masterVolume);
-      await _active.play();
+      await _player.setFilePath(filePath);
+      await _player.setLoopMode(LoopMode.one);
+      await _player.setVolume(_muted ? 0.0 : volume * _masterVolume);
+      await _player.play();
       _currentTrackPath = filePath;
       _isPlaying = true;
     } catch (e) {
       _isPlaying = false;
       _currentTrackPath = null;
-    } finally {
-      _busy = false;
-    }
-  }
-
-  /// Crossfades from the current track to a new track.
-  ///
-  /// The inactive player loads and starts the new track at zero volume,
-  /// then both players fade simultaneously over [fadeOutMs]/[fadeInMs].
-  /// After the fade, the old player stops and the players swap roles.
-  ///
-  /// If nothing is currently playing, the new track fades in from silence.
-  ///
-  /// Concurrent calls are dropped to prevent player state corruption.
-  Future<void> crossfadeTo(
-    String filePath, {
-    double volume = 0.7,
-    int fadeOutMs = AudioDefaults.crossfadeDurationMs,
-    int fadeInMs = AudioDefaults.crossfadeDurationMs,
-  }) async {
-    // If same track, do nothing.
-    if (filePath == _currentTrackPath && _isPlaying) return;
-    if (_busy) return;
-    _busy = true;
-
-    // Capture player references and state before any await points to prevent
-    // TOCTOU races if another operation changes _aIsActive mid-crossfade.
-    final oldPlayer = _active;
-    final newPlayer = _inactive;
-    final wasPlaying = _isPlaying;
-
-    final effectiveVolume = volume * _masterVolume;
-    final targetVolume = _muted ? 0.0 : effectiveVolume;
-
-    try {
-      // Load new track on inactive player.
-      await newPlayer.setFilePath(filePath);
-      await newPlayer.setLoopMode(LoopMode.one);
-      await newPlayer.setVolume(0.0);
-      await newPlayer.play();
-
-      // Parallel fade: out active, in inactive.
-      if (wasPlaying) {
-        await Future.wait([
-          _fadeVolume(oldPlayer, oldPlayer.volume, 0.0, fadeOutMs),
-          _fadeVolume(newPlayer, 0.0, targetVolume, fadeInMs),
-        ]);
-        await oldPlayer.stop();
-      } else {
-        await _fadeVolume(newPlayer, 0.0, targetVolume, fadeInMs);
-      }
-
-      // Swap players.
-      _aIsActive = !_aIsActive;
-      _currentTrackPath = filePath;
-      _isPlaying = true;
-    } catch (e) {
-      // If crossfade fails, try to at least keep the old track playing.
-      // Graceful degradation.
-      try {
-        await newPlayer.stop();
-      } catch (_) {}
     } finally {
       _busy = false;
     }
@@ -162,10 +99,7 @@ class AudioService {
   /// Stops all playback.
   Future<void> stop() async {
     try {
-      await _playerA.stop();
-    } catch (_) {}
-    try {
-      await _playerB.stop();
+      await _player.stop();
     } catch (_) {}
     _isPlaying = false;
     _currentTrackPath = null;
@@ -174,82 +108,41 @@ class AudioService {
   /// Pauses the current playback.
   Future<void> pause() async {
     if (_isPlaying) {
-      await _active.pause();
+      await _player.pause();
     }
   }
 
   /// Resumes paused playback.
   Future<void> resume() async {
     if (_isPlaying) {
-      await _active.play();
+      await _player.play();
     }
   }
 
-  /// Fades out and stops. Useful for entering areas with no audio.
-  ///
-  /// Concurrent calls are dropped to prevent player state corruption.
-  Future<void> fadeOut({int durationMs = AudioDefaults.crossfadeDurationMs}) async {
-    if (!_isPlaying) return;
-    if (_busy) return;
-    _busy = true;
-    try {
-      final player = _active;
-      await _fadeVolume(player, player.volume, 0.0, durationMs);
-      await stop();
-    } catch (_) {
-      // Platform errors (e.g., "Operation aborted") can occur when stopping
-      // a player mid-operation on Windows. Ensure state is reset.
-      _isPlaying = false;
-      _currentTrackPath = null;
-    } finally {
-      _busy = false;
-    }
-  }
-
-  /// Disposes both audio players. Call when the service is no longer needed.
+  /// Disposes the audio player. Call when the service is no longer needed.
   Future<void> dispose() async {
     await stop();
-
-    // Cancel stream subscriptions before disposing players to prevent
-    // errors from the disposal process reaching unhandled territory.
-    await _subA.cancel();
-    await _subB.cancel();
-
-    // Dispose players independently so one failure doesn't prevent the
-    // other from being cleaned up.
+    await _stateSub.cancel();
+    await _eventSub.cancel();
     try {
-      await _playerA.dispose();
+      await _player.dispose();
     } catch (e) {
-      debugPrint('AudioService: _playerA.dispose() error: $e');
-    }
-    try {
-      await _playerB.dispose();
-    } catch (e) {
-      debugPrint('AudioService: _playerB.dispose() error: $e');
+      debugPrint('AudioService: _player.dispose() error: $e');
     }
   }
 
   // ── Helpers ──
 
-  /// Smoothly fades a player's volume from [from] to [to] over [durationMs].
-  Future<void> _fadeVolume(
-    AudioPlayer player,
-    double from,
-    double to,
-    int durationMs,
-  ) async {
-    const steps = AudioDefaults.fadeSteps;
-    final stepDuration = Duration(milliseconds: durationMs ~/ steps);
-    final stepSize = (to - from) / steps;
-
-    for (var i = 1; i <= steps; i++) {
-      final volume = (from + stepSize * i).clamp(0.0, 1.0);
-      try {
-        await player.setVolume(volume);
-      } catch (_) {
-        return; // Player may have been disposed.
-      }
-      await Future.delayed(stepDuration);
+  /// Detects when the player unexpectedly reaches completed state
+  /// (e.g., LoopMode.one failed on Windows). Resets [_isPlaying] to prevent
+  /// subsequent operations from acting on a player in a bad state.
+  void _onPlayerStateChanged(PlayerState playerState) {
+    if (!_isPlaying) return;
+    if (playerState.processingState == ProcessingState.completed) {
+      debugPrint(
+          'AudioService: player completed unexpectedly, resetting state');
+      _isPlaying = false;
+      _currentTrackPath = null;
     }
   }
 

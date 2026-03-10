@@ -81,5 +81,40 @@ void main() {
       parser.reset();
       expect(parser.hasPendingData, false);
     });
+
+    test('processBytes handles malformed UTF-8 without crashing', () {
+      // Invalid UTF-8: continuation byte without start byte + newline
+      final bytes = [0xC0, 0xAF, 0x0A];
+      final lines = parser.processBytes(bytes);
+      expect(lines, hasLength(1));
+      // Should produce replacement chars rather than throwing
+    });
+
+    test('standalone CR is skipped', () {
+      final lines = parser.processText('Hello\rWorld\n');
+      expect(lines, hasLength(1));
+      expect(lines.first.plainText, 'HelloWorld');
+    });
+
+    test('multiple consecutive flush calls return null after first', () {
+      parser.processText('prompt');
+      final first = parser.flush();
+      expect(first, isNotNull);
+      expect(first!.plainText, 'prompt');
+
+      final second = parser.flush();
+      expect(second, isNull);
+    });
+
+    test('interleaved processText and flush', () {
+      parser.processText('part1');
+      final lines = parser.processText(' part2\n');
+      expect(lines, hasLength(1));
+      expect(lines.first.plainText, 'part1 part2');
+
+      parser.processText('pending');
+      final flushed = parser.flush();
+      expect(flushed!.plainText, 'pending');
+    });
   });
 }

@@ -176,5 +176,121 @@ void main() {
         TelnetCmd.iac, TelnetCmd.se,
       ]);
     });
+
+    test('buildWont creates correct bytes', () {
+      final bytes = TelnetProtocol.buildWont(TelnetOpt.echo);
+      expect(bytes, [TelnetCmd.iac, TelnetCmd.wont, TelnetOpt.echo]);
+    });
+
+    test('buildDo creates correct bytes', () {
+      final bytes = TelnetProtocol.buildDo(TelnetOpt.sga);
+      expect(bytes, [TelnetCmd.iac, TelnetCmd.doOpt, TelnetOpt.sga]);
+    });
+
+    test('buildDont creates correct bytes', () {
+      final bytes = TelnetProtocol.buildDont(TelnetOpt.ttype);
+      expect(bytes, [TelnetCmd.iac, TelnetCmd.dont, TelnetOpt.ttype]);
+    });
+  });
+
+  group('TelnetProtocol - additional command events', () {
+    test('parses EOR command', () {
+      final input = Uint8List.fromList([
+        TelnetCmd.iac, TelnetCmd.eor,
+      ]);
+      final events = protocol.processBytes(input);
+      expect(events, hasLength(1));
+      expect(events.first, isA<TelnetCommandEvent>());
+      expect((events.first as TelnetCommandEvent).command, TelnetCmd.eor);
+    });
+
+    test('parses NOP command', () {
+      final input = Uint8List.fromList([
+        TelnetCmd.iac, TelnetCmd.nop,
+      ]);
+      final events = protocol.processBytes(input);
+      expect(events, hasLength(1));
+      expect((events.first as TelnetCommandEvent).command, TelnetCmd.nop);
+    });
+
+    test('parses AYT command', () {
+      final input = Uint8List.fromList([
+        TelnetCmd.iac, TelnetCmd.ayt,
+      ]);
+      final events = protocol.processBytes(input);
+      expect(events, hasLength(1));
+      expect((events.first as TelnetCommandEvent).command, TelnetCmd.ayt);
+    });
+
+    test('parses BRK, IP, AO, EC, EL commands', () {
+      final input = Uint8List.fromList([
+        TelnetCmd.iac, TelnetCmd.brk,
+        TelnetCmd.iac, TelnetCmd.ip,
+        TelnetCmd.iac, TelnetCmd.ao,
+        TelnetCmd.iac, TelnetCmd.ec,
+        TelnetCmd.iac, TelnetCmd.el,
+      ]);
+      final events = protocol.processBytes(input);
+      expect(events, hasLength(5));
+      expect((events[0] as TelnetCommandEvent).command, TelnetCmd.brk);
+      expect((events[1] as TelnetCommandEvent).command, TelnetCmd.ip);
+      expect((events[2] as TelnetCommandEvent).command, TelnetCmd.ao);
+      expect((events[3] as TelnetCommandEvent).command, TelnetCmd.ec);
+      expect((events[4] as TelnetCommandEvent).command, TelnetCmd.el);
+    });
+  });
+
+  group('TelnetProtocol - subnegotiation edge cases', () {
+    test('handles escaped IAC inside subnegotiation data', () {
+      final input = Uint8List.fromList([
+        TelnetCmd.iac, TelnetCmd.sb, TelnetOpt.ttype,
+        0x01,
+        TelnetCmd.iac, TelnetCmd.iac, // escaped 0xFF
+        0x02,
+        TelnetCmd.iac, TelnetCmd.se,
+      ]);
+      final events = protocol.processBytes(input);
+      expect(events, hasLength(1));
+      final subneg = events.first as TelnetSubnegotiationEvent;
+      expect(subneg.option, TelnetOpt.ttype);
+      expect(subneg.data, [0x01, 0xFF, 0x02]);
+    });
+
+    test('handles subneg split across two chunks', () {
+      final chunk1 = Uint8List.fromList([
+        TelnetCmd.iac, TelnetCmd.sb, TelnetOpt.ttype,
+        TtypeSub.send,
+      ]);
+      final chunk2 = Uint8List.fromList([
+        TelnetCmd.iac, TelnetCmd.se,
+      ]);
+
+      final events1 = protocol.processBytes(chunk1);
+      expect(events1, isEmpty);
+
+      final events2 = protocol.processBytes(chunk2);
+      expect(events2, hasLength(1));
+      final subneg = events2.first as TelnetSubnegotiationEvent;
+      expect(subneg.option, TelnetOpt.ttype);
+      expect(subneg.data, [TtypeSub.send]);
+    });
+
+    test('handles malformed subneg (IAC followed by unexpected byte)', () {
+      final input = Uint8List.fromList([
+        TelnetCmd.iac, TelnetCmd.sb, TelnetOpt.ttype,
+        0x41, // 'A' data
+        TelnetCmd.iac, 0x42, // malformed: IAC + non-SE/non-IAC byte
+      ]);
+      final events = protocol.processBytes(input);
+      // Should emit subneg with data [0x41], then re-process 0x42 as normal data
+      expect(events.length, greaterThanOrEqualTo(1));
+      expect(events.first, isA<TelnetSubnegotiationEvent>());
+      final subneg = events.first as TelnetSubnegotiationEvent;
+      expect(subneg.data, [0x41]);
+      if (events.length > 1) {
+        expect(events[1], isA<TelnetDataEvent>());
+        expect((events[1] as TelnetDataEvent).data, [0x42]);
+      }
+    });
   });
 }

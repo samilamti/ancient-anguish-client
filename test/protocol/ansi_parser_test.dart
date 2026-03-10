@@ -179,6 +179,93 @@ void main() {
       expect(spans, hasLength(1));
       expect(spans.first.text, 'Visible text');
     });
+
+    test('parses dim attribute (ESC[2m) reduces foreground brightness', () {
+      final spans = parser.parse('\x1B[2mDim text');
+      expect(spans, hasLength(1));
+      // Dim should produce a different (darker) color than the default
+      expect(spans.first.foreground, isNot(TerminalColors.defaultForeground));
+    });
+
+    test('dim combined with explicit color reduces that color', () {
+      final spans = parser.parse('\x1B[2;31mDim red');
+      expect(spans, hasLength(1));
+      // Dim red should be different from normal red
+      expect(spans.first.foreground, isNot(TerminalColors.red));
+    });
+
+    test('disable bold and dim (ESC[22m)', () {
+      parser.parse('\x1B[1;2m'); // bold + dim
+      final spans = parser.parse('\x1B[22mNormal weight');
+      expect(spans, hasLength(1));
+      expect(spans.first.bold, false);
+      // Dim should also be cleared, so foreground is not dimmed
+      expect(spans.first.foreground, TerminalColors.defaultForeground);
+    });
+
+    test('disable italic (ESC[23m)', () {
+      parser.parse('\x1B[3m');
+      final spans = parser.parse('\x1B[23mNo italic');
+      expect(spans, hasLength(1));
+      expect(spans.first.italic, false);
+    });
+
+    test('disable underline (ESC[24m)', () {
+      parser.parse('\x1B[4m');
+      final spans = parser.parse('\x1B[24mNo underline');
+      expect(spans, hasLength(1));
+      expect(spans.first.underline, false);
+    });
+
+    test('disable inverse (ESC[27m)', () {
+      parser.parse('\x1B[7m');
+      final spans = parser.parse('\x1B[27mNo inverse');
+      expect(spans, hasLength(1));
+      expect(spans.first.foreground, TerminalColors.defaultForeground);
+      expect(spans.first.background, TerminalColors.defaultBackground);
+    });
+
+    test('disable strikethrough (ESC[29m)', () {
+      parser.parse('\x1B[9m');
+      final spans = parser.parse('\x1B[29mNo strike');
+      expect(spans, hasLength(1));
+      expect(spans.first.strikethrough, false);
+    });
+
+    test('code 21 disables bold', () {
+      parser.parse('\x1B[1m');
+      final spans = parser.parse('\x1B[21mNo bold');
+      expect(spans, hasLength(1));
+      expect(spans.first.bold, false);
+    });
+
+    test('parses bright background colors (100-107)', () {
+      final spans = parser.parse('\x1B[100mBright black bg');
+      expect(spans, hasLength(1));
+      expect(spans.first.background, TerminalColors.brightBlack);
+    });
+
+    test('bright background 107 is bright white', () {
+      final spans = parser.parse('\x1B[107mBright white bg');
+      expect(spans, hasLength(1));
+      expect(spans.first.background, TerminalColors.brightWhite);
+    });
+
+    test('handles trailing ESC at end of input without crash', () {
+      // A lone ESC at end of input — parser treats it as regular char
+      final spans = parser.parse('text\x1B');
+      expect(spans, hasLength(1));
+      // The ESC byte remains in the text since there's no following byte
+      expect(spans.first.text, contains('text'));
+    });
+
+    test('handles non-CSI escape (ESC + non-bracket)', () {
+      // ESC followed by ')' is not a CSI sequence — ESC is skipped
+      final spans = parser.parse('\x1B)visible');
+      expect(spans.isNotEmpty, true);
+      // The ')visible' text should appear
+      expect(spans.first.text, contains('visible'));
+    });
   });
 
   group('TerminalColors', () {

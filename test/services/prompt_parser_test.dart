@@ -138,5 +138,27 @@ void main() {
       final state = parser.parseLine('100/200:50/100>');
       expect(state, isNotNull);
     });
+
+    test('empty string pattern reverts to defaults', () {
+      parser.setCustomPattern(r'HP:(\d+)/(\d+) SP:(\d+)/(\d+)');
+      parser.setCustomPattern('');
+      // Default pattern should work after clearing custom pattern.
+      final state = parser.parseLine('100/200:50/100>');
+      expect(state, isNotNull);
+    });
+
+    test('custom pattern with fewer than 4 groups returns null', () {
+      // Only 2 capture groups — parseLine should return null.
+      parser.setCustomPattern(r'HP:(\d+)/(\d+)');
+      final state = parser.parseLine('HP:100/200');
+      expect(state, isNull);
+    });
+
+    test('custom pattern with non-numeric groups returns null', () {
+      // Groups match but int.parse will fail.
+      parser.setCustomPattern(r'(\w+)/(\w+):(\w+)/(\w+)>');
+      final state = parser.parseLine('abc/def:ghi/jkl>');
+      expect(state, isNull);
+    });
   });
 }

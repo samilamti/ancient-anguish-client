@@ -13,7 +13,7 @@ void main() {
   late AreaAudioManager manager;
 
   setUp(() {
-    audioService = AudioService();
+    audioService = AudioService.forTesting();
     areaDetector = AreaDetector();
     areaDetector.loadFromList([
       const AreaConfig(

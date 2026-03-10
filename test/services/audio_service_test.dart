@@ -8,7 +8,7 @@ void main() {
   late AudioService service;
 
   setUp(() {
-    service = AudioService();
+    service = AudioService.forTesting();
   });
 
   tearDown(() async {

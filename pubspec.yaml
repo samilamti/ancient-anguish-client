@@ -19,9 +19,7 @@ dependencies:
   go_router: ^17.1.0
 
   # Audio
-  just_audio: ^0.10.5
-  just_audio_windows: ^0.2.2
-  audio_session: ^0.2.2
+  flutter_soloud: ^3.5.0
 
   # Storage
   hive_ce: ^2.10.0

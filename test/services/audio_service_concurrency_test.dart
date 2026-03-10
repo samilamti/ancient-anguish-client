@@ -1,64 +1,14 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/services/audio/audio_service.dart';
 
-/// Stubs the just_audio method channel so AudioPlayer operations don't throw
-/// MissingPluginException in unit tests.
-void _stubJustAudioPlatform() {
-  const methodChannel = MethodChannel('com.ryanheise.just_audio.methods');
-  int nextId = 0;
-
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .setMockMethodCallHandler(methodChannel, (MethodCall call) async {
-    switch (call.method) {
-      case 'init':
-        return {'id': 'player_${nextId++}'};
-      case 'disposePlayer':
-      case 'disposeAllPlayers':
-        return {};
-      default:
-        return null;
-    }
-  });
-}
-
-/// Stubs per-player channels created by just_audio.
-void _stubPlayerChannel(String id) {
-  final channel = MethodChannel('com.ryanheise.just_audio.methods.$id');
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .setMockMethodCallHandler(channel, (MethodCall call) async {
-    switch (call.method) {
-      case 'load':
-        return {'duration': 60000000}; // 60s in microseconds.
-      case 'play':
-      case 'pause':
-      case 'stop':
-      case 'setVolume':
-      case 'setLoopMode':
-      case 'setSpeed':
-      case 'seek':
-      case 'dispose':
-        return {};
-      default:
-        return null;
-    }
-  });
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  _stubJustAudioPlatform();
-
-  // Stub player channels for the players AudioService will create.
-  for (var i = 0; i < 10; i++) {
-    _stubPlayerChannel('player_$i');
-  }
 
   late AudioService service;
 
   setUp(() {
-    service = AudioService();
+    service = AudioService.forTesting();
   });
 
   tearDown(() async {

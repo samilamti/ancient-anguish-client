@@ -2,38 +2,41 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:flutter_soloud/flutter_soloud.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/constants.dart';
 
 /// Low-level audio playback service.
 ///
-/// Uses a single [AudioPlayer] instance. Switching tracks stops the current
-/// track and starts the new one immediately (no crossfade).
+/// Uses [flutter_soloud] (SoLoud C engine via FFI) for playback.
+/// The engine is lazily initialized on first [play] call.
 class AudioService {
-  final AudioPlayer _player = AudioPlayer();
+  late final SoLoud _soloud;
+  final bool _testMode;
 
-  late final StreamSubscription<PlayerState> _stateSub;
-  late final StreamSubscription<PlaybackEvent> _eventSub;
-
-  AudioService() {
-    // Monitor player state for unexpected track completion.
-    _stateSub = _player.playerStateStream.listen(
-      _onPlayerStateChanged,
-      onError: (_) {},
-    );
-    // Absorb platform-level errors (e.g., "Operation aborted" on Windows)
-    // that just_audio emits on the playback event stream. These are on a
-    // separate stream from playerStateStream and must be caught independently.
-    _eventSub = _player.playbackEventStream.listen(null, onError: (_) {});
-  }
+  bool _initialized = false;
+  AudioSource? _currentSource;
+  SoundHandle? _currentHandle;
+  StreamSubscription<void>? _finishedSub;
 
   double _masterVolume = AudioDefaults.masterVolume;
   bool _muted = false;
   String? _currentTrackPath;
   bool _isPlaying = false;
   bool _busy = false;
+  double _trackVolume = 0.7;
+
+  AudioService()
+      : _testMode = false,
+        _soloud = SoLoud.instance;
+
+  /// Creates an AudioService that skips all native SoLoud calls.
+  ///
+  /// Use in tests to exercise state-management logic (busy flag,
+  /// same-track detection, volume/mute) without requiring the native library.
+  @visibleForTesting
+  AudioService.forTesting() : _testMode = true;
 
   /// Current master volume (0.0 – 1.0).
   double get masterVolume => _masterVolume;
@@ -47,28 +50,43 @@ class AudioService {
   /// The file path of the currently playing track, or null.
   String? get currentTrackPath => _currentTrackPath;
 
+  // ── Volume helpers ──
+
+  double get _effectiveVolume => _muted ? 0.0 : _trackVolume * _masterVolume;
+
+  void _applyVolume() {
+    if (_testMode || !_isPlaying || _currentHandle == null) return;
+    try {
+      _soloud.setVolume(_currentHandle!, _effectiveVolume);
+    } catch (e) {
+      debugPrint('AudioService._applyVolume error: $e');
+    }
+  }
+
   /// Sets the master volume (0.0 – 1.0).
   void setMasterVolume(double volume) {
     _masterVolume = volume.clamp(0.0, 1.0);
-    if (_isPlaying && !_muted) {
-      _player.setVolume(_masterVolume);
-    }
+    _applyVolume();
   }
 
   /// Toggles mute on/off.
   void toggleMute() {
     _muted = !_muted;
-    if (_isPlaying) {
-      _player.setVolume(_muted ? 0.0 : _masterVolume);
-    }
+    _applyVolume();
   }
 
   /// Sets mute state explicitly.
   void setMuted(bool muted) {
     _muted = muted;
-    if (_isPlaying) {
-      _player.setVolume(_muted ? 0.0 : _masterVolume);
-    }
+    _applyVolume();
+  }
+
+  // ── Engine lifecycle ──
+
+  Future<void> _ensureInitialized() async {
+    if (_testMode || _initialized) return;
+    await _soloud.init();
+    _initialized = true;
   }
 
   /// Plays a track. Stops any current playback first.
@@ -80,17 +98,47 @@ class AudioService {
     if (_busy) return;
     _busy = true;
     try {
+      await _ensureInitialized();
       await stop();
 
-      await _player.setFilePath(filePath);
-      await _player.setLoopMode(LoopMode.one);
-      await _player.setVolume(_muted ? 0.0 : volume * _masterVolume);
-      await _player.play();
+      _trackVolume = volume;
+
+      if (_testMode) {
+        _currentTrackPath = filePath;
+        _isPlaying = true;
+        return;
+      }
+
+      // Dispose previous source if loaded.
+      if (_currentSource != null) {
+        try {
+          await _soloud.disposeSource(_currentSource!);
+        } catch (e) {
+          debugPrint('AudioService: disposeSource error: $e');
+        }
+        _currentSource = null;
+      }
+
+      _currentSource = await _soloud.loadFile(filePath);
+
+      // Safety net: detect unexpected completion (shouldn't fire with looping).
+      _finishedSub?.cancel();
+      _finishedSub = _currentSource!.allInstancesFinished.listen((_) {
+        _onAllInstancesFinished();
+      });
+
+      _currentHandle = await _soloud.play(
+        _currentSource!,
+        looping: true,
+        volume: _effectiveVolume,
+      );
       _currentTrackPath = filePath;
       _isPlaying = true;
     } catch (e) {
+      debugPrint('AudioService.play error: $e');
       _isPlaying = false;
       _currentTrackPath = null;
+      _currentHandle = null;
     } finally {
       _busy = false;
     }
@@ -98,52 +146,74 @@ class AudioService {
 
   /// Stops all playback.
   Future<void> stop() async {
-    try {
-      await _player.stop();
-    } catch (_) {}
+    if (!_testMode && _currentHandle != null) {
+      try {
+        _soloud.stop(_currentHandle!);
+      } catch (e) {
+        debugPrint('AudioService.stop error: $e');
+      }
+    }
+    _currentHandle = null;
     _isPlaying = false;
     _currentTrackPath = null;
   }
 
   /// Pauses the current playback.
   Future<void> pause() async {
-    if (_isPlaying) {
-      await _player.pause();
+    if (_isPlaying && _currentHandle != null && !_testMode) {
+      try {
+        _soloud.setPause(_currentHandle!, true);
+      } catch (e) {
+        debugPrint('AudioService.pause error: $e');
+      }
     }
   }
 
   /// Resumes paused playback.
   Future<void> resume() async {
-    if (_isPlaying) {
-      await _player.play();
+    if (_isPlaying && _currentHandle != null && !_testMode) {
+      try {
+        _soloud.setPause(_currentHandle!, false);
+      } catch (e) {
+        debugPrint('AudioService.resume error: $e');
+      }
     }
   }
 
-  /// Disposes the audio player. Call when the service is no longer needed.
+  /// Disposes the audio engine. Call when the service is no longer needed.
   Future<void> dispose() async {
     await stop();
-    await _stateSub.cancel();
-    await _eventSub.cancel();
-    try {
-      await _player.dispose();
-    } catch (e) {
-      debugPrint('AudioService: _player.dispose() error: $e');
+    _finishedSub?.cancel();
+    _finishedSub = null;
+    if (!_testMode && _currentSource != null) {
+      try {
+        await _soloud.disposeSource(_currentSource!);
+      } catch (e) {
+        debugPrint('AudioService: disposeSource error: $e');
+      }
+    }
+    _currentSource = null;
+    if (!_testMode && _initialized) {
+      try {
+        _soloud.deinit();
+      } catch (e) {
+        debugPrint('AudioService: deinit error: $e');
+      }
+      _initialized = false;
     }
   }
 
   // ── Helpers ──
 
-  /// Detects when the player unexpectedly reaches completed state
-  /// (e.g., LoopMode.one failed on Windows). Resets [_isPlaying] to prevent
-  /// subsequent operations from acting on a player in a bad state.
-  void _onPlayerStateChanged(PlayerState playerState) {
+  /// Detects when SoLoud reports all instances of the current source finished.
+  /// With looping enabled this should never fire, but serves as a safety net.
+  void _onAllInstancesFinished() {
     if (!_isPlaying) return;
-    if (playerState.processingState == ProcessingState.completed) {
-      debugPrint(
-          'AudioService: player completed unexpectedly, resetting state');
-      _isPlaying = false;
-      _currentTrackPath = null;
-    }
+    debugPrint(
+        'AudioService: sound finished unexpectedly, resetting state');
+    _isPlaying = false;
+    _currentTrackPath = null;
+    _currentHandle = null;
   }
 
   /// Returns the path to the audio cache directory.

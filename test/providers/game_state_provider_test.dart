@@ -125,6 +125,40 @@ void main() {
     });
   });
 
+  group('GameStateNotifier - updateCurrentVitals', () {
+    test('updates only hp and sp, preserving all other fields', () {
+      notifier.updateVitalsAndCoordinates(100, 150, 80, 120, 5, -3);
+      notifier.setPlayerName('Hero');
+
+      notifier.updateCurrentVitals(hp: 90, sp: 60);
+
+      final state = container.read(gameStateProvider);
+      expect(state.hp, 90);
+      expect(state.sp, 60);
+      expect(state.maxHp, 150);
+      expect(state.maxSp, 120);
+      expect(state.x, 5);
+      expect(state.y, -3);
+      expect(state.playerName, 'Hero');
+    });
+
+    test('updates only hp when sp is omitted', () {
+      notifier.updateVitalsAndCoordinates(100, 150, 80, 120, 0, 0);
+      notifier.updateCurrentVitals(hp: 42);
+      final state = container.read(gameStateProvider);
+      expect(state.hp, 42);
+      expect(state.sp, 80);
+    });
+
+    test('updates only sp when hp is omitted', () {
+      notifier.updateVitalsAndCoordinates(100, 150, 80, 120, 0, 0);
+      notifier.updateCurrentVitals(sp: 33);
+      final state = container.read(gameStateProvider);
+      expect(state.hp, 100);
+      expect(state.sp, 33);
+    });
+  });
+
   group('GameStateNotifier - setPlayerName', () {
     test('sets playerName preserving other fields', () {
       notifier.updateVitalsAndCoordinates(100, 150, 80, 120, 5, 10);

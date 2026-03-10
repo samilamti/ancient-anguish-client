@@ -9,6 +9,7 @@ import '../protocol/ansi/styled_span.dart';
 import '../protocol/telnet/telnet_events.dart';
 import '../services/connection/connection_service.dart';
 import '../services/parser/output_parser.dart';
+import 'battle_provider.dart';
 import 'game_state_provider.dart';
 import 'login_provider.dart';
 import 'trigger_provider.dart';
@@ -85,6 +86,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         if (newLines.isNotEmpty) {
           final triggerEngine = ref.read(triggerEngineProvider);
           final gameNotifier = ref.read(gameStateProvider.notifier);
+          final battleNotifier = ref.read(battleStateProvider.notifier);
           final processedLines = <StyledLine>[];
 
           for (final line in newLines) {
@@ -124,6 +126,16 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                 gameNotifier.processLine(vitals.remainder);
                 continue;
               }
+            }
+
+            // Battle pattern detection: "HP: 136  SP: 149".
+            final battleVitals = BattleNotifier.parseBattleLine(plainText);
+            if (battleVitals != null) {
+              gameNotifier.updateCurrentVitals(
+                hp: battleVitals.hp,
+                sp: battleVitals.sp,
+              );
+              battleNotifier.onBattlePatternDetected();
             }
 
             // Normal trigger processing.
@@ -249,6 +261,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       if (status == ConnectionStatus.disconnected) {
         ref.read(outputParserProvider).reset();
         ref.read(gameStateProvider.notifier).reset();
+        ref.read(battleStateProvider.notifier).reset();
         ref.read(loginProvider.notifier).reset();
         _loginDetected = false;
       }

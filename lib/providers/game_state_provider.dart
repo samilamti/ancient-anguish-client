@@ -88,6 +88,13 @@ class GameStateNotifier extends Notifier<GameState> {
     }
   }
 
+  /// Updates only the current HP and/or SP, preserving all other fields.
+  ///
+  /// Used by the battle pattern detector which only provides current vitals.
+  void updateCurrentVitals({int? hp, int? sp}) {
+    state = state.copyWith(hp: hp ?? state.hp, sp: sp ?? state.sp);
+  }
+
   /// Sets the player name (called after login dialog submission).
   void setPlayerName(String name) {
     state = state.copyWith(playerName: name);

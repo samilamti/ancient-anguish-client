@@ -1,0 +1,289 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../providers/settings_provider.dart';
+import 'alias_settings_screen.dart';
+import 'trigger_settings_screen.dart';
+
+/// Settings screen for configuring the client.
+class SettingsScreen extends ConsumerWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // ── Display section ──
+          _SectionHeader(title: 'Display', icon: Icons.text_fields),
+          const SizedBox(height: 8),
+
+          // Font size slider.
+          _SettingsTile(
+            title: 'Font Size',
+            subtitle: '${settings.fontSize.toStringAsFixed(0)}pt',
+            child: Slider(
+              value: settings.fontSize,
+              min: 8,
+              max: 32,
+              divisions: 24,
+              label: '${settings.fontSize.toStringAsFixed(0)}pt',
+              onChanged: notifier.setFontSize,
+            ),
+          ),
+
+          // Theme selector.
+          _SettingsTile(
+            title: 'Theme',
+            subtitle: _themeLabel(settings.themeMode),
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(
+                  value: 'rpg',
+                  label: Text('RPG'),
+                  icon: Icon(Icons.castle),
+                ),
+                ButtonSegment(
+                  value: 'classic',
+                  label: Text('Classic'),
+                  icon: Icon(Icons.terminal),
+                ),
+                ButtonSegment(
+                  value: 'highContrast',
+                  label: Text('Hi-Con'),
+                  icon: Icon(Icons.contrast),
+                ),
+              ],
+              selected: {settings.themeMode},
+              onSelectionChanged: (selected) {
+                notifier.setThemeMode(selected.first);
+              },
+            ),
+          ),
+
+          // Scrollback lines.
+          _SettingsTile(
+            title: 'Scrollback Buffer',
+            subtitle: '${settings.scrollbackLines} lines',
+            child: Slider(
+              value: settings.scrollbackLines.toDouble(),
+              min: 1000,
+              max: 100000,
+              divisions: 99,
+              label: '${settings.scrollbackLines} lines',
+              onChanged: (v) => notifier.setScrollbackLines(v.toInt()),
+            ),
+          ),
+
+          const Divider(height: 32),
+
+          // ── Game section ──
+          _SectionHeader(title: 'Game', icon: Icons.gamepad),
+          const SizedBox(height: 8),
+
+          // Custom prompt pattern.
+          _SettingsTile(
+            title: 'Custom Prompt Pattern',
+            subtitle: settings.customPromptPattern ?? 'Using AA defaults',
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: r'(\d+)/(\d+):(\d+)/(\d+)>',
+                  helperText: 'Regex with 4 groups: HP, MaxHP, SP, MaxSP',
+                  helperMaxLines: 2,
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () => notifier.setCustomPromptPattern(null),
+                    tooltip: 'Reset to defaults',
+                  ),
+                ),
+                controller: TextEditingController(
+                  text: settings.customPromptPattern ?? '',
+                ),
+                onSubmitted: (value) {
+                  notifier.setCustomPromptPattern(
+                    value.isEmpty ? null : value,
+                  );
+                },
+              ),
+            ),
+          ),
+
+          // Quick commands toggle.
+          SwitchListTile(
+            title: const Text('Quick Command Buttons'),
+            subtitle: const Text('Show shortcut buttons on mobile'),
+            value: settings.quickCommandsVisible,
+            onChanged: (_) => notifier.toggleQuickCommands(),
+            secondary: const Icon(Icons.grid_view),
+          ),
+
+          // D-Pad vs Quick Commands.
+          if (settings.quickCommandsVisible)
+            SwitchListTile(
+              title: const Text('Use D-Pad'),
+              subtitle: Text(
+                settings.useDPad
+                    ? 'Compass rose with 8 directions'
+                    : 'Simple quick command buttons',
+              ),
+              value: settings.useDPad,
+              onChanged: (_) => notifier.toggleDPad(),
+              secondary: const Icon(Icons.explore),
+            ),
+
+          const Divider(height: 32),
+
+          // ── Automation section ──
+          _SectionHeader(title: 'Automation', icon: Icons.auto_awesome),
+          const SizedBox(height: 8),
+
+          ListTile(
+            leading: const Icon(Icons.highlight),
+            title: const Text('Triggers & Highlights'),
+            subtitle: const Text('Highlight text, play sounds on patterns'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const TriggerSettingsScreen(),
+                ),
+              );
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.short_text),
+            title: const Text('Command Aliases'),
+            subtitle: const Text('Expand short keywords into commands'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AliasSettingsScreen(),
+                ),
+              );
+            },
+          ),
+
+          const Divider(height: 32),
+
+          // ── Logging section ──
+          _SectionHeader(title: 'Logging', icon: Icons.description),
+          const SizedBox(height: 8),
+
+          SwitchListTile(
+            title: const Text('Session Logging'),
+            subtitle: Text(
+              settings.loggingEnabled
+                  ? 'Logging to file'
+                  : 'Disabled',
+            ),
+            value: settings.loggingEnabled,
+            onChanged: (_) => notifier.toggleLogging(),
+            secondary: const Icon(Icons.save),
+          ),
+
+          if (settings.loggingEnabled)
+            Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: Text(
+                'Log path: ${ref.read(logServiceProvider).currentLogPath ?? 'N/A'}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: theme.colorScheme.onSurface.withAlpha(100),
+                  fontFamily: 'JetBrainsMono',
+                ),
+              ),
+            ),
+
+          const Divider(height: 32),
+
+          // ── About section ──
+          _SectionHeader(title: 'About', icon: Icons.info_outline),
+          const SizedBox(height: 8),
+          const ListTile(
+            title: Text('Ancient Anguish Client'),
+            subtitle: Text('v0.4.0 — Phase 4\nA cross-platform MUD client for Ancient Anguish'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _themeLabel(String mode) {
+    return switch (mode) {
+      'rpg' => 'RPG Fantasy',
+      'classic' => 'Classic Dark',
+      'highContrast' => 'High Contrast',
+      _ => mode,
+    };
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const _SectionHeader({required this.title, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: theme.colorScheme.primary),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  const _SettingsTile({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.bodyLarge),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(120),
+            ),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+}

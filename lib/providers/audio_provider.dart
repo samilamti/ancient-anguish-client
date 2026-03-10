@@ -38,6 +38,10 @@ final areaAudioManagerProvider = Provider<AreaAudioManager>((ref) {
       manager.setTrackForArea(entry.areaName, entry.audioPath!);
     }
   }
+  // Load area-only audio mappings (for text-detected areas like Inns).
+  for (final MapEntry(:key, :value) in config.areaAudioMap.entries) {
+    manager.setTrackForArea(key, value);
+  }
 
   ref.onDispose(() => manager.dispose());
   return manager;

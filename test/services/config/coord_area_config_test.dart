@@ -150,6 +150,53 @@ void main() {
     });
   });
 
+  group('CoordAreaConfig - area-only audio entries', () {
+    test('parses area-only entry with quoted audio path', () {
+      final config = loadConfig('Inns\t"C:\\music\\inns.mp3"');
+      expect(config.entries, isEmpty);
+      expect(config.areaAudioMap, {'Inns': r'C:\music\inns.mp3'});
+    });
+
+    test('parses area-only entry with unquoted audio path', () {
+      final config = loadConfig('Inns\tmusic/inns.mp3');
+      expect(config.areaAudioMap['Inns'], 'music/inns.mp3');
+    });
+
+    test('ignores area-only entry without audio path', () {
+      final config = loadConfig('Inns');
+      expect(config.areaAudioMap, isEmpty);
+    });
+
+    test('ignores area-only entry with empty audio path', () {
+      final config = loadConfig('Inns\t""');
+      expect(config.areaAudioMap, isEmpty);
+    });
+
+    test('mixes coordinate and area-only entries', () {
+      final config = loadConfig(
+        '0,0\tTantallon\t"music/town.mp3"\n'
+        'Inns\t"music/inns.mp3"\n',
+      );
+      expect(config.entries, hasLength(1));
+      expect(config.lookup(0, 0)!.areaName, 'Tantallon');
+      expect(config.areaAudioMap, {'Inns': 'music/inns.mp3'});
+    });
+
+    test('reset clears area-only entries', () {
+      final config = loadConfig('Inns\t"music/inns.mp3"');
+      expect(config.areaAudioMap, isNotEmpty);
+      config.reset();
+      expect(config.areaAudioMap, isEmpty);
+    });
+
+    test('async load parses area-only entries', () async {
+      File(tempFilePath).writeAsStringSync('Inns\t"music/inns.mp3"');
+      final config = CoordAreaConfig();
+      await config.loadFromFile(tempFilePath);
+      expect(config.areaAudioMap, {'Inns': 'music/inns.mp3'});
+    });
+  });
+
   group('CoordAreaConfig - multi-entry file', () {
     test('loads multiple entries correctly', () {
       final config = loadConfig(

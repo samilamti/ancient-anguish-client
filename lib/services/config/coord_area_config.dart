@@ -8,14 +8,23 @@ import '../../models/coord_area_entry.dart';
 ///
 /// File format (tab-separated):
 ///   x,y\tAreaName\t"path/to/audio.mp3"
+///   AreaName\t"path/to/audio.mp3"
 ///
-/// Lines starting with `#` are comments. The audio path (third column) is
-/// optional and may be quoted.
+/// Lines starting with `#` are comments. The audio path (third column for
+/// coordinate entries, second column for area-only entries) is optional and
+/// may be quoted. Area-only entries (no coordinates) provide audio mappings
+/// for areas detected by text patterns (e.g., Inns inside Tantallon).
 class CoordAreaConfig {
   final Map<String, CoordAreaEntry> _entries = {};
 
-  /// All loaded entries.
+  /// Area-name → audio-path mappings for areas without specific coordinates.
+  final Map<String, String> _areaAudioMap = {};
+
+  /// All loaded coordinate entries.
   List<CoordAreaEntry> get entries => _entries.values.toList();
+
+  /// Area-only audio mappings (no coordinates).
+  Map<String, String> get areaAudioMap => Map.unmodifiable(_areaAudioMap);
 
   /// Looks up the entry for exact coordinates, or null if not mapped.
   CoordAreaEntry? lookup(int x, int y) {
@@ -25,6 +34,7 @@ class CoordAreaConfig {
   /// Loads configuration from a file path asynchronously.
   Future<void> loadFromFile(String filePath) async {
     _entries.clear();
+    _areaAudioMap.clear();
     try {
       final file = File(filePath);
       if (!await file.exists()) return;
@@ -47,6 +57,7 @@ class CoordAreaConfig {
   /// Preferred for use in provider `build()` to avoid race conditions.
   void loadFromFileSync(String filePath) {
     _entries.clear();
+    _areaAudioMap.clear();
     try {
       final file = File(filePath);
       if (!file.existsSync()) return;
@@ -71,7 +82,11 @@ class CoordAreaConfig {
     if (parts.length < 2) return null;
 
     final coordMatch = _coordRegex.firstMatch(parts[0].trim());
-    if (coordMatch == null) return null;
+    if (coordMatch == null) {
+      // Try area-only format: AreaName\t"audio path"
+      _parseAreaOnly(parts);
+      return null;
+    }
 
     final x = int.parse(coordMatch.group(1)!);
     final y = int.parse(coordMatch.group(2)!);
@@ -96,6 +111,24 @@ class CoordAreaConfig {
     );
   }
 
+  /// Parses an area-only audio mapping line: AreaName\t"audio path".
+  void _parseAreaOnly(List<String> parts) {
+    final areaName = parts[0].trim();
+    if (areaName.isEmpty) return;
+
+    if (parts.length < 2) return;
+    var audioPath = parts[1].trim();
+    if (audioPath.startsWith('"') && audioPath.endsWith('"')) {
+      audioPath = audioPath.substring(1, audioPath.length - 1);
+    }
+    if (audioPath.isEmpty) return;
+
+    _areaAudioMap[areaName] = audioPath;
+  }
+
   /// Resets all loaded entries.
-  void reset() => _entries.clear();
+  void reset() {
+    _entries.clear();
+    _areaAudioMap.clear();
+  }
 }

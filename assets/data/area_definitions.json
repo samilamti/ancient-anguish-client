@@ -1,0 +1,34 @@
+{
+  "areas": [
+    {
+      "name": "Tantallon",
+      "bounds": { "xMin": -2, "xMax": 2, "yMin": -2, "yMax": 2 },
+      "audio": { "track": "tantallon.mp3", "volume": 0.7, "fadeMs": 2000 },
+      "theme": "town"
+    },
+    {
+      "name": "Northern Plains",
+      "bounds": { "xMin": -5, "xMax": 5, "yMin": 3, "yMax": 10 },
+      "audio": { "track": "plains.mp3", "volume": 0.6, "fadeMs": 2500 },
+      "theme": "wilderness"
+    },
+    {
+      "name": "Southern Forest",
+      "bounds": { "xMin": -5, "xMax": 5, "yMin": -10, "yMax": -3 },
+      "audio": { "track": "forest.mp3", "volume": 0.6, "fadeMs": 2500 },
+      "theme": "wilderness"
+    },
+    {
+      "name": "Eastern Mountains",
+      "bounds": { "xMin": 6, "xMax": 15, "yMin": -5, "yMax": 5 },
+      "audio": { "track": "mountains.mp3", "volume": 0.5, "fadeMs": 3000 },
+      "theme": "wilderness"
+    },
+    {
+      "name": "Western Coast",
+      "bounds": { "xMin": -15, "xMax": -6, "yMin": -5, "yMax": 5 },
+      "audio": { "track": "coast.mp3", "volume": 0.6, "fadeMs": 2500 },
+      "theme": "wilderness"
+    }
+  ]
+}

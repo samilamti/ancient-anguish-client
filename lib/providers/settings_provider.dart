@@ -1,0 +1,98 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../services/logging/log_service.dart';
+
+/// Application settings state.
+class AppSettings {
+  final double fontSize;
+  final String fontFamily;
+  final int scrollbackLines;
+  final String themeMode; // 'rpg', 'classic', 'highContrast'
+  final String? customPromptPattern;
+  final bool loggingEnabled;
+  final bool quickCommandsVisible;
+  final bool useDPad; // true = compass D-Pad, false = quick command buttons
+
+  const AppSettings({
+    this.fontSize = 14.0,
+    this.fontFamily = 'JetBrainsMono',
+    this.scrollbackLines = 10000,
+    this.themeMode = 'rpg',
+    this.customPromptPattern,
+    this.loggingEnabled = false,
+    this.quickCommandsVisible = true,
+    this.useDPad = true,
+  });
+
+  AppSettings copyWith({
+    double? fontSize,
+    String? fontFamily,
+    int? scrollbackLines,
+    String? themeMode,
+    String? customPromptPattern,
+    bool? loggingEnabled,
+    bool? quickCommandsVisible,
+    bool? useDPad,
+  }) {
+    return AppSettings(
+      fontSize: fontSize ?? this.fontSize,
+      fontFamily: fontFamily ?? this.fontFamily,
+      scrollbackLines: scrollbackLines ?? this.scrollbackLines,
+      themeMode: themeMode ?? this.themeMode,
+      customPromptPattern: customPromptPattern ?? this.customPromptPattern,
+      loggingEnabled: loggingEnabled ?? this.loggingEnabled,
+      quickCommandsVisible: quickCommandsVisible ?? this.quickCommandsVisible,
+      useDPad: useDPad ?? this.useDPad,
+    );
+  }
+}
+
+/// Provides application settings.
+final settingsProvider =
+    NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
+
+class SettingsNotifier extends Notifier<AppSettings> {
+  @override
+  AppSettings build() => const AppSettings();
+
+  void setFontSize(double size) {
+    state = state.copyWith(fontSize: size.clamp(8.0, 32.0));
+  }
+
+  void setThemeMode(String mode) {
+    state = state.copyWith(themeMode: mode);
+  }
+
+  void setScrollbackLines(int lines) {
+    state = state.copyWith(scrollbackLines: lines.clamp(1000, 100000));
+  }
+
+  void setCustomPromptPattern(String? pattern) {
+    state = state.copyWith(customPromptPattern: pattern);
+  }
+
+  void toggleQuickCommands() {
+    state = state.copyWith(quickCommandsVisible: !state.quickCommandsVisible);
+  }
+
+  void toggleDPad() {
+    state = state.copyWith(useDPad: !state.useDPad);
+  }
+
+  Future<void> toggleLogging() async {
+    final logService = ref.read(logServiceProvider);
+    if (state.loggingEnabled) {
+      await logService.stopLogging();
+    } else {
+      await logService.startLogging();
+    }
+    state = state.copyWith(loggingEnabled: !state.loggingEnabled);
+  }
+}
+
+/// Provides the [LogService] singleton.
+final logServiceProvider = Provider<LogService>((ref) {
+  final service = LogService();
+  ref.onDispose(() => service.dispose());
+  return service;
+});

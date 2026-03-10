@@ -84,6 +84,79 @@ class StyledLine {
     );
   }
 
+  /// Returns a [TextSpan] tree with inverse colors on the selected range.
+  ///
+  /// Characters in `[startCol, endCol)` get their foreground and background
+  /// swapped (the classic terminal "inverse video" selection highlight).
+  /// Characters outside the range render normally.
+  TextSpan toSelectedTextSpan({
+    required String fontFamily,
+    required double fontSize,
+    required int startCol,
+    required int endCol,
+  }) {
+    final children = <TextSpan>[];
+    var offset = 0;
+
+    for (final span in spans) {
+      final spanStart = offset;
+      final spanEnd = offset + span.text.length;
+
+      if (spanEnd <= startCol || spanStart >= endCol) {
+        // Entirely outside selection.
+        children.add(span.toTextSpan(
+          fontFamily: fontFamily,
+          fontSize: fontSize,
+        ));
+      } else {
+        // Partially or fully inside selection – split at boundaries.
+        if (spanStart < startCol) {
+          // Unselected prefix.
+          children.add(StyledSpan(
+            text: span.text.substring(0, startCol - spanStart),
+            foreground: span.foreground,
+            background: span.background,
+            bold: span.bold,
+            italic: span.italic,
+            underline: span.underline,
+            strikethrough: span.strikethrough,
+          ).toTextSpan(fontFamily: fontFamily, fontSize: fontSize));
+        }
+
+        // Selected middle.
+        final selStart = (startCol - spanStart).clamp(0, span.text.length);
+        final selEnd = (endCol - spanStart).clamp(0, span.text.length);
+        children.add(StyledSpan(
+          text: span.text.substring(selStart, selEnd),
+          foreground: span.background,
+          background: span.foreground,
+          bold: span.bold,
+          italic: span.italic,
+          underline: span.underline,
+          strikethrough: span.strikethrough,
+        ).toTextSpan(fontFamily: fontFamily, fontSize: fontSize));
+
+        if (spanEnd > endCol) {
+          // Unselected suffix.
+          children.add(StyledSpan(
+            text: span.text.substring(endCol - spanStart),
+            foreground: span.foreground,
+            background: span.background,
+            bold: span.bold,
+            italic: span.italic,
+            underline: span.underline,
+            strikethrough: span.strikethrough,
+          ).toTextSpan(fontFamily: fontFamily, fontSize: fontSize));
+        }
+      }
+
+      offset = spanEnd;
+    }
+
+    if (children.length == 1) return children.first;
+    return TextSpan(children: children);
+  }
+
   /// Creates an empty (blank) line.
   factory StyledLine.empty() => StyledLine(const []);
 

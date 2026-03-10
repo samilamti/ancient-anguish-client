@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
 /// A client-side trigger rule that matches patterns in MUD output.
@@ -58,7 +59,8 @@ class TriggerRule {
     try {
       _compiledPattern = RegExp(pattern, caseSensitive: false);
       return _compiledPattern;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('TriggerRule.compiledPattern error: $e');
       return null;
     }
   }

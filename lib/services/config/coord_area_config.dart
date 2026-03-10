@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import '../../models/coord_area_entry.dart';
 
 /// Parses and stores the coordinate-to-area configuration from Area Configuration.md.
@@ -35,8 +37,8 @@ class CoordAreaConfig {
           _entries[entry.key] = entry;
         }
       }
-    } catch (_) {
-      // Silently ignore parse errors for robustness.
+    } catch (e) {
+      debugPrint('CoordAreaConfig.loadFromFile error: $e');
     }
   }
 
@@ -57,8 +59,8 @@ class CoordAreaConfig {
           _entries[entry.key] = entry;
         }
       }
-    } catch (_) {
-      // Silently ignore parse errors for robustness.
+    } catch (e) {
+      debugPrint('CoordAreaConfig.loadFromFileSync error: $e');
     }
   }
 

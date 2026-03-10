@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/area_config.dart';
@@ -33,7 +34,7 @@ class AreaDetector {
           .map((a) => AreaConfig.fromJson(a as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      // If the file is missing or malformed, start with an empty list.
+      debugPrint('AreaDetector.loadAreaDefinitions error: $e');
       _areas = [];
     }
   }

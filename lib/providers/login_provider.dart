@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -61,7 +62,8 @@ final savedAltsProvider = FutureProvider<List<SavedAlt>>((ref) async {
         .cast<Map<String, dynamic>>()
         .map(SavedAlt.fromJson)
         .toList();
-  } catch (_) {
+  } catch (e) {
+    debugPrint('savedAltsProvider: parse error: $e');
     return [];
   }
 });
@@ -165,7 +167,9 @@ class LoginNotifier extends Notifier<LoginState> {
         } else {
           alts = json.cast<Map<String, dynamic>>().map(SavedAlt.fromJson).toList();
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('LoginNotifier._saveAlt: parse error: $e');
+      }
     }
     // Upsert: update password if name exists, else insert at front.
     final index = alts.indexWhere((a) => a.name == name);
@@ -190,7 +194,8 @@ class LoginNotifier extends Notifier<LoginState> {
       } else {
         alts = json.cast<Map<String, dynamic>>().map(SavedAlt.fromJson).toList();
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('LoginNotifier._removeAlt: parse error: $e');
       return;
     }
     alts.removeWhere((a) => a.name == name);

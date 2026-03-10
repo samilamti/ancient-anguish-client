@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Service for logging MUD session output to disk.
@@ -41,6 +42,7 @@ class LogService {
       _sink!.writeln('=== Session started: ${DateTime.now()} ===');
       _sink!.writeln();
     } catch (e) {
+      debugPrint('LogService.startLogging error: $e');
       _enabled = false;
       _sink = null;
     }

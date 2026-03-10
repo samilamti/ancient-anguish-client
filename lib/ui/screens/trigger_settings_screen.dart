@@ -286,6 +286,7 @@ class _TriggerEditScreenState extends ConsumerState<_TriggerEditScreen> {
       RegExp(pattern);
       setState(() => _patternError = null);
     } catch (e) {
+      debugPrint('TriggerEditScreen._validatePattern error: $e');
       setState(() => _patternError = 'Invalid regex: $e');
     }
   }

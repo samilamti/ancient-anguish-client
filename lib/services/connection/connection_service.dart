@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 import '../../core/constants.dart';
 import '../../models/connection_info.dart';
@@ -80,9 +80,11 @@ class ConnectionService {
         cancelOnError: false,
       );
     } on SocketException catch (e) {
+      debugPrint('ConnectionService.connect: ${e.message}');
       _setStatus(ConnectionStatus.error);
       _eventController.addError('Connection failed: ${e.message}');
-    } on TimeoutException {
+    } on TimeoutException catch (e) {
+      debugPrint('ConnectionService.connect: timeout $e');
       _setStatus(ConnectionStatus.error);
       _eventController.addError('Connection timed out to ${info.host}:${info.port}');
     }
@@ -102,7 +104,9 @@ class ConnectionService {
 
     try {
       _socket?.destroy();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('ConnectionService.disconnect error: $e');
+    }
     _socket = null;
 
     _setStatus(ConnectionStatus.disconnected);
@@ -114,6 +118,7 @@ class ConnectionService {
     try {
       _socket!.add(utf8.encode('$command\r\n'));
     } on SocketException catch (e) {
+      debugPrint('ConnectionService.sendCommand: ${e.message}');
       _eventController.addError('Send failed: ${e.message}');
     }
   }
@@ -124,6 +129,7 @@ class ConnectionService {
     try {
       _socket!.add(bytes);
     } on SocketException catch (e) {
+      debugPrint('ConnectionService.sendBytes: ${e.message}');
       _eventController.addError('Send failed: ${e.message}');
     }
   }

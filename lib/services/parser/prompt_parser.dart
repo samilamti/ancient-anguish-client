@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../models/game_state.dart';
 
 /// Parses Ancient Anguish prompt lines to extract structured game data.
@@ -37,7 +39,8 @@ class PromptParser {
     } else {
       try {
         _customPromptRegex = RegExp(pattern);
-      } catch (_) {
+      } catch (e) {
+        debugPrint('PromptParser.setCustomPattern error: $e');
         _customPromptRegex = null;
       }
     }
@@ -121,7 +124,8 @@ class PromptParser {
         sp: int.parse(match.group(3)!),
         maxSp: int.parse(match.group(4)!),
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('PromptParser._parseCustomPrompt error: $e');
       return null;
     }
   }

@@ -29,6 +29,12 @@
       "bounds": { "xMin": -15, "xMax": -6, "yMin": -5, "yMax": 5 },
       "audio": { "track": "coast.mp3", "volume": 0.6, "fadeMs": 2500 },
       "theme": "wilderness"
+    },
+    {
+      "name": "Inns",
+      "bounds": { "xMin": 0, "xMax": 0, "yMin": 0, "yMax": 0 },
+      "audio": { "track": "inns.mp3", "volume": 0.65, "fadeMs": 2000 },
+      "theme": "town"
     }
   ]
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/gestures.dart' show kPrimaryButton, kSecondaryButton;
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants.dart';
 import '../../../protocol/ansi/styled_span.dart';
+import '../../../providers/background_image_provider.dart';
 import '../../../providers/connection_provider.dart'
     show terminalBufferProvider, inputFocusProvider;
 import 'terminal_selection.dart';
@@ -411,6 +413,7 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     _measureFont();
     final lines = ref.watch(terminalBufferProvider);
     final selection = _selectionController.selection;
+    final bgImagePath = ref.watch(backgroundImageProvider);
 
     // Auto-scroll when new lines arrive.
     ref.listen<List<StyledLine>>(terminalBufferProvider, (previous, next) {
@@ -432,6 +435,19 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
           color: Theme.of(context).scaffoldBackgroundColor,
           child: Stack(
             children: [
+              // Area background image.
+              if (bgImagePath != null)
+                Positioned.fill(
+                  child: Opacity(
+                    opacity: 0.12,
+                    child: Image.file(
+                      File(bgImagePath),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+
               // Terminal output.
               MouseRegion(
                 cursor: SystemMouseCursors.text,

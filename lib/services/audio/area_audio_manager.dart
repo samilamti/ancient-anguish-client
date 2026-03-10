@@ -30,6 +30,15 @@ class AreaAudioManager {
   /// Whether battle audio is currently active (prevents area audio changes).
   bool _inBattle = false;
 
+  /// Whether an async audio operation is in progress.
+  bool _busy = false;
+
+  /// Pending area change queued while busy.
+  String? _pendingAreaChange;
+
+  /// Pending battle state change queued while busy.
+  bool? _pendingBattleChange;
+
   /// The area track that was playing when battle started (for restoration).
   String? _areaTrackBeforeBattle;
 
@@ -117,56 +126,82 @@ class AreaAudioManager {
     _battleThemeIndex = 0;
   }
 
+  /// Drains the highest-priority pending operation after the current one.
+  void _drainPending() {
+    if (_pendingBattleChange != null) {
+      final inBattle = _pendingBattleChange!;
+      _pendingBattleChange = null;
+      _pendingAreaChange = null;
+      onBattleStateChanged(inBattle);
+      return;
+    }
+    if (_pendingAreaChange != null) {
+      final area = _pendingAreaChange!;
+      _pendingAreaChange = null;
+      onAreaChanged(area);
+    }
+  }
+
   /// Called when battle state transitions. Switches to/from battle audio.
   ///
   /// Returns the track path now playing, or null.
   Future<String?> onBattleStateChanged(bool inBattle) async {
     if (!_enabled) return null;
-
-    if (inBattle && !_inBattle) {
-      // Entering battle.
-      _inBattle = true;
-      if (_battleThemes.isEmpty) return null;
-
-      // Save current area audio for restoration after battle.
-      _areaTrackBeforeBattle = _audioService.currentTrackPath;
-
-      final theme = _battleThemes[_battleThemeIndex];
-      _battleThemeIndex = (_battleThemeIndex + 1) % _battleThemes.length;
-
-      if (!await File(theme).exists()) return null;
-      try {
-        await _audioService.play(theme);
-        return theme;
-      } catch (e) {
-        debugPrint('AreaAudioManager.onBattleStateChanged play error: $e');
-        return null;
-      }
-    } else if (!inBattle && _inBattle) {
-      // Leaving battle — restore area audio.
-      _inBattle = false;
-      final restorePath = _areaTrackBeforeBattle;
-      _areaTrackBeforeBattle = null;
-
-      if (restorePath != null && await File(restorePath).exists()) {
-        try {
-          await _audioService.play(restorePath);
-          return restorePath;
-        } catch (e) {
-          debugPrint(
-              'AreaAudioManager.onBattleStateChanged restore error: $e');
-        }
-      } else {
-        try {
-          await _audioService.stop();
-        } catch (e) {
-          debugPrint(
-              'AreaAudioManager.onBattleStateChanged stop error: $e');
-        }
-      }
+    if (_busy) {
+      _pendingBattleChange = inBattle;
       return null;
     }
-    return null;
+    _busy = true;
+
+    try {
+      if (inBattle && !_inBattle) {
+        // Entering battle.
+        _inBattle = true;
+        if (_battleThemes.isEmpty) return null;
+
+        // Save current area audio for restoration after battle.
+        _areaTrackBeforeBattle = _audioService.currentTrackPath;
+
+        final theme = _battleThemes[_battleThemeIndex];
+        _battleThemeIndex = (_battleThemeIndex + 1) % _battleThemes.length;
+
+        if (!await File(theme).exists()) return null;
+        try {
+          await _audioService.play(theme);
+          return theme;
+        } catch (e) {
+          debugPrint('AreaAudioManager.onBattleStateChanged play error: $e');
+          return null;
+        }
+      } else if (!inBattle && _inBattle) {
+        // Leaving battle — restore area audio.
+        _inBattle = false;
+        final restorePath = _areaTrackBeforeBattle;
+        _areaTrackBeforeBattle = null;
+
+        if (restorePath != null && await File(restorePath).exists()) {
+          try {
+            await _audioService.play(restorePath);
+            return restorePath;
+          } catch (e) {
+            debugPrint(
+                'AreaAudioManager.onBattleStateChanged restore error: $e');
+          }
+        } else {
+          try {
+            await _audioService.stop();
+          } catch (e) {
+            debugPrint(
+                'AreaAudioManager.onBattleStateChanged stop error: $e');
+          }
+        }
+        return null;
+      }
+      return null;
+    } finally {
+      _busy = false;
+      _drainPending();
+    }
   }
 
   /// Called when the detected area changes. Triggers audio transition.
@@ -177,45 +212,56 @@ class AreaAudioManager {
     if (!_enabled) return;
     if (newArea == _currentPlayingArea) return;
 
+    if (_busy) {
+      _pendingAreaChange = newArea;
+      return;
+    }
+    _busy = true;
+
     _currentPlayingArea = newArea;
 
-    // During battle, update what we'll restore but don't change audio.
-    if (_inBattle) {
-      _areaTrackBeforeBattle = _resolveTrackPath(newArea);
-      return;
-    }
-
-    final trackPath = _resolveTrackPath(newArea);
-
-    if (trackPath == null) {
-      // No track for this area – stop.
-      try {
-        await _audioService.stop();
-      } catch (e) {
-        debugPrint('AreaAudioManager.onAreaChanged stop error: $e');
-      }
-      return;
-    }
-
-    // Verify the file exists.
-    if (!await File(trackPath).exists()) {
-      try {
-        await _audioService.stop();
-      } catch (e) {
-        debugPrint('AreaAudioManager.onAreaChanged stop error: $e');
-      }
-      return;
-    }
-
-    // Get area-specific volume.
-    final areaConfig = _areaDetector.getAreaConfig(newArea);
-    final volume = areaConfig?.audio?.volume ?? 0.7;
-
-    // Play the new track.
     try {
-      await _audioService.play(trackPath, volume: volume);
-    } catch (e) {
-      debugPrint('AreaAudioManager.onAreaChanged play error: $e');
+      // During battle, update what we'll restore but don't change audio.
+      if (_inBattle) {
+        _areaTrackBeforeBattle = _resolveTrackPath(newArea);
+        return;
+      }
+
+      final trackPath = _resolveTrackPath(newArea);
+
+      if (trackPath == null) {
+        // No track for this area – stop.
+        try {
+          await _audioService.stop();
+        } catch (e) {
+          debugPrint('AreaAudioManager.onAreaChanged stop error: $e');
+        }
+        return;
+      }
+
+      // Verify the file exists.
+      if (!await File(trackPath).exists()) {
+        try {
+          await _audioService.stop();
+        } catch (e) {
+          debugPrint('AreaAudioManager.onAreaChanged stop error: $e');
+        }
+        return;
+      }
+
+      // Get area-specific volume.
+      final areaConfig = _areaDetector.getAreaConfig(newArea);
+      final volume = areaConfig?.audio?.volume ?? 0.7;
+
+      // Play the new track.
+      try {
+        await _audioService.play(trackPath, volume: volume);
+      } catch (e) {
+        debugPrint('AreaAudioManager.onAreaChanged play error: $e');
+      }
+    } finally {
+      _busy = false;
+      _drainPending();
     }
   }
 

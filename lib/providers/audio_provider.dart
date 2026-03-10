@@ -30,6 +30,15 @@ final areaAudioManagerProvider = Provider<AreaAudioManager>((ref) {
     audioService: audioService,
     areaDetector: areaDetector,
   );
+
+  // Pre-load audio track map from Area Configuration.md.
+  final config = ref.read(coordAreaConfigProvider);
+  for (final entry in config.entries) {
+    if (entry.audioPath != null) {
+      manager.setTrackForArea(entry.areaName, entry.audioPath!);
+    }
+  }
+
   ref.onDispose(() => manager.dispose());
   return manager;
 });
@@ -99,6 +108,13 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
   bool _loadingAudio = false;
   bool _toggling = false;
 
+  // Pending operations queued while _loadingAudio is true.
+  // Only the latest of each type is kept (rapid events → last one wins).
+  _PendingConfigAudio? _pendingConfigAudio;
+  String? _pendingAreaChange;
+  bool? _pendingBattleChange;
+  bool _pendingFadeOut = false;
+
   @override
   AudioUiState build() {
     // Listen for game state changes to trigger area audio.
@@ -136,9 +152,46 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
     return const AudioUiState();
   }
 
+  /// Drains the highest-priority pending operation after the current one
+  /// completes. Battle takes priority over area/config audio.
+  void _drainPending() {
+    if (_pendingBattleChange != null) {
+      final inBattle = _pendingBattleChange!;
+      _pendingBattleChange = null;
+      _pendingConfigAudio = null;
+      _pendingAreaChange = null;
+      _pendingFadeOut = false;
+      _onBattleStateChanged(inBattle);
+      return;
+    }
+    if (_pendingConfigAudio != null) {
+      final pending = _pendingConfigAudio!;
+      _pendingConfigAudio = null;
+      _pendingAreaChange = null;
+      _pendingFadeOut = false;
+      _playConfigAudio(pending.audioPath, pending.areaName);
+      return;
+    }
+    if (_pendingAreaChange != null) {
+      final area = _pendingAreaChange!;
+      _pendingAreaChange = null;
+      _pendingFadeOut = false;
+      onAreaChanged(area);
+      return;
+    }
+    if (_pendingFadeOut) {
+      _pendingFadeOut = false;
+      _fadeOutIfPlaying();
+    }
+  }
+
   /// Fades out current audio if something is playing.
   Future<void> _fadeOutIfPlaying() async {
-    if (_loadingAudio || _toggling) return;
+    if (_toggling) return;
+    if (_loadingAudio) {
+      _pendingFadeOut = true;
+      return;
+    }
     _loadingAudio = true;
     try {
       if (ref.read(areaAudioManagerProvider).inBattle) return;
@@ -151,12 +204,17 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       debugPrint('AudioUiNotifier._fadeOutIfPlaying error: $e');
     } finally {
       _loadingAudio = false;
+      _drainPending();
     }
   }
 
   /// Plays audio from a coordinate config entry.
   Future<void> _playConfigAudio(String audioPath, String areaName) async {
-    if (_loadingAudio || _toggling) return;
+    if (_toggling) return;
+    if (_loadingAudio) {
+      _pendingConfigAudio = _PendingConfigAudio(audioPath, areaName);
+      return;
+    }
     if (ref.read(areaAudioManagerProvider).inBattle) return;
     _loadingAudio = true;
     try {
@@ -174,12 +232,17 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       debugPrint('AudioUiNotifier._playConfigAudio error: $e');
     } finally {
       _loadingAudio = false;
+      _drainPending();
     }
   }
 
   /// Called when the game state detects a new area.
   Future<void> onAreaChanged(String newArea) async {
-    if (_loadingAudio || _toggling) return;
+    if (_toggling) return;
+    if (_loadingAudio) {
+      _pendingAreaChange = newArea;
+      return;
+    }
     _loadingAudio = true;
     try {
       final manager = ref.read(areaAudioManagerProvider);
@@ -194,6 +257,7 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       debugPrint('AudioUiNotifier.onAreaChanged error: $e');
     } finally {
       _loadingAudio = false;
+      _drainPending();
     }
   }
 
@@ -262,7 +326,11 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
 
   /// Handles battle state transitions.
   Future<void> _onBattleStateChanged(bool inBattle) async {
-    if (_loadingAudio || _toggling) return;
+    if (_toggling) return;
+    if (_loadingAudio) {
+      _pendingBattleChange = inBattle;
+      return;
+    }
     _loadingAudio = true;
     try {
       final manager = ref.read(areaAudioManagerProvider);
@@ -277,6 +345,7 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       debugPrint('AudioUiNotifier._onBattleStateChanged error: $e');
     } finally {
       _loadingAudio = false;
+      _drainPending();
     }
   }
 
@@ -300,4 +369,11 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
     manager.reorderBattleThemes(oldIndex, newIndex);
     state = state.copyWith(battleThemes: List.from(manager.battleThemes));
   }
+}
+
+/// Holds a pending coordinate-config audio request.
+class _PendingConfigAudio {
+  final String audioPath;
+  final String areaName;
+  const _PendingConfigAudio(this.audioPath, this.areaName);
 }

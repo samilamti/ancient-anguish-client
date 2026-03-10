@@ -17,7 +17,7 @@ void main() {
       expect(findRichTextContaining('You are here.'), findsOneWidget);
     });
 
-    testWidgets('renders empty line as SizedBox placeholder', (tester) async {
+    testWidgets('renders empty line as RichText with space', (tester) async {
       final lines = [
         StyledLine([StyledSpan(text: 'Before')]),
         StyledLine.empty(),
@@ -25,11 +25,8 @@ void main() {
       ];
       await pumpTerminalView(tester, lines: lines);
 
-      // Empty line renders as a SizedBox with height 18.
-      final sizedBoxes = tester
-          .widgetList<SizedBox>(find.byType(SizedBox))
-          .where((sb) => sb.height == 18);
-      expect(sizedBoxes, isNotEmpty);
+      // All lines (including empty) should render as RichText now.
+      expect(find.byType(RichText), findsNWidgets(3));
     });
 
     testWidgets('renders colored text with correct foreground', (tester) async {
@@ -77,21 +74,6 @@ void main() {
       );
       final span = richText.text as TextSpan;
       expect(span.children, hasLength(2));
-    });
-  });
-
-  group('TerminalView selection', () {
-    testWidgets('SelectionArea is present in widget tree', (tester) async {
-      await pumpTerminalView(tester, lines: createStyledLines(['test']));
-      expect(find.byType(SelectionArea), findsOneWidget);
-    });
-
-    testWidgets('ListView uses cacheExtent for off-screen selection',
-        (tester) async {
-      await pumpTerminalView(tester, lines: createStyledLines(['test']));
-
-      final listView = tester.widget<ListView>(find.byType(ListView));
-      expect(listView.cacheExtent, greaterThanOrEqualTo(2000));
     });
   });
 
@@ -146,11 +128,6 @@ void main() {
       await pumpTerminalView(tester, lines: lines);
       await tester.pumpAndSettle();
 
-      // Initially the list starts at position 0 (top). AutoScroll is true
-      // initially, but the scroll position is at top not bottom.
-      // After the first scroll event, _autoScroll will become false since
-      // we're not near the bottom.
-
       // Scroll down a tiny bit to trigger _onScroll while still far from bottom.
       await tester.drag(find.byType(ListView), const Offset(0, -100));
       await tester.pump();
@@ -180,6 +157,21 @@ void main() {
 
       // FAB should disappear (back at bottom).
       expect(find.byType(FloatingActionButton), findsNothing);
+    });
+  });
+
+  group('TerminalView uses text cursor', () {
+    testWidgets('MouseRegion with text cursor is present', (tester) async {
+      await pumpTerminalView(
+        tester,
+        lines: createStyledLines(['test']),
+      );
+
+      // Find the MouseRegion with SystemMouseCursors.text specifically.
+      final mouseRegions = tester
+          .widgetList<MouseRegion>(find.byType(MouseRegion))
+          .where((mr) => mr.cursor == SystemMouseCursors.text);
+      expect(mouseRegions, isNotEmpty);
     });
   });
 }

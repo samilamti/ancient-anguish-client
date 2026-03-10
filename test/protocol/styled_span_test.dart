@@ -147,5 +147,122 @@ void main() {
       final line = StyledLine([const StyledSpan(text: 'test line')]);
       expect(line.toString(), contains('test line'));
     });
+
+    group('toSelectedTextSpan', () {
+      test('inverts colors on selected range for single span', () {
+        final line = StyledLine([
+          const StyledSpan(
+            text: 'Hello World',
+            foreground: TerminalColors.defaultForeground,
+            background: TerminalColors.defaultBackground,
+          ),
+        ]);
+
+        final ts = line.toSelectedTextSpan(
+          fontFamily: 'Mono',
+          fontSize: 14.0,
+          startCol: 6,
+          endCol: 11,
+        );
+
+        // Should produce children: "Hello " (normal) + "World" (inverted).
+        expect(ts.children, hasLength(2));
+        final normal = ts.children![0] as TextSpan;
+        final inverted = ts.children![1] as TextSpan;
+        expect(normal.text, 'Hello ');
+        expect(normal.style!.color, TerminalColors.defaultForeground);
+        expect(inverted.text, 'World');
+        // Inverted: foreground becomes background, background becomes foreground.
+        expect(inverted.style!.color, TerminalColors.defaultBackground);
+        expect(inverted.style!.backgroundColor, TerminalColors.defaultForeground);
+      });
+
+      test('fully selected single span inverts entire text', () {
+        final line = StyledLine([
+          const StyledSpan(text: 'Full'),
+        ]);
+
+        final ts = line.toSelectedTextSpan(
+          fontFamily: 'Mono',
+          fontSize: 14.0,
+          startCol: 0,
+          endCol: 4,
+        );
+
+        // Single child → returned directly.
+        expect(ts.text, 'Full');
+        expect(ts.style!.color, TerminalColors.defaultBackground);
+      });
+
+      test('handles selection across multiple spans', () {
+        final line = StyledLine([
+          const StyledSpan(text: 'AAA'),
+          const StyledSpan(text: 'BBB'),
+          const StyledSpan(text: 'CCC'),
+        ]);
+
+        // Select columns 2..7 → "A" + "BBB" + "C" selected
+        final ts = line.toSelectedTextSpan(
+          fontFamily: 'Mono',
+          fontSize: 14.0,
+          startCol: 2,
+          endCol: 7,
+        );
+
+        expect(ts.children, isNotNull);
+        final texts = _extractTexts(ts);
+        expect(texts, ['AA', 'A', 'BBB', 'C', 'CC']);
+      });
+
+      test('no selection overlap returns original spans', () {
+        final line = StyledLine([
+          const StyledSpan(text: 'Hello'),
+        ]);
+
+        final ts = line.toSelectedTextSpan(
+          fontFamily: 'Mono',
+          fontSize: 14.0,
+          startCol: 10,
+          endCol: 15,
+        );
+
+        // Selection beyond text → span is entirely outside.
+        expect(ts.text, 'Hello');
+      });
+
+      test('preserves bold/italic on split spans', () {
+        final line = StyledLine([
+          const StyledSpan(text: 'BoldText', bold: true, italic: true),
+        ]);
+
+        final ts = line.toSelectedTextSpan(
+          fontFamily: 'Mono',
+          fontSize: 14.0,
+          startCol: 0,
+          endCol: 4,
+        );
+
+        expect(ts.children, hasLength(2));
+        final selected = ts.children![0] as TextSpan;
+        final normal = ts.children![1] as TextSpan;
+        expect(selected.text, 'Bold');
+        expect(selected.style!.fontWeight, FontWeight.bold);
+        expect(selected.style!.fontStyle, FontStyle.italic);
+        expect(normal.text, 'Text');
+        expect(normal.style!.fontWeight, FontWeight.bold);
+      });
+    });
   });
+}
+
+/// Recursively extracts all plain text from a TextSpan tree.
+List<String> _extractTexts(TextSpan span) {
+  final result = <String>[];
+  if (span.text != null) result.add(span.text!);
+  if (span.children != null) {
+    for (final child in span.children!) {
+      result.addAll(_extractTexts(child as TextSpan));
+    }
+  }
+  return result;
 }

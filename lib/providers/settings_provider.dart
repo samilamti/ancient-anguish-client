@@ -12,6 +12,15 @@ class AppSettings {
   final bool loggingEnabled;
   final bool quickCommandsVisible;
   final bool useDPad; // true = compass D-Pad, false = quick command buttons
+  final Map<String, int> customThemeColors;
+
+  static const Map<String, int> defaultCustomColors = {
+    'primary': 0xFFD4A057,
+    'secondary': 0xFF8B4513,
+    'surface': 0xFF2A1810,
+    'onSurface': 0xFFE8D5B7,
+    'background': 0xFF1A1A2E,
+  };
 
   const AppSettings({
     this.fontSize = 14.0,
@@ -22,6 +31,7 @@ class AppSettings {
     this.loggingEnabled = false,
     this.quickCommandsVisible = true,
     this.useDPad = true,
+    this.customThemeColors = defaultCustomColors,
   });
 
   AppSettings copyWith({
@@ -33,6 +43,7 @@ class AppSettings {
     bool? loggingEnabled,
     bool? quickCommandsVisible,
     bool? useDPad,
+    Map<String, int>? customThemeColors,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -43,6 +54,7 @@ class AppSettings {
       loggingEnabled: loggingEnabled ?? this.loggingEnabled,
       quickCommandsVisible: quickCommandsVisible ?? this.quickCommandsVisible,
       useDPad: useDPad ?? this.useDPad,
+      customThemeColors: customThemeColors ?? this.customThemeColors,
     );
   }
 }
@@ -77,6 +89,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void toggleDPad() {
     state = state.copyWith(useDPad: !state.useDPad);
+  }
+
+  void setCustomThemeColor(String key, int colorValue) {
+    final updated = Map<String, int>.from(state.customThemeColors);
+    updated[key] = colorValue;
+    state = state.copyWith(customThemeColors: updated);
   }
 
   Future<void> toggleLogging() async {

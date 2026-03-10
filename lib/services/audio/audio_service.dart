@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -15,6 +16,17 @@ class AudioService {
   final AudioPlayer _playerA = AudioPlayer();
   final AudioPlayer _playerB = AudioPlayer();
   bool _aIsActive = true;
+
+  late final StreamSubscription<PlaybackEvent> _subA;
+  late final StreamSubscription<PlaybackEvent> _subB;
+
+  AudioService() {
+    // Absorb platform-level errors (e.g., "Operation aborted" on Windows)
+    // that just_audio emits on the playback event stream. Without these
+    // handlers, such errors are unhandled and crash the app.
+    _subA = _playerA.playbackEventStream.listen(null, onError: (_) {});
+    _subB = _playerB.playbackEventStream.listen(null, onError: (_) {});
+  }
 
   double _masterVolume = AudioDefaults.masterVolume;
   bool _muted = false;
@@ -184,6 +196,11 @@ class AudioService {
       final player = _active;
       await _fadeVolume(player, player.volume, 0.0, durationMs);
       await stop();
+    } catch (_) {
+      // Platform errors (e.g., "Operation aborted") can occur when stopping
+      // a player mid-operation on Windows. Ensure state is reset.
+      _isPlaying = false;
+      _currentTrackPath = null;
     } finally {
       _busy = false;
     }
@@ -192,8 +209,24 @@ class AudioService {
   /// Disposes both audio players. Call when the service is no longer needed.
   Future<void> dispose() async {
     await stop();
-    await _playerA.dispose();
-    await _playerB.dispose();
+
+    // Cancel stream subscriptions before disposing players to prevent
+    // errors from the disposal process reaching unhandled territory.
+    await _subA.cancel();
+    await _subB.cancel();
+
+    // Dispose players independently so one failure doesn't prevent the
+    // other from being cleaned up.
+    try {
+      await _playerA.dispose();
+    } catch (e) {
+      debugPrint('AudioService: _playerA.dispose() error: $e');
+    }
+    try {
+      await _playerB.dispose();
+    } catch (e) {
+      debugPrint('AudioService: _playerB.dispose() error: $e');
+    }
   }
 
   // ── Helpers ──

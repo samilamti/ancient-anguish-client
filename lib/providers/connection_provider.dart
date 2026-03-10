@@ -10,6 +10,7 @@ import '../protocol/telnet/telnet_events.dart';
 import '../services/connection/connection_service.dart';
 import '../services/parser/output_parser.dart';
 import 'game_state_provider.dart';
+import 'login_provider.dart';
 import 'trigger_provider.dart';
 
 /// Provides the singleton [ConnectionService].
@@ -50,7 +51,11 @@ final terminalBufferProvider =
 /// parsing them into styled lines.
 class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   static const int _maxLines = 10000;
-  static final RegExp _coordLineRegex = RegExp(r'^(-?\d+),(-?\d+)$');
+  static const String _promptCommand =
+      'prompt set @@|HP| |MAXHP| |SP| |MAXSP| |XCOORD| |YCOORD|@@';
+  static final RegExp _promptLineRegex = RegExp(
+      r'@@\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+(-?\d+)@@');
+  static final RegExp _ansiEscapeRegex = RegExp(r'\x1B\[[0-9;]*[a-zA-Z]');
 
   StreamSubscription<TelnetEvent>? _eventSub;
   StreamSubscription<ConnectionStatus>? _statusSub;
@@ -83,20 +88,41 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           final processedLines = <StyledLine>[];
 
           for (final line in newLines) {
-            // Login detection: send coord prompt after successful login.
-            if (!_loginDetected &&
-                line.plainText.contains('A player usage graph.')) {
-              _loginDetected = true;
-              service.sendCommand('prompt preset coords');
+            final plainText = line.plainText;
+
+            // Login dialog: detect "Password:" prompt.
+            if (plainText.contains('Password:')) {
+              ref.read(loginProvider.notifier).onPasswordPromptDetected();
             }
 
-            // Coordinate line detection: gag and capture.
-            // Only active after login (when we've sent 'prompt preset coords').
+            // Fallback login detection for guest/manual login.
+            if (!_loginDetected &&
+                plainText.contains('A player usage graph.')) {
+              _loginDetected = true;
+              service.sendCommand(_promptCommand);
+            }
+
+            // Prompt line detection: gag and capture HP/SP/coordinates.
+            // The @@ markers make prompt text unmistakable. If the prompt
+            // was pending and got prepended to this line, strip it out.
             if (_loginDetected) {
-              final coords = _parseCoordLine(line);
-              if (coords != null) {
-                gameNotifier.updateCoordinates(coords.$1, coords.$2);
-                continue; // Gag – don't display or feed to prompt parser.
+              final vitals = _extractPrompt(plainText);
+              if (vitals != null) {
+                gameNotifier.updateVitalsAndCoordinates(
+                  vitals.hp, vitals.maxHp, vitals.sp,
+                  vitals.maxSp, vitals.x, vitals.y,
+                );
+                // If the entire line was the prompt, gag it.
+                if (vitals.remainder.isEmpty) continue;
+                // Otherwise, re-parse the remainder as a new line.
+                final remainderLine =
+                    StyledLine([StyledSpan(text: vitals.remainder)]);
+                final result = triggerEngine.processLine(remainderLine);
+                if (!result.gagged) {
+                  processedLines.add(result.styledLine);
+                }
+                gameNotifier.processLine(vitals.remainder);
+                continue;
               }
             }
 
@@ -107,18 +133,79 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             }
 
             // Feed to game state parser for HP/SP prompt detection.
-            gameNotifier.processLine(line.plainText);
+            gameNotifier.processLine(plainText);
           }
 
           if (processedLines.isNotEmpty) {
             _addLines(processedLines);
           }
         }
+
+        // The MUD uses SGA (Suppress Go Ahead), so prompt lines arrive
+        // without a trailing newline or GA. They stay in the parser's
+        // buffer as pending data. Consume them here before the next data
+        // event prepends them to the following output line.
+        if (_loginDetected && parser.hasPendingData) {
+          final pendingPlain = parser.pendingText
+              .replaceAll(_ansiEscapeRegex, '');
+          if (_promptLineRegex.hasMatch(pendingPlain)) {
+            final flushed = parser.flush();
+            if (flushed != null) {
+              final vitals = _extractPrompt(flushed.plainText);
+              if (vitals != null) {
+                ref.read(gameStateProvider.notifier).updateVitalsAndCoordinates(
+                  vitals.hp, vitals.maxHp, vitals.sp,
+                  vitals.maxSp, vitals.x, vitals.y,
+                );
+              }
+            }
+          }
+        }
+
+        // Check pending text for password prompt.
+        if (parser.hasPendingData &&
+            parser.pendingText.contains('Password:')) {
+          ref.read(loginProvider.notifier).onPasswordPromptDetected();
+        }
       } else if (event is TelnetCommandEvent) {
         // GA or EOR signals "end of prompt" – flush partial line.
         final flushed = parser.flush();
         if (flushed != null) {
-          _addLines([flushed]);
+          final plainText = flushed.plainText;
+
+          // Login dialog: detect "Password:" prompt.
+          if (plainText.contains('Password:')) {
+            ref.read(loginProvider.notifier).onPasswordPromptDetected();
+          }
+
+          // Fallback login detection for guest/manual login.
+          if (!_loginDetected &&
+              plainText.contains('A player usage graph.')) {
+            _loginDetected = true;
+            service.sendCommand(_promptCommand);
+          }
+
+          // Prompt line detection: gag and capture HP/SP/coordinates.
+          if (_loginDetected) {
+            final vitals = _extractPrompt(plainText);
+            if (vitals != null) {
+              ref.read(gameStateProvider.notifier).updateVitalsAndCoordinates(
+                vitals.hp, vitals.maxHp, vitals.sp,
+                vitals.maxSp, vitals.x, vitals.y,
+              );
+              return; // Gagged.
+            }
+          }
+
+          // Normal trigger processing.
+          final triggerEngine = ref.read(triggerEngineProvider);
+          final result = triggerEngine.processLine(flushed);
+          if (!result.gagged) {
+            _addLines([result.styledLine]);
+          }
+
+          // Feed to game state parser.
+          ref.read(gameStateProvider.notifier).processLine(plainText);
         }
       }
     }, onError: (error) {
@@ -135,6 +222,11 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     });
 
     _statusSub = service.statusStream.listen((status) {
+      // Show login dialog as soon as we connect.
+      if (status == ConnectionStatus.connected) {
+        ref.read(loginProvider.notifier).onNamePromptDetected();
+      }
+
       final message = switch (status) {
         ConnectionStatus.connecting =>
           '*** Connecting to ${service.connectionInfo}...',
@@ -157,6 +249,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       if (status == ConnectionStatus.disconnected) {
         ref.read(outputParserProvider).reset();
         ref.read(gameStateProvider.notifier).reset();
+        ref.read(loginProvider.notifier).reset();
         _loginDetected = false;
       }
     });
@@ -172,19 +265,46 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     }
   }
 
-  /// Checks if a styled line is a coordinate output from `prompt preset coords`.
+  /// Extracts vitals from text containing `@@HP MAXHP SP MAXSP X Y@@`.
   ///
-  /// Returns the (x, y) pair if the entire trimmed line matches `N,N`, or null.
-  /// Only called after login detection, so false positives are not a concern.
-  (int, int)? _parseCoordLine(StyledLine line) {
-    final trimmed = line.plainText.trim();
-    final match = _coordLineRegex.firstMatch(trimmed);
+  /// Returns the parsed values plus any text after the closing `@@` marker
+  /// (in case the prompt was prepended to the next output line).
+  static _PromptMatch? _extractPrompt(String text) {
+    final match = _promptLineRegex.firstMatch(text);
     if (match == null) return null;
-    return (int.parse(match.group(1)!), int.parse(match.group(2)!));
+    final remainder = text.substring(match.end).trim();
+    return _PromptMatch(
+      hp: int.parse(match.group(1)!),
+      maxHp: int.parse(match.group(2)!),
+      sp: int.parse(match.group(3)!),
+      maxSp: int.parse(match.group(4)!),
+      x: int.parse(match.group(5)!),
+      y: int.parse(match.group(6)!),
+      remainder: remainder,
+    );
   }
+
+  /// Marks login as complete (called by [LoginNotifier] after credentials are
+  /// sent, so prompt line gagging activates).
+  void setLoginDetected() => _loginDetected = true;
 
   /// Clears the terminal buffer.
   void clear() => state = [];
+}
+
+/// Parsed prompt values plus any trailing text that followed the prompt.
+class _PromptMatch {
+  final int hp, maxHp, sp, maxSp, x, y;
+  final String remainder;
+  const _PromptMatch({
+    required this.hp,
+    required this.maxHp,
+    required this.sp,
+    required this.maxSp,
+    required this.x,
+    required this.y,
+    required this.remainder,
+  });
 }
 
 /// Provides command history.

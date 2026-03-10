@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/game_state.dart';
+import '../services/area/area_detector.dart';
 import '../services/audio/area_audio_manager.dart';
 import '../services/audio/audio_service.dart';
 import 'coord_area_config_provider.dart';
@@ -14,9 +16,12 @@ final audioServiceProvider = Provider<AudioService>((ref) {
 });
 
 /// Provides the [AreaAudioManager] singleton.
+///
+/// Rebuilds when the [AreaDetector] finishes loading area definitions.
 final areaAudioManagerProvider = Provider<AreaAudioManager>((ref) {
   final audioService = ref.watch(audioServiceProvider);
-  final areaDetector = ref.watch(areaDetectorProvider);
+  final areaDetector =
+      ref.watch(areaDetectorProvider).value ?? AreaDetector();
   final manager = AreaAudioManager(
     audioService: audioService,
     areaDetector: areaDetector,
@@ -24,6 +29,13 @@ final areaAudioManagerProvider = Provider<AreaAudioManager>((ref) {
   ref.onDispose(() => manager.dispose());
   return manager;
 });
+
+/// Sentinel to distinguish "not provided" from "explicitly null" in copyWith.
+const _absent = _Absent();
+
+class _Absent {
+  const _Absent();
+}
 
 /// Audio UI state (for widgets to react to).
 class AudioUiState {
@@ -47,16 +59,20 @@ class AudioUiState {
     bool? isPlaying,
     bool? isMuted,
     double? masterVolume,
-    String? currentArea,
-    String? currentTrackPath,
+    Object? currentArea = _absent,
+    Object? currentTrackPath = _absent,
     bool? audioEnabled,
   }) {
     return AudioUiState(
       isPlaying: isPlaying ?? this.isPlaying,
       isMuted: isMuted ?? this.isMuted,
       masterVolume: masterVolume ?? this.masterVolume,
-      currentArea: currentArea ?? this.currentArea,
-      currentTrackPath: currentTrackPath ?? this.currentTrackPath,
+      currentArea: identical(currentArea, _absent)
+          ? this.currentArea
+          : currentArea as String?,
+      currentTrackPath: identical(currentTrackPath, _absent)
+          ? this.currentTrackPath
+          : currentTrackPath as String?,
       audioEnabled: audioEnabled ?? this.audioEnabled,
     );
   }
@@ -69,6 +85,7 @@ final audioUiStateProvider =
 /// Manages the audio UI state and delegates to [AreaAudioManager].
 class AudioUiNotifier extends Notifier<AudioUiState> {
   bool _loadingAudio = false;
+  bool _toggling = false;
 
   @override
   AudioUiState build() {
@@ -101,16 +118,21 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
 
   /// Fades out current audio if something is playing.
   Future<void> _fadeOutIfPlaying() async {
-    final audioService = ref.read(audioServiceProvider);
-    if (audioService.isPlaying) {
-      await audioService.fadeOut();
-      state = state.copyWith(isPlaying: false, currentTrackPath: null);
+    if (_toggling) return;
+    try {
+      final audioService = ref.read(audioServiceProvider);
+      if (audioService.isPlaying) {
+        await audioService.fadeOut();
+        state = state.copyWith(isPlaying: false, currentTrackPath: null);
+      }
+    } catch (e) {
+      debugPrint('AudioUiNotifier._fadeOutIfPlaying error: $e');
     }
   }
 
   /// Plays audio from a coordinate config entry.
   Future<void> _playConfigAudio(String audioPath, String areaName) async {
-    if (_loadingAudio) return;
+    if (_loadingAudio || _toggling) return;
     _loadingAudio = true;
     try {
       final audioService = ref.read(audioServiceProvider);
@@ -122,6 +144,8 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
         isPlaying: audioService.isPlaying,
         currentTrackPath: audioPath,
       );
+    } catch (e) {
+      debugPrint('AudioUiNotifier._playConfigAudio error: $e');
     } finally {
       _loadingAudio = false;
     }
@@ -129,14 +153,19 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
 
   /// Called when the game state detects a new area.
   Future<void> onAreaChanged(String newArea) async {
-    final manager = ref.read(areaAudioManagerProvider);
-    await manager.onAreaChanged(newArea);
+    if (_toggling) return;
+    try {
+      final manager = ref.read(areaAudioManagerProvider);
+      await manager.onAreaChanged(newArea);
 
-    state = state.copyWith(
-      currentArea: newArea,
-      isPlaying: manager.audioService.isPlaying,
-      currentTrackPath: manager.audioService.currentTrackPath,
-    );
+      state = state.copyWith(
+        currentArea: newArea,
+        isPlaying: manager.audioService.isPlaying,
+        currentTrackPath: manager.audioService.currentTrackPath,
+      );
+    } catch (e) {
+      debugPrint('AudioUiNotifier.onAreaChanged error: $e');
+    }
   }
 
   /// Sets master volume.
@@ -155,13 +184,22 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
 
   /// Toggles area audio on/off.
   Future<void> toggleAudioEnabled() async {
-    final manager = ref.read(areaAudioManagerProvider);
-    final newEnabled = !state.audioEnabled;
-    await manager.setEnabled(newEnabled);
-    state = state.copyWith(
-      audioEnabled: newEnabled,
-      isPlaying: newEnabled ? state.isPlaying : false,
-    );
+    if (_toggling) return;
+    _toggling = true;
+    try {
+      final manager = ref.read(areaAudioManagerProvider);
+      final newEnabled = !state.audioEnabled;
+      await manager.setEnabled(newEnabled);
+      state = state.copyWith(
+        audioEnabled: newEnabled,
+        isPlaying: newEnabled ? state.isPlaying : false,
+        currentTrackPath: newEnabled ? state.currentTrackPath : null,
+      );
+    } catch (e) {
+      debugPrint('AudioUiNotifier.toggleAudioEnabled error: $e');
+    } finally {
+      _toggling = false;
+    }
   }
 
   /// Sets a user track mapping for an area.
@@ -178,8 +216,12 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
 
   /// Stops all audio.
   Future<void> stop() async {
-    final manager = ref.read(areaAudioManagerProvider);
-    await manager.reset();
+    try {
+      final manager = ref.read(areaAudioManagerProvider);
+      await manager.reset();
+    } catch (e) {
+      debugPrint('AudioUiNotifier.stop error: $e');
+    }
     state = state.copyWith(isPlaying: false, currentTrackPath: null);
   }
 }

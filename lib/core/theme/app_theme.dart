@@ -80,6 +80,69 @@ class AppTheme {
     );
   }
 
+  /// Custom theme built from user-provided color values.
+  static ThemeData custom(Map<String, int> colors) {
+    final primary = Color(colors['primary'] ?? 0xFFD4A057);
+    final secondary = Color(colors['secondary'] ?? 0xFF8B4513);
+    final surface = Color(colors['surface'] ?? 0xFF2A1810);
+    final onSurface = Color(colors['onSurface'] ?? 0xFFE8D5B7);
+    final background = Color(colors['background'] ?? 0xFF1A1A2E);
+
+    return ThemeData.dark(useMaterial3: true).copyWith(
+      scaffoldBackgroundColor: background,
+      colorScheme: ColorScheme.dark(
+        primary: primary,
+        secondary: secondary,
+        surface: surface,
+        onSurface: onSurface,
+        error: TerminalColors.brightRed,
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: surface,
+        foregroundColor: primary,
+        elevation: 0,
+      ),
+      cardTheme: CardThemeData(
+        color: surface.withAlpha(200),
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: primary.withAlpha(60)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: background,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: primary.withAlpha(80)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: primary, width: 2),
+        ),
+        hintStyle: TextStyle(color: onSurface.withAlpha(100)),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: secondary,
+          foregroundColor: onSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(color: onSurface),
+        bodyMedium: TextStyle(color: onSurface),
+        titleLarge: TextStyle(
+          color: primary,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
   /// High-contrast accessibility theme.
   static ThemeData highContrast() {
     return ThemeData.dark(useMaterial3: true).copyWith(

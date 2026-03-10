@@ -3,18 +3,19 @@ import 'dart:async';
 import 'package:flutter/gestures.dart' show kPrimaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants.dart';
 import '../../../protocol/ansi/styled_span.dart';
 import '../../../providers/connection_provider.dart'
     show terminalBufferProvider, inputFocusProvider;
+import 'terminal_selection_controller.dart';
 
 /// The main terminal output widget.
 ///
 /// Displays the scrollback buffer as a scrollable list of styled text lines.
 /// Uses [ListView.builder] for efficient rendering of large buffers.
+/// Supports text selection via [SelectionArea] with auto-copy on drag release.
 class TerminalView extends ConsumerStatefulWidget {
   const TerminalView({super.key});
 
@@ -24,6 +25,8 @@ class TerminalView extends ConsumerStatefulWidget {
 
 class _TerminalViewState extends ConsumerState<TerminalView> {
   final ScrollController _scrollController = ScrollController();
+  final TerminalSelectionController _selectionController =
+      TerminalSelectionController();
   bool _autoScroll = true;
 
   // Pointer-based tap detection (replaces GestureDetector to avoid
@@ -33,10 +36,6 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   Offset _lastPointerDownPosition = Offset.zero;
   bool _pointerMoved = false;
   Timer? _tapTimer;
-
-  // Selection tracking for auto-copy.
-  bool _hasSelection = false;
-  SelectedContent? _lastSelectedContent;
 
   static const double _tapSlopSquared = 18.0 * 18.0;
   static const Duration _doubleTapTimeout = Duration(milliseconds: 300);
@@ -58,8 +57,11 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final position = _scrollController.position;
-    // Auto-scroll is enabled when user is near the bottom.
+    final wasAutoScroll = _autoScroll;
     _autoScroll = position.pixels >= position.maxScrollExtent - 50;
+    if (wasAutoScroll != _autoScroll) {
+      setState(() {});
+    }
   }
 
   void _scrollToBottom() {
@@ -89,8 +91,8 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
 
   void _onPointerUp(PointerUpEvent event) {
     // Auto-copy when user finishes a drag-to-select gesture.
-    if (_hasSelection && _pointerMoved) {
-      _copySelectionToClipboard();
+    if (_selectionController.hasSelection && _pointerMoved) {
+      _selectionController.copySelectionToClipboard();
       return;
     }
 
@@ -129,7 +131,7 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   }
 
   void _handleSingleTap() {
-    if (_hasSelection) {
+    if (_selectionController.hasSelection) {
       // Tap while text is selected — just deselect, don't focus input.
       return;
     }
@@ -137,29 +139,19 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   }
 
   void _handleDoubleTap() {
-    _autoScroll = true;
+    setState(() {
+      _autoScroll = true;
+    });
     _scrollToBottom();
   }
 
   // ---------------------------------------------------------------------------
-  // Selection tracking & auto-copy
+  // Selection tracking
   // ---------------------------------------------------------------------------
 
   void _onSelectionChanged(SelectedContent? content) {
-    _lastSelectedContent = content;
-    final hasText = content != null && content.plainText.isNotEmpty;
-    if (_hasSelection != hasText) {
-      setState(() {
-        _hasSelection = hasText;
-      });
-    }
-  }
-
-  void _copySelectionToClipboard() {
-    final text = _lastSelectedContent?.plainText;
-    if (text != null && text.isNotEmpty) {
-      Clipboard.setData(ClipboardData(text: text));
-    }
+    final changed = _selectionController.onSelectionChanged(content);
+    if (changed) setState(() {});
   }
 
   @override
@@ -189,7 +181,11 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
               onSelectionChanged: _onSelectionChanged,
               child: ListView.builder(
                 controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                // Keep extra off-screen lines alive to improve selection
+                // continuity across scroll boundaries.
+                cacheExtent: 2000,
                 itemCount: lines.length,
                 itemBuilder: (context, index) {
                   return _TerminalLine(line: lines[index]);
@@ -204,7 +200,9 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
                 right: 8,
                 child: FloatingActionButton.small(
                   onPressed: () {
-                    _autoScroll = true;
+                    setState(() {
+                      _autoScroll = true;
+                    });
                     _scrollToBottom();
                   },
                   child: const Icon(Icons.arrow_downward),

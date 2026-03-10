@@ -16,6 +16,7 @@ class AncientAnguishApp extends ConsumerWidget {
     final theme = switch (settings.themeMode) {
       'classic' => AppTheme.classicDark(),
       'highContrast' => AppTheme.highContrast(),
+      'custom' => AppTheme.custom(settings.customThemeColors),
       _ => AppTheme.rpgDark(),
     };
 

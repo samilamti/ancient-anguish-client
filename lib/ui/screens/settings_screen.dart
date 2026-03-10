@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,20 +25,6 @@ class SettingsScreen extends ConsumerWidget {
           _SectionHeader(title: 'Display', icon: Icons.text_fields),
           const SizedBox(height: 8),
 
-          // Font size slider.
-          _SettingsTile(
-            title: 'Font Size',
-            subtitle: '${settings.fontSize.toStringAsFixed(0)}pt',
-            child: Slider(
-              value: settings.fontSize,
-              min: 8,
-              max: 32,
-              divisions: 24,
-              label: '${settings.fontSize.toStringAsFixed(0)}pt',
-              onChanged: notifier.setFontSize,
-            ),
-          ),
-
           // Theme selector.
           _SettingsTile(
             title: 'Theme',
@@ -59,6 +46,11 @@ class SettingsScreen extends ConsumerWidget {
                   label: Text('Hi-Con'),
                   icon: Icon(Icons.contrast),
                 ),
+                ButtonSegment(
+                  value: 'custom',
+                  label: Text('Custom'),
+                  icon: Icon(Icons.palette),
+                ),
               ],
               selected: {settings.themeMode},
               onSelectionChanged: (selected) {
@@ -66,6 +58,31 @@ class SettingsScreen extends ConsumerWidget {
               },
             ),
           ),
+
+          // Custom color editors (shown when Custom theme is selected).
+          if (settings.themeMode == 'custom')
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                children: [
+                  for (final entry in {
+                    'primary': 'Primary',
+                    'secondary': 'Secondary',
+                    'surface': 'Surface',
+                    'onSurface': 'On Surface',
+                    'background': 'Background',
+                  }.entries)
+                    _ColorEditorTile(
+                      label: entry.value,
+                      colorKey: entry.key,
+                      colorValue: settings.customThemeColors[entry.key] ??
+                          AppSettings.defaultCustomColors[entry.key]!,
+                      onChanged: (value) =>
+                          notifier.setCustomThemeColor(entry.key, value),
+                    ),
+                ],
+              ),
+            ),
 
           // Scrollback lines.
           _SettingsTile(
@@ -87,57 +104,31 @@ class SettingsScreen extends ConsumerWidget {
           _SectionHeader(title: 'Game', icon: Icons.gamepad),
           const SizedBox(height: 8),
 
-          // Custom prompt pattern.
-          _SettingsTile(
-            title: 'Custom Prompt Pattern',
-            subtitle: settings.customPromptPattern ?? 'Using AA defaults',
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: r'(\d+)/(\d+):(\d+)/(\d+)>',
-                  helperText: 'Regex with 4 groups: HP, MaxHP, SP, MaxSP',
-                  helperMaxLines: 2,
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () => notifier.setCustomPromptPattern(null),
-                    tooltip: 'Reset to defaults',
-                  ),
-                ),
-                controller: TextEditingController(
-                  text: settings.customPromptPattern ?? '',
-                ),
-                onSubmitted: (value) {
-                  notifier.setCustomPromptPattern(
-                    value.isEmpty ? null : value,
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // Quick commands toggle.
-          SwitchListTile(
-            title: const Text('Quick Command Buttons'),
-            subtitle: const Text('Show shortcut buttons on mobile'),
-            value: settings.quickCommandsVisible,
-            onChanged: (_) => notifier.toggleQuickCommands(),
-            secondary: const Icon(Icons.grid_view),
-          ),
-
-          // D-Pad vs Quick Commands.
-          if (settings.quickCommandsVisible)
+          // Quick commands toggle (mobile only).
+          if (defaultTargetPlatform != TargetPlatform.windows &&
+              defaultTargetPlatform != TargetPlatform.macOS) ...[
             SwitchListTile(
-              title: const Text('Use D-Pad'),
-              subtitle: Text(
-                settings.useDPad
-                    ? 'Compass rose with 8 directions'
-                    : 'Simple quick command buttons',
-              ),
-              value: settings.useDPad,
-              onChanged: (_) => notifier.toggleDPad(),
-              secondary: const Icon(Icons.explore),
+              title: const Text('Quick Command Buttons'),
+              subtitle: const Text('Show shortcut buttons on mobile'),
+              value: settings.quickCommandsVisible,
+              onChanged: (_) => notifier.toggleQuickCommands(),
+              secondary: const Icon(Icons.grid_view),
             ),
+
+            // D-Pad vs Quick Commands.
+            if (settings.quickCommandsVisible)
+              SwitchListTile(
+                title: const Text('Use D-Pad'),
+                subtitle: Text(
+                  settings.useDPad
+                      ? 'Compass rose with 8 directions'
+                      : 'Simple quick command buttons',
+                ),
+                value: settings.useDPad,
+                onChanged: (_) => notifier.toggleDPad(),
+                secondary: const Icon(Icons.explore),
+              ),
+          ],
 
           const Divider(height: 32),
 
@@ -223,6 +214,7 @@ class SettingsScreen extends ConsumerWidget {
       'rpg' => 'RPG Fantasy',
       'classic' => 'Classic Dark',
       'highContrast' => 'High Contrast',
+      'custom' => 'Custom',
       _ => mode,
     };
   }
@@ -250,6 +242,67 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ColorEditorTile extends StatelessWidget {
+  final String label;
+  final String colorKey;
+  final int colorValue;
+  final ValueChanged<int> onChanged;
+
+  const _ColorEditorTile({
+    required this.label,
+    required this.colorKey,
+    required this.colorValue,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Color(colorValue);
+    final hex = colorValue.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.onSurface.withAlpha(60),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+          SizedBox(
+            width: 100,
+            child: TextField(
+              controller: TextEditingController(text: hex),
+              style: const TextStyle(fontSize: 13, fontFamily: 'JetBrainsMono'),
+              decoration: const InputDecoration(
+                prefixText: '#',
+                isDense: true,
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              ),
+              onSubmitted: (value) {
+                final parsed = int.tryParse('FF${value.replaceAll('#', '')}',
+                    radix: 16);
+                if (parsed != null) onChanged(parsed);
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

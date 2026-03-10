@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/connection_info.dart';
 import '../../providers/audio_provider.dart';
 import '../../providers/connection_provider.dart';
+import '../../providers/game_state_provider.dart';
+import '../../providers/login_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../widgets/audio/audio_controls.dart';
+import '../widgets/login/login_dialog.dart';
 import '../widgets/mobile/d_pad.dart';
 import '../widgets/mobile/quick_commands.dart';
-import '../widgets/status/coordinate_display.dart';
 import '../widgets/status/status_bar.dart';
 import '../widgets/terminal/input_bar.dart';
 import '../widgets/terminal/terminal_view.dart';
@@ -27,16 +29,20 @@ class HomeScreen extends ConsumerWidget {
     final statusAsync = ref.watch(connectionStatusProvider);
     final settings = ref.watch(settingsProvider);
     final audioState = ref.watch(audioUiStateProvider);
+    final gameState = ref.watch(gameStateProvider);
     final isConnected = statusAsync.when(
       data: (status) => status == ConnectionStatus.connected,
       loading: () => false,
       error: (_, _) => false,
     );
     final isMobile = MediaQuery.of(context).size.width < 768;
+    final playerName = gameState.playerName;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ancient Anguish'),
+        title: playerName != null && isConnected
+            ? _TitleWithCharName(name: playerName)
+            : const Text('Ancient Anguish'),
         titleTextStyle: TextStyle(
           fontFamily: 'JetBrainsMono',
           fontSize: 16,
@@ -127,30 +133,87 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            // Terminal output – takes all available space.
-            const Expanded(child: TerminalView()),
+            Column(
+              children: [
+                // HP/SP bars side by side (under the app bar).
+                if (isConnected) const VitalsRow(),
 
-            // Status bar (collapsible on mobile, full on desktop).
-            if (isConnected) StatusBar(collapsible: isMobile),
+                // Coord/map/info bar.
+                if (isConnected) const StatusBar(),
 
-            // Coordinate display (visible when connected; auto-hides
-            // when no coordinates are available).
-            if (isConnected) const CoordinateDisplay(),
+                // Terminal output – takes all available space.
+                const Expanded(child: TerminalView()),
 
-            // Audio controls (shown when connected and audio is enabled).
-            if (isConnected && audioState.audioEnabled)
-              const AudioControls(),
+                // Audio controls (shown when connected and audio is enabled).
+                if (isConnected && audioState.audioEnabled)
+                  const AudioControls(),
 
-            // Mobile controls (D-Pad or Quick Commands, toggleable).
-            if (isMobile && settings.quickCommandsVisible)
-              settings.useDPad ? const DPad() : const QuickCommands(),
+                // Mobile controls (D-Pad or Quick Commands, toggleable).
+                if (isMobile && settings.quickCommandsVisible)
+                  settings.useDPad ? const DPad() : const QuickCommands(),
 
-            // Command input bar.
-            const InputBar(),
+                // Command input bar.
+                const InputBar(),
+              ],
+            ),
+
+            // Login dialog overlay.
+            if (ref.watch(loginProvider) is LoginPromptDetected) ...[
+              const Positioned.fill(
+                child: ColoredBox(color: Colors.black54),
+              ),
+              const Positioned.fill(child: LoginDialog()),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Title widget showing "CharName - Ancient Anguish" with a 3D shadow on the name.
+class _TitleWithCharName extends StatelessWidget {
+  final String name;
+  const _TitleWithCharName({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: name,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: primary,
+              shadows: [
+                Shadow(
+                  offset: const Offset(1, 1),
+                  blurRadius: 0,
+                  color: primary.withAlpha(80),
+                ),
+                Shadow(
+                  offset: const Offset(2, 2),
+                  blurRadius: 1,
+                  color: primary.withAlpha(40),
+                ),
+              ],
+            ),
+          ),
+          TextSpan(
+            text: ' - Ancient Anguish',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: primary.withAlpha(180),
+            ),
+          ),
+        ],
       ),
     );
   }

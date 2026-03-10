@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import '../area/area_detector.dart';
 import 'audio_service.dart';
 
@@ -41,7 +43,11 @@ class AreaAudioManager {
   Future<void> setEnabled(bool enabled) async {
     _enabled = enabled;
     if (!enabled) {
-      await _audioService.fadeOut();
+      try {
+        await _audioService.fadeOut();
+      } catch (e) {
+        debugPrint('AreaAudioManager.setEnabled fadeOut error: $e');
+      }
       _currentPlayingArea = null;
     }
   }
@@ -77,8 +83,12 @@ class AreaAudioManager {
 
     if (trackPath == null) {
       // No track for this area – fade out to silence.
-      if (_audioService.isPlaying) {
-        await _audioService.fadeOut();
+      try {
+        if (_audioService.isPlaying) {
+          await _audioService.fadeOut();
+        }
+      } catch (e) {
+        debugPrint('AreaAudioManager.onAreaChanged fadeOut error: $e');
       }
       _currentPlayingArea = newArea;
       return;
@@ -87,8 +97,12 @@ class AreaAudioManager {
     // Verify the file exists.
     if (!await File(trackPath).exists()) {
       // Track file missing – fade out gracefully.
-      if (_audioService.isPlaying) {
-        await _audioService.fadeOut();
+      try {
+        if (_audioService.isPlaying) {
+          await _audioService.fadeOut();
+        }
+      } catch (e) {
+        debugPrint('AreaAudioManager.onAreaChanged fadeOut error: $e');
       }
       _currentPlayingArea = newArea;
       return;
@@ -100,12 +114,16 @@ class AreaAudioManager {
     final fadeMs = areaConfig?.audio?.fadeMs ?? 2000;
 
     // Crossfade to the new track.
-    await _audioService.crossfadeTo(
-      trackPath,
-      volume: volume,
-      fadeInMs: fadeMs,
-      fadeOutMs: fadeMs,
-    );
+    try {
+      await _audioService.crossfadeTo(
+        trackPath,
+        volume: volume,
+        fadeInMs: fadeMs,
+        fadeOutMs: fadeMs,
+      );
+    } catch (e) {
+      debugPrint('AreaAudioManager.onAreaChanged crossfadeTo error: $e');
+    }
 
     _currentPlayingArea = newArea;
   }
@@ -134,12 +152,18 @@ class AreaAudioManager {
 
   /// Stops all audio and resets state.
   Future<void> reset() async {
-    await _audioService.stop();
+    try {
+      await _audioService.stop();
+    } catch (e) {
+      debugPrint('AreaAudioManager.reset error: $e');
+    }
     _currentPlayingArea = null;
   }
 
-  /// Disposes resources.
+  /// Cleans up manager state. Does NOT dispose the AudioService
+  /// since it is a shared singleton owned by [audioServiceProvider].
   Future<void> dispose() async {
-    await _audioService.dispose();
+    _enabled = false;
+    _currentPlayingArea = null;
   }
 }

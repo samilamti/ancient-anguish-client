@@ -10,12 +10,12 @@ final promptParserProvider = Provider<PromptParser>((ref) {
   return PromptParser();
 });
 
-/// Provides the [AreaDetector] singleton.
-final areaDetectorProvider = Provider<AreaDetector>((ref) {
+/// Provides the [AreaDetector] singleton, loading area definitions from the
+/// bundled JSON asset. Consumers that `watch` this provider automatically
+/// rebuild once loading completes.
+final areaDetectorProvider = FutureProvider<AreaDetector>((ref) async {
   final detector = AreaDetector();
-  // Load area definitions asynchronously. The detector works with an empty
-  // list until loading completes, so this is safe.
-  detector.loadAreaDefinitions();
+  await detector.loadAreaDefinitions();
   return detector;
 });
 
@@ -38,26 +38,35 @@ class GameStateNotifier extends Notifier<GameState> {
     final newState = parser.parseLine(plainText);
 
     if (newState != null) {
-      // Preserve the current area from coordinate-based detection.
-      // Area detection is handled by updateCoordinates (exact config match)
+      // Preserve fields that the basic prompt parser doesn't set.
+      // Area detection is handled by updateVitalsAndCoordinates (exact config match)
       // and processRoomText (text fallback), not here.
-      state = newState.copyWith(currentArea: state.currentArea);
+      state = newState.copyWith(
+        currentArea: state.currentArea,
+        playerName: newState.playerName ?? state.playerName,
+        playerClass: newState.playerClass ?? state.playerClass,
+        coins: newState.coins ?? state.coins,
+        xp: newState.xp ?? state.xp,
+      );
     }
   }
 
-  /// Called when coordinate lines are parsed from the MUD output.
+  /// Called when prompt lines are parsed from the MUD output.
   ///
-  /// Uses only the exact coordinate config for area name lookup.
+  /// Updates HP, MaxHP, SP, MaxSP, and coordinates in a single state update.
+  /// Uses the exact coordinate config for area name lookup.
   /// Constructs state directly (not via copyWith) so that currentArea can be
   /// cleared to null when no config entry matches.
-  void updateCoordinates(int x, int y) {
+  void updateVitalsAndCoordinates(
+    int hp, int maxHp, int sp, int maxSp, int x, int y,
+  ) {
     final coordConfig = ref.read(coordAreaConfigProvider);
     final configEntry = coordConfig.lookup(x, y);
     state = GameState(
-      hp: state.hp,
-      maxHp: state.maxHp,
-      sp: state.sp,
-      maxSp: state.maxSp,
+      hp: hp,
+      maxHp: maxHp,
+      sp: sp,
+      maxSp: maxSp,
       x: x,
       y: y,
       playerName: state.playerName,
@@ -70,7 +79,8 @@ class GameStateNotifier extends Notifier<GameState> {
 
   /// Called with room description text for text-based area detection fallback.
   void processRoomText(String roomText) {
-    final detector = ref.read(areaDetectorProvider);
+    final detector = ref.read(areaDetectorProvider).value;
+    if (detector == null) return;
     final area = detector.detect(roomText: roomText);
 
     if (area != state.currentArea) {
@@ -78,10 +88,15 @@ class GameStateNotifier extends Notifier<GameState> {
     }
   }
 
+  /// Sets the player name (called after login dialog submission).
+  void setPlayerName(String name) {
+    state = state.copyWith(playerName: name);
+  }
+
   /// Resets the game state (e.g., on disconnect).
   void reset() {
     ref.read(promptParserProvider).reset();
-    ref.read(areaDetectorProvider).reset();
+    ref.read(areaDetectorProvider).value?.reset();
     state = GameState.initial;
   }
 }

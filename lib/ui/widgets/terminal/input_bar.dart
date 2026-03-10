@@ -24,9 +24,28 @@ class _InputBarState extends ConsumerState<InputBar> {
   late final FocusNode _focusNode = ref.read(inputFocusProvider);
 
   @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChange);
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Select all text when the input bar gains focus.
+  void _onFocusChange() {
+    if (_focusNode.hasFocus && _controller.text.isNotEmpty) {
+      Future.microtask(() {
+        _controller.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _controller.text.length,
+        );
+      });
+    }
   }
 
   void _send() {
@@ -78,6 +97,10 @@ class _InputBarState extends ConsumerState<InputBar> {
       return KeyEventResult.ignored;
     }
 
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _controller.clear();
+      return KeyEventResult.handled;
+    }
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       _historyUp();
       return KeyEventResult.handled;

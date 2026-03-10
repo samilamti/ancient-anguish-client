@@ -25,13 +25,14 @@ class _AudioSettingsScreenState extends ConsumerState<AudioSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final areaDetector = ref.watch(areaDetectorProvider);
+    final areaDetector = ref.watch(areaDetectorProvider).value;
     final audioNotifier = ref.read(audioUiStateProvider.notifier);
     final audioManager = ref.read(areaAudioManagerProvider);
     final userTracks = audioManager.userTrackMap;
     final theme = Theme.of(context);
 
-    final areas = areaDetector.areas.map((a) => a.name).toList();
+    final areas =
+        areaDetector?.areas.map((a) => a.name).toList() ?? <String>[];
 
     return Scaffold(
       appBar: AppBar(

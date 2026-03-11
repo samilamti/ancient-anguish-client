@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:ancient_anguish_client/models/game_state.dart';
 import 'package:ancient_anguish_client/protocol/ansi/styled_span.dart';
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
 import 'package:ancient_anguish_client/providers/coord_area_config_provider.dart';

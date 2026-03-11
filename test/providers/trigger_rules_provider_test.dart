@@ -99,7 +99,7 @@ void main() {
     test('state is unmodifiable list', () {
       final rules = container.read(triggerRulesProvider);
       expect(
-        () => (rules as List<TriggerRule>).add(
+        () => rules.add(
           TriggerRule(id: 'x', name: 'x', pattern: 'x'),
         ),
         throwsUnsupportedError,

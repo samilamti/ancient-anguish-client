@@ -44,7 +44,7 @@ void main() {
     test('userImageMap returns unmodifiable copy', () {
       manager.setImageForArea('Tantallon', '/images/town.png');
       final map = manager.userImageMap;
-      expect(() => (map as Map<String, String>)['x'] = 'y',
+      expect(() => map['x'] = 'y',
           throwsUnsupportedError);
     });
 

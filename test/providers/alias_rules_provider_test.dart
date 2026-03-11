@@ -80,7 +80,7 @@ void main() {
     test('state is unmodifiable list', () {
       final rules = container.read(aliasRulesProvider);
       expect(
-        () => (rules as List<AliasRule>).add(
+        () => rules.add(
           const AliasRule(id: 'x', keyword: 'x', expansion: 'x'),
         ),
         throwsUnsupportedError,

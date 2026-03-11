@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:ancient_anguish_client/models/game_state.dart';
 import 'package:ancient_anguish_client/providers/coord_area_config_provider.dart';
 import 'package:ancient_anguish_client/providers/game_state_provider.dart';
 import 'package:ancient_anguish_client/services/area/area_detector.dart';
@@ -60,10 +59,8 @@ void main() {
       // First set up an area via updateVitalsAndCoordinates.
       notifier.updateVitalsAndCoordinates(100, 150, 80, 120, 0, 0);
 
-      // Manually set currentArea by constructing state.
-      final stateWithArea = container.read(gameStateProvider);
       // The area comes from coordConfig lookup; with empty config it's null.
-      // Let's just verify processLine preserves whatever currentArea was set.
+      // Just verify processLine preserves whatever currentArea was set.
 
       // Set player name first (it sticks).
       notifier.setPlayerName('TestPlayer');

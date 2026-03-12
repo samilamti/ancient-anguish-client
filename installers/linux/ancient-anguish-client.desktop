@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Ancient Anguish Client
+Comment=A cross-platform MUD client for Ancient Anguish
+Exec=/opt/ancient-anguish-client/ancient_anguish_client
+Icon=ancient-anguish-client
+Terminal=false
+Categories=Game;RolePlaying;Network;
+Keywords=MUD;telnet;ancient;anguish;
+StartupWMClass=ancient_anguish_client

@@ -3,9 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/background/area_background_manager.dart';
 import 'game_state_provider.dart';
 
-/// Provides the [AreaBackgroundManager] singleton.
-final areaBackgroundManagerProvider = Provider<AreaBackgroundManager>((ref) {
-  return AreaBackgroundManager();
+/// Provides the [AreaBackgroundManager] singleton, loading saved mappings
+/// from disk on first access.
+final areaBackgroundManagerProvider =
+    FutureProvider<AreaBackgroundManager>((ref) async {
+  final manager = AreaBackgroundManager();
+  await manager.loadFromDisk();
+  return manager;
 });
 
 /// Provides the current background image path for the active area, or null.
@@ -14,7 +18,8 @@ final areaBackgroundManagerProvider = Provider<AreaBackgroundManager>((ref) {
 /// from the [AreaBackgroundManager].
 final backgroundImageProvider = Provider<String?>((ref) {
   final gameState = ref.watch(gameStateProvider);
-  final manager = ref.watch(areaBackgroundManagerProvider);
+  final manager = ref.watch(areaBackgroundManagerProvider).value;
+  if (manager == null) return null;
   final area = gameState.currentArea;
   if (area == null) return null;
   return manager.getImageForArea(area);

@@ -27,8 +27,9 @@ class _BackgroundImageSettingsScreenState
   @override
   Widget build(BuildContext context) {
     final areaDetector = ref.watch(areaDetectorProvider).value;
-    final manager = ref.read(areaBackgroundManagerProvider);
-    final userImages = manager.userImageMap;
+    final managerAsync = ref.watch(areaBackgroundManagerProvider);
+    final manager = managerAsync.value;
+    final userImages = manager?.userImageMap ?? const {};
     final theme = Theme.of(context);
 
     final areas =
@@ -246,7 +247,8 @@ class _BackgroundImageSettingsScreenState
                     icon: const Icon(Icons.delete_outline),
                     color: theme.colorScheme.error,
                     onPressed: () {
-                      manager.removeImageForArea(entry.key);
+                      manager?.removeImageForArea(entry.key);
+                      ref.invalidate(backgroundImageProvider);
                       setState(() {});
                     },
                   ),
@@ -283,8 +285,10 @@ class _BackgroundImageSettingsScreenState
       return;
     }
 
-    final manager = ref.read(areaBackgroundManagerProvider);
+    final manager = ref.read(areaBackgroundManagerProvider).value;
+    if (manager == null) return;
     manager.setImageForArea(area, path);
+    ref.invalidate(backgroundImageProvider);
     setState(() {
       _selectedFilePath = null;
       _selectedArea = null;

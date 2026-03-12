@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/settings_provider.dart';
+import 'about_screen.dart';
 import 'alias_settings_screen.dart';
 import 'background_image_settings_screen.dart';
 import 'trigger_settings_screen.dart';
@@ -215,9 +216,18 @@ class SettingsScreen extends ConsumerWidget {
           // ── About section ──
           _SectionHeader(title: 'About', icon: Icons.info_outline),
           const SizedBox(height: 8),
-          const ListTile(
-            title: Text('Ancient Anguish Client'),
-            subtitle: Text('v0.4.0 — Phase 4\nA cross-platform MUD client for Ancient Anguish'),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Ancient Anguish Client'),
+            subtitle: const Text('v0.4.0 — Phase 4\nA cross-platform MUD client for Ancient Anguish'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AboutScreen(),
+                ),
+              );
+            },
           ),
         ],
       ),

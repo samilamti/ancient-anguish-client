@@ -54,6 +54,12 @@ class AreaAudioManager {
   /// The area currently playing audio for, or null.
   String? get currentPlayingArea => _currentPlayingArea;
 
+  /// Resets the current area so that [onAreaChanged] will re-evaluate
+  /// the track even if the area name hasn't changed.
+  void clearCurrentArea() {
+    _currentPlayingArea = null;
+  }
+
   /// The audio service (for direct volume/mute control).
   AudioService get audioService => _audioService;
 

@@ -300,15 +300,32 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
   }
 
   /// Sets a user track mapping for an area.
+  ///
+  /// If the player is currently in [areaName], re-triggers audio so the new
+  /// track plays immediately.
   void setTrackForArea(String areaName, String filePath) {
     final manager = ref.read(areaAudioManagerProvider);
     manager.setTrackForArea(areaName, filePath);
+    _refreshIfCurrentArea(areaName, manager);
   }
 
   /// Removes a user track mapping.
+  ///
+  /// If the player is currently in [areaName], re-triggers audio so the
+  /// removal takes effect immediately.
   void removeTrackForArea(String areaName) {
     final manager = ref.read(areaAudioManagerProvider);
     manager.removeTrackForArea(areaName);
+    _refreshIfCurrentArea(areaName, manager);
+  }
+
+  /// If [areaName] matches the area currently playing, reset the manager's
+  /// tracking so that [onAreaChanged] will re-evaluate the track.
+  void _refreshIfCurrentArea(String areaName, AreaAudioManager manager) {
+    if (manager.currentPlayingArea == areaName) {
+      manager.clearCurrentArea();
+      onAreaChanged(areaName);
+    }
   }
 
   /// Stops all audio.

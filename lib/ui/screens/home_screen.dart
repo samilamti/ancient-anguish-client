@@ -7,10 +7,12 @@ import '../../providers/connection_provider.dart';
 import '../../providers/game_state_provider.dart';
 import '../../providers/login_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/social_panel_provider.dart';
 import '../widgets/audio/audio_controls.dart';
 import '../widgets/login/login_dialog.dart';
 import '../widgets/mobile/d_pad.dart';
 import '../widgets/mobile/quick_commands.dart';
+import '../widgets/social/social_windows_overlay.dart';
 import '../widgets/status/status_bar.dart';
 import '../widgets/terminal/input_bar.dart';
 import '../widgets/terminal/terminal_view.dart';
@@ -109,6 +111,26 @@ class HomeScreen extends ConsumerWidget {
             },
           ),
 
+          // Social window toggles (desktop only).
+          if (!isMobile && settings.socialWindowsEnabled) ...[
+            _SocialToggleButton(
+              icon: Icons.chat_bubble_outline,
+              tooltip: 'Chat window',
+              active: ref.watch(socialPanelProvider).chatPanel.visible,
+              onPressed: () {
+                ref.read(socialPanelProvider.notifier).toggleChatVisible();
+              },
+            ),
+            _SocialToggleButton(
+              icon: Icons.message_outlined,
+              tooltip: 'Tells window',
+              active: ref.watch(socialPanelProvider).tellsPanel.visible,
+              onPressed: () {
+                ref.read(socialPanelProvider.notifier).toggleTellsVisible();
+              },
+            ),
+          ],
+
           // Clear terminal.
           IconButton(
             icon: const Icon(Icons.clear_all),
@@ -158,6 +180,9 @@ class HomeScreen extends ConsumerWidget {
                 const InputBar(),
               ],
             ),
+
+            // Social windows overlay (floating/docked panels).
+            if (!isMobile) const SocialWindowsOverlay(),
 
             // Login dialog overlay.
             if (ref.watch(loginProvider) is LoginPromptDetected) ...[
@@ -215,6 +240,32 @@ class _TitleWithCharName extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// AppBar button for toggling a social panel.
+class _SocialToggleButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool active;
+  final VoidCallback onPressed;
+
+  const _SocialToggleButton({
+    required this.icon,
+    required this.tooltip,
+    required this.active,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return IconButton(
+      icon: Icon(icon, size: 20),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      color: active ? primary : null,
     );
   }
 }

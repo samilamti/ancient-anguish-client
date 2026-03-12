@@ -120,6 +120,29 @@ class SettingsScreen extends ConsumerWidget {
           _SectionHeader(title: 'Game', icon: Icons.gamepad),
           const SizedBox(height: 8),
 
+          // Social windows (desktop only).
+          if (defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.macOS ||
+              defaultTargetPlatform == TargetPlatform.linux) ...[
+            SwitchListTile(
+              title: const Text('Social Windows'),
+              subtitle: const Text('Floating Chat and Tell panels'),
+              value: settings.socialWindowsEnabled,
+              onChanged: (_) => notifier.toggleSocialWindows(),
+              secondary: const Icon(Icons.chat),
+            ),
+            if (settings.socialWindowsEnabled)
+              SwitchListTile(
+                title: const Text('Hide Social from Terminal'),
+                subtitle: const Text(
+                  'Only show chat/tells in social windows',
+                ),
+                value: settings.gagSocialFromTerminal,
+                onChanged: (_) => notifier.toggleGagSocial(),
+                secondary: const Icon(Icons.visibility_off),
+              ),
+          ],
+
           // Quick commands toggle (mobile only).
           if (defaultTargetPlatform != TargetPlatform.windows &&
               defaultTargetPlatform != TargetPlatform.macOS) ...[

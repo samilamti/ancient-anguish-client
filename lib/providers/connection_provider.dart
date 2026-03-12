@@ -9,9 +9,14 @@ import '../protocol/ansi/styled_span.dart';
 import '../protocol/telnet/telnet_events.dart';
 import '../services/connection/connection_service.dart';
 import '../services/parser/output_parser.dart';
+import '../models/social_message.dart';
+import '../services/social/social_message_parser.dart';
 import 'battle_provider.dart';
 import 'game_state_provider.dart';
 import 'login_provider.dart';
+import 'settings_provider.dart';
+import 'social_message_provider.dart';
+import 'social_panel_provider.dart';
 import 'trigger_provider.dart';
 
 /// Provides the singleton [ConnectionService].
@@ -61,6 +66,8 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   StreamSubscription<TelnetEvent>? _eventSub;
   StreamSubscription<ConnectionStatus>? _statusSub;
   bool _loginDetected = false;
+  SocialMessageType? _lastSocialType;
+  bool _inTellHistory = false;
 
   @override
   List<StyledLine> build() {
@@ -126,6 +133,29 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                 gameNotifier.processLine(vitals.remainder);
                 gameNotifier.processRoomText(vitals.remainder);
                 continue;
+              }
+            }
+
+            // Tell history block: "thistory" / "tell $" output should not
+            // be captured into the social tells window.
+            if (plainText.contains('-- Summary tell history start --')) {
+              _inTellHistory = true;
+            } else if (plainText.contains('--  Summary tell history end  --')) {
+              _inTellHistory = false;
+            }
+
+            // Social message interception: route [Chat] and tell lines
+            // to their dedicated buffers. When gagging is enabled, skip
+            // adding them to the main terminal.
+            if (_loginDetected && !_inTellHistory) {
+              final socialResult = _processSocialLine(line, plainText);
+              if (socialResult != _SocialLineResult.notSocial) {
+                final settings = ref.read(settingsProvider);
+                if (settings.socialWindowsEnabled &&
+                    isDesktopPlatform() &&
+                    settings.gagSocialFromTerminal) {
+                  continue;
+                }
               }
             }
 
@@ -267,9 +297,66 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         ref.read(gameStateProvider.notifier).reset();
         ref.read(battleStateProvider.notifier).reset();
         ref.read(loginProvider.notifier).reset();
+        ref.read(chatMessagesProvider.notifier).clear();
+        ref.read(tellMessagesProvider.notifier).clear();
         _loginDetected = false;
+        _lastSocialType = null;
+        _inTellHistory = false;
       }
     });
+  }
+
+  _SocialLineResult _processSocialLine(StyledLine line, String plainText) {
+    final chatNotifier = ref.read(chatMessagesProvider.notifier);
+    final tellNotifier = ref.read(tellMessagesProvider.notifier);
+
+    // Check for chat line.
+    final chatMatch = SocialMessageParser.matchChatLine(plainText);
+    if (chatMatch != null) {
+      _lastSocialType = SocialMessageType.chat;
+      chatNotifier.addMessage(SocialMessage(
+        type: SocialMessageType.chat,
+        sender: chatMatch.sender,
+        body: plainText,
+        styledLines: [line],
+        timestamp: DateTime.now(),
+      ));
+      return _SocialLineResult.captured;
+    }
+
+    // Check for tell line.
+    final tellMatch = SocialMessageParser.matchTellLine(plainText);
+    if (tellMatch != null) {
+      _lastSocialType = tellMatch.isOutgoing
+          ? SocialMessageType.tellOutgoing
+          : SocialMessageType.tellIncoming;
+      tellNotifier.addMessage(SocialMessage(
+        type: _lastSocialType!,
+        sender: tellMatch.sender,
+        body: plainText,
+        styledLines: [line],
+        timestamp: DateTime.now(),
+      ));
+      if (!tellMatch.isOutgoing) {
+        tellNotifier.setLastRecipient(tellMatch.sender);
+      }
+      return _SocialLineResult.captured;
+    }
+
+    // Check for continuation of a previous social message.
+    if (_lastSocialType != null &&
+        SocialMessageParser.isContinuation(plainText)) {
+      if (_lastSocialType == SocialMessageType.chat) {
+        chatNotifier.appendContinuation(line, plainText);
+      } else {
+        tellNotifier.appendContinuation(line, plainText);
+      }
+      return _SocialLineResult.continuation;
+    }
+
+    // Not a social line — reset continuation tracking.
+    _lastSocialType = null;
+    return _SocialLineResult.notSocial;
   }
 
   void _addLines(List<StyledLine> lines) {
@@ -323,6 +410,9 @@ class _PromptMatch {
     required this.remainder,
   });
 }
+
+/// Result of checking a line for social message content.
+enum _SocialLineResult { captured, continuation, notSocial }
 
 /// Provides command history.
 final commandHistoryProvider =

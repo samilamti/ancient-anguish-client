@@ -13,6 +13,8 @@ class AppSettings {
   final bool quickCommandsVisible;
   final bool useDPad; // true = compass D-Pad, false = quick command buttons
   final Map<String, int> customThemeColors;
+  final bool socialWindowsEnabled; // desktop-only floating chat/tell panels
+  final bool gagSocialFromTerminal; // hide social messages from main terminal
 
   static const Map<String, int> defaultCustomColors = {
     'primary': 0xFFD4A057,
@@ -32,6 +34,8 @@ class AppSettings {
     this.quickCommandsVisible = true,
     this.useDPad = true,
     this.customThemeColors = defaultCustomColors,
+    this.socialWindowsEnabled = true,
+    this.gagSocialFromTerminal = true,
   });
 
   AppSettings copyWith({
@@ -44,6 +48,8 @@ class AppSettings {
     bool? quickCommandsVisible,
     bool? useDPad,
     Map<String, int>? customThemeColors,
+    bool? socialWindowsEnabled,
+    bool? gagSocialFromTerminal,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -55,6 +61,10 @@ class AppSettings {
       quickCommandsVisible: quickCommandsVisible ?? this.quickCommandsVisible,
       useDPad: useDPad ?? this.useDPad,
       customThemeColors: customThemeColors ?? this.customThemeColors,
+      socialWindowsEnabled:
+          socialWindowsEnabled ?? this.socialWindowsEnabled,
+      gagSocialFromTerminal:
+          gagSocialFromTerminal ?? this.gagSocialFromTerminal,
     );
   }
 }
@@ -95,6 +105,15 @@ class SettingsNotifier extends Notifier<AppSettings> {
     final updated = Map<String, int>.from(state.customThemeColors);
     updated[key] = colorValue;
     state = state.copyWith(customThemeColors: updated);
+  }
+
+  void toggleSocialWindows() {
+    state = state.copyWith(socialWindowsEnabled: !state.socialWindowsEnabled);
+  }
+
+  void toggleGagSocial() {
+    state =
+        state.copyWith(gagSocialFromTerminal: !state.gagSocialFromTerminal);
   }
 
   Future<void> toggleLogging() async {

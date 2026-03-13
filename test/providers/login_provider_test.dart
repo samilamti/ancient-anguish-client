@@ -3,11 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/protocol/ansi/styled_span.dart';
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
-import 'package:ancient_anguish_client/providers/coord_area_config_provider.dart';
 import 'package:ancient_anguish_client/providers/game_state_provider.dart';
 import 'package:ancient_anguish_client/providers/login_provider.dart';
+import 'package:ancient_anguish_client/providers/unified_area_config_provider.dart';
 import 'package:ancient_anguish_client/services/area/area_detector.dart';
-import 'package:ancient_anguish_client/services/config/coord_area_config.dart';
+import 'package:ancient_anguish_client/services/config/unified_area_config_manager.dart';
 import 'package:ancient_anguish_client/services/connection/connection_service.dart';
 import 'package:ancient_anguish_client/services/parser/prompt_parser.dart';
 
@@ -26,9 +26,8 @@ void main() {
         promptParserProvider.overrideWithValue(PromptParser()),
         areaDetectorProvider
             .overrideWith((ref) => Future.value(AreaDetector())),
-        coordAreaConfigProvider.overrideWith(() {
-          return _FakeCoordAreaConfigNotifier();
-        }),
+        unifiedAreaConfigProvider.overrideWith(
+            (ref) => Future.value(UnifiedAreaConfigManager())),
       ],
     );
     notifier = container.read(loginProvider.notifier);
@@ -155,8 +154,3 @@ class _FakeTerminalBufferNotifier extends TerminalBufferNotifier {
   List<StyledLine> build() => [];
 }
 
-/// Fake coord area config notifier.
-class _FakeCoordAreaConfigNotifier extends CoordAreaConfigNotifier {
-  @override
-  CoordAreaConfig build() => CoordAreaConfig();
-}

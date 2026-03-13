@@ -9,8 +9,8 @@ import '../services/area/area_detector.dart';
 import '../services/audio/area_audio_manager.dart';
 import '../services/audio/audio_service.dart';
 import 'battle_provider.dart';
-import 'coord_area_config_provider.dart';
 import 'game_state_provider.dart';
+import 'unified_area_config_provider.dart';
 
 /// Provides the [AudioService] singleton.
 final audioServiceProvider = Provider<AudioService>((ref) {
@@ -21,7 +21,8 @@ final audioServiceProvider = Provider<AudioService>((ref) {
 
 /// Provides the [AreaAudioManager] singleton.
 ///
-/// Rebuilds when the [AreaDetector] finishes loading area definitions.
+/// Rebuilds when the [AreaDetector] or unified config finishes loading.
+/// Pre-loads user track mappings and battle themes from the unified config.
 final areaAudioManagerProvider = Provider<AreaAudioManager>((ref) {
   final audioService = ref.watch(audioServiceProvider);
   final areaDetector =
@@ -31,16 +32,11 @@ final areaAudioManagerProvider = Provider<AreaAudioManager>((ref) {
     areaDetector: areaDetector,
   );
 
-  // Pre-load audio track map from Area Configuration.md.
-  final config = ref.read(coordAreaConfigProvider);
-  for (final entry in config.entries) {
-    if (entry.audioPath != null) {
-      manager.setTrackForArea(entry.areaName, entry.audioPath!);
-    }
-  }
-  // Load area-only audio mappings (for text-detected areas like Inns).
-  for (final MapEntry(:key, :value) in config.areaAudioMap.entries) {
-    manager.setTrackForArea(key, value);
+  // Pre-load audio tracks and battle themes from unified config.
+  final unifiedConfig = ref.watch(unifiedAreaConfigProvider).value;
+  if (unifiedConfig != null) {
+    manager.loadUserTrackMap(unifiedConfig.userTrackMap);
+    manager.loadBattleThemes(unifiedConfig.battleThemes);
   }
 
   ref.onDispose(() => manager.dispose());
@@ -127,10 +123,13 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       // Only trigger when coordinates actually change to avoid race conditions.
       if (next.hasCoordinates &&
           (previous?.x != next.x || previous?.y != next.y)) {
-        final entry =
-            ref.read(coordAreaConfigProvider).lookup(next.x!, next.y!);
-        if (entry?.audioPath != null) {
-          _playConfigAudio(entry!.audioPath!, entry.areaName);
+        final unifiedConfig = ref.read(unifiedAreaConfigProvider).value;
+        final entry = unifiedConfig?.lookupByCoord(next.x!, next.y!);
+        final audioPath = entry != null
+            ? unifiedConfig?.getMusicForArea(entry.name)
+            : null;
+        if (audioPath != null) {
+          _playConfigAudio(audioPath, entry!.name);
           return;
         }
         // Coordinates changed but no audio for new position — fade out.
@@ -306,6 +305,9 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
   void setTrackForArea(String areaName, String filePath) {
     final manager = ref.read(areaAudioManagerProvider);
     manager.setTrackForArea(areaName, filePath);
+    // Persist via unified config.
+    ref.read(unifiedAreaConfigProvider).value?.setMusicForArea(
+        areaName, filePath);
     _refreshIfCurrentArea(areaName, manager);
   }
 
@@ -316,6 +318,8 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
   void removeTrackForArea(String areaName) {
     final manager = ref.read(areaAudioManagerProvider);
     manager.removeTrackForArea(areaName);
+    // Persist via unified config.
+    ref.read(unifiedAreaConfigProvider).value?.removeAllMusicForArea(areaName);
     _refreshIfCurrentArea(areaName, manager);
   }
 
@@ -374,6 +378,7 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
   void addBattleTheme(String filePath) {
     final manager = ref.read(areaAudioManagerProvider);
     manager.addBattleTheme(filePath);
+    ref.read(unifiedAreaConfigProvider).value?.addBattleTheme(filePath);
     state = state.copyWith(battleThemes: List.from(manager.battleThemes));
   }
 
@@ -381,6 +386,7 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
   void removeBattleThemeAt(int index) {
     final manager = ref.read(areaAudioManagerProvider);
     manager.removeBattleThemeAt(index);
+    ref.read(unifiedAreaConfigProvider).value?.removeBattleThemeAt(index);
     state = state.copyWith(battleThemes: List.from(manager.battleThemes));
   }
 
@@ -388,6 +394,8 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
   void reorderBattleThemes(int oldIndex, int newIndex) {
     final manager = ref.read(areaAudioManagerProvider);
     manager.reorderBattleThemes(oldIndex, newIndex);
+    ref.read(unifiedAreaConfigProvider).value?.reorderBattleThemes(
+        oldIndex, newIndex);
     state = state.copyWith(battleThemes: List.from(manager.battleThemes));
   }
 }

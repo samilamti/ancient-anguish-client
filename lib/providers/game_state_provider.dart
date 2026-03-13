@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/game_state.dart';
 import '../services/area/area_detector.dart';
 import '../services/parser/prompt_parser.dart';
-import 'coord_area_config_provider.dart';
+import 'unified_area_config_provider.dart';
 
 /// Provides the [PromptParser] singleton.
 final promptParserProvider = Provider<PromptParser>((ref) {
@@ -66,9 +66,9 @@ class GameStateNotifier extends Notifier<GameState> {
     // This preserves text-based overrides (e.g., "Inns" inside Tantallon).
     String? area;
     if (coordsChanged) {
-      final coordConfig = ref.read(coordAreaConfigProvider);
-      final configEntry = coordConfig.lookup(x, y);
-      area = configEntry?.areaName;
+      final unifiedConfig = ref.read(unifiedAreaConfigProvider).value;
+      final configEntry = unifiedConfig?.lookupByCoord(x, y);
+      area = configEntry?.name;
     } else {
       area = state.currentArea;
     }

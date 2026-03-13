@@ -1,10 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:ancient_anguish_client/providers/coord_area_config_provider.dart';
+import 'package:ancient_anguish_client/models/area_config_entry.dart';
 import 'package:ancient_anguish_client/providers/game_state_provider.dart';
+import 'package:ancient_anguish_client/providers/unified_area_config_provider.dart';
 import 'package:ancient_anguish_client/services/area/area_detector.dart';
-import 'package:ancient_anguish_client/services/config/coord_area_config.dart';
+import 'package:ancient_anguish_client/services/config/unified_area_config_manager.dart';
 import 'package:ancient_anguish_client/services/parser/prompt_parser.dart';
 
 void main() {
@@ -12,15 +13,14 @@ void main() {
   late GameStateNotifier notifier;
 
   /// Creates a ProviderContainer with all required overrides.
-  ProviderContainer createContainer({CoordAreaConfig? coordConfig}) {
+  ProviderContainer createContainer({UnifiedAreaConfigManager? configManager}) {
+    final manager = configManager ?? UnifiedAreaConfigManager();
     return ProviderContainer(
       overrides: [
         promptParserProvider.overrideWithValue(PromptParser()),
         areaDetectorProvider
             .overrideWith((ref) => Future.value(AreaDetector())),
-        coordAreaConfigProvider.overrideWith(() {
-          return _FakeCoordAreaConfigNotifier(coordConfig ?? CoordAreaConfig());
-        }),
+        unifiedAreaConfigProvider.overrideWith((ref) => Future.value(manager)),
       ],
     );
   }
@@ -59,7 +59,7 @@ void main() {
       // First set up an area via updateVitalsAndCoordinates.
       notifier.updateVitalsAndCoordinates(100, 150, 80, 120, 0, 0);
 
-      // The area comes from coordConfig lookup; with empty config it's null.
+      // The area comes from unified config lookup; with empty config it's null.
       // Just verify processLine preserves whatever currentArea was set.
 
       // Set player name first (it sticks).
@@ -100,25 +100,32 @@ void main() {
     });
 
     test('clears currentArea to null when no config entry matches', () {
-      // Empty coord config → no match → currentArea should be null.
+      // Empty unified config → no match → currentArea should be null.
       notifier.updateVitalsAndCoordinates(100, 150, 80, 120, 99, 99);
       expect(container.read(gameStateProvider).currentArea, isNull);
     });
 
-    test('sets currentArea from coord config entry when found', () {
-      // Create a config with a known entry.
-      final config = CoordAreaConfig();
-      // We can't easily load entries without a file, so we test via
-      // the full update cycle — the important thing is the lookup path.
-      container.dispose();
+    test('sets currentArea from unified config when found', () {
+      // Create a manager with a known area entry.
+      final manager = UnifiedAreaConfigManager();
+      manager.loadFromConfig(UnifiedAreaConfig(
+        areas: {
+          'Tantallon': const AreaConfigEntry(
+            name: 'Tantallon',
+            coordinates: ['0,0'],
+          ),
+        },
+      ));
 
-      // Create new container with a config that has entries.
-      container = createContainer(coordConfig: config);
+      container.dispose();
+      container = createContainer(configManager: manager);
       notifier = container.read(gameStateProvider.notifier);
 
-      // With empty config, area should be null.
+      // Wait for the FutureProvider to resolve.
+      container.read(unifiedAreaConfigProvider);
+
       notifier.updateVitalsAndCoordinates(100, 150, 80, 120, 0, 0);
-      expect(container.read(gameStateProvider).currentArea, isNull);
+      expect(container.read(gameStateProvider).currentArea, 'Tantallon');
     });
   });
 
@@ -181,13 +188,4 @@ void main() {
       expect(state.playerName, isNull);
     });
   });
-}
-
-/// Fake notifier that returns a pre-built CoordAreaConfig.
-class _FakeCoordAreaConfigNotifier extends CoordAreaConfigNotifier {
-  final CoordAreaConfig _config;
-  _FakeCoordAreaConfigNotifier(this._config);
-
-  @override
-  CoordAreaConfig build() => _config;
 }

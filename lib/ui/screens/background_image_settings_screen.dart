@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/background_image_provider.dart';
 import '../../providers/game_state_provider.dart';
+import '../../providers/unified_area_config_provider.dart';
 
 /// Screen for managing area-to-image background mappings.
 ///
@@ -27,9 +28,8 @@ class _BackgroundImageSettingsScreenState
   @override
   Widget build(BuildContext context) {
     final areaDetector = ref.watch(areaDetectorProvider).value;
-    final managerAsync = ref.watch(areaBackgroundManagerProvider);
-    final manager = managerAsync.value;
-    final userImages = manager?.userImageMap ?? const {};
+    final unifiedConfig = ref.watch(unifiedAreaConfigProvider).value;
+    final userImages = unifiedConfig?.userImageMap ?? const {};
     final theme = Theme.of(context);
 
     final areas =
@@ -247,7 +247,7 @@ class _BackgroundImageSettingsScreenState
                     icon: const Icon(Icons.delete_outline),
                     color: theme.colorScheme.error,
                     onPressed: () {
-                      manager?.removeImageForArea(entry.key);
+                      unifiedConfig?.removeAllBackgroundsForArea(entry.key);
                       ref.invalidate(backgroundImageProvider);
                       setState(() {});
                     },
@@ -285,9 +285,9 @@ class _BackgroundImageSettingsScreenState
       return;
     }
 
-    final manager = ref.read(areaBackgroundManagerProvider).value;
+    final manager = ref.read(unifiedAreaConfigProvider).value;
     if (manager == null) return;
-    manager.setImageForArea(area, path);
+    manager.setBackgroundForArea(area, path);
     ref.invalidate(backgroundImageProvider);
     setState(() {
       _selectedFilePath = null;

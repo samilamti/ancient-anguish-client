@@ -77,11 +77,15 @@ class AreaAudioManager {
   }
 
   /// Sets a user-configured MP3 file path for an area.
+  ///
+  /// Persistence is handled by the caller via [UnifiedAreaConfigManager].
   void setTrackForArea(String areaName, String filePath) {
     _userTrackMap[areaName] = filePath;
   }
 
   /// Removes a user-configured track mapping for an area.
+  ///
+  /// Persistence is handled by the caller via [UnifiedAreaConfigManager].
   void removeTrackForArea(String areaName) {
     _userTrackMap.remove(areaName);
   }
@@ -104,11 +108,15 @@ class AreaAudioManager {
   List<String> get battleThemes => List.unmodifiable(_battleThemes);
 
   /// Adds a battle theme MP3 path to the end of the list.
+  ///
+  /// Persistence is handled by the caller via [UnifiedAreaConfigManager].
   void addBattleTheme(String filePath) {
     _battleThemes.add(filePath);
   }
 
   /// Removes the battle theme at [index].
+  ///
+  /// Persistence is handled by the caller via [UnifiedAreaConfigManager].
   void removeBattleThemeAt(int index) {
     if (index < 0 || index >= _battleThemes.length) return;
     _battleThemes.removeAt(index);
@@ -118,6 +126,8 @@ class AreaAudioManager {
   }
 
   /// Reorders battle themes (drag-and-drop support).
+  ///
+  /// Persistence is handled by the caller via [UnifiedAreaConfigManager].
   void reorderBattleThemes(int oldIndex, int newIndex) {
     if (oldIndex < newIndex) newIndex--;
     final item = _battleThemes.removeAt(oldIndex);

@@ -121,7 +121,37 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
   }
 
   void setActiveTab(int index) {
-    state = state.copyWith(activeTab: index);
+    state = state.copyWith(
+      activeTab: index,
+      chatHasUnread: index == 0 ? false : state.chatHasUnread,
+      tellsHasUnread: index == 1 ? false : state.tellsHasUnread,
+    );
+  }
+
+  // ── Unread indicators ──
+
+  void markChatUnread() {
+    if (!state.chatHasUnread) {
+      state = state.copyWith(chatHasUnread: true);
+    }
+  }
+
+  void markTellsUnread() {
+    if (!state.tellsHasUnread) {
+      state = state.copyWith(tellsHasUnread: true);
+    }
+  }
+
+  void clearChatUnread() {
+    if (state.chatHasUnread) {
+      state = state.copyWith(chatHasUnread: false);
+    }
+  }
+
+  void clearTellsUnread() {
+    if (state.tellsHasUnread) {
+      state = state.copyWith(tellsHasUnread: false);
+    }
   }
 
   // ── Reset ──

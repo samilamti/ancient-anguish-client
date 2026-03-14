@@ -5,6 +5,7 @@ class PanelTitleBar extends StatelessWidget {
   final String title;
   final bool isDocked;
   final bool isTabbed;
+  final bool hasUnread;
   final VoidCallback onClose;
   final VoidCallback? onDock;
   final VoidCallback? onUndock;
@@ -19,6 +20,7 @@ class PanelTitleBar extends StatelessWidget {
     required this.title,
     required this.isDocked,
     required this.isTabbed,
+    this.hasUnread = false,
     required this.onClose,
     this.onDock,
     this.onUndock,
@@ -42,7 +44,9 @@ class PanelTitleBar extends StatelessWidget {
         height: 32,
         padding: const EdgeInsets.symmetric(horizontal: 6),
         decoration: BoxDecoration(
-          color: primary.withAlpha(40),
+          color: hasUnread
+              ? Colors.amber.withAlpha(50)
+              : primary.withAlpha(40),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
         ),
         child: Row(

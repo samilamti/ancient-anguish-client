@@ -23,11 +23,19 @@ class BattleNotifier extends Notifier<BattleState> {
   static const Duration battleTimeout = Duration(seconds: 5);
 
   Timer? _timer;
+  DateTime? _suppressUntil;
 
   @override
   BattleState build() {
     ref.onDispose(() => _timer?.cancel());
     return BattleState.initial;
+  }
+
+  /// Temporarily suppresses battle detection for [duration].
+  ///
+  /// Used for known HP-loss events that aren't real combat (e.g. headaches).
+  void suppressDetection(Duration duration) {
+    _suppressUntil = DateTime.now().add(duration);
   }
 
   /// Checks [plainText] for the battle pattern. Returns `({int hp, int sp})`
@@ -46,6 +54,9 @@ class BattleNotifier extends Notifier<BattleState> {
 
   /// Called when a battle pattern line is detected in MUD output.
   void onBattlePatternDetected() {
+    if (_suppressUntil != null && DateTime.now().isBefore(_suppressUntil!)) {
+      return;
+    }
     _timer?.cancel();
     _timer = Timer(battleTimeout, _onBattleTimeout);
     if (!state.inBattle) {
@@ -61,6 +72,7 @@ class BattleNotifier extends Notifier<BattleState> {
   void reset() {
     _timer?.cancel();
     _timer = null;
+    _suppressUntil = null;
     state = BattleState.initial;
   }
 }

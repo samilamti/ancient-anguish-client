@@ -201,6 +201,9 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
                     : 'Tells',
                 isDocked: panel.isDocked,
                 isTabbed: false,
+                hasUnread: widget.panelType == SocialPanelType.chat
+                    ? panelState.chatHasUnread
+                    : panelState.tellsHasUnread,
                 onClose: _close,
                 onDock: panel.isFloating ? _dockRight : null,
                 onUndock: panel.isDocked ? _undock : null,
@@ -270,12 +273,14 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
           _TabButton(
             label: 'Chat',
             active: panelState.activeTab == 0,
+            hasUnread: panelState.chatHasUnread,
             onTap: () =>
                 ref.read(socialPanelProvider.notifier).setActiveTab(0),
           ),
           _TabButton(
             label: 'Tells',
             active: panelState.activeTab == 1,
+            hasUnread: panelState.tellsHasUnread,
             onTap: () =>
                 ref.read(socialPanelProvider.notifier).setActiveTab(1),
           ),
@@ -336,17 +341,20 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
 class _TabButton extends StatelessWidget {
   final String label;
   final bool active;
+  final bool hasUnread;
   final VoidCallback onTap;
 
   const _TabButton({
     required this.label,
     required this.active,
+    this.hasUnread = false,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
+    final showUnread = hasUnread && !active;
 
     return Expanded(
       child: InkWell(
@@ -354,21 +362,46 @@ class _TabButton extends StatelessWidget {
         child: Container(
           alignment: Alignment.center,
           decoration: BoxDecoration(
+            color: showUnread ? Colors.amber.withAlpha(30) : null,
             border: Border(
               bottom: BorderSide(
-                color: active ? primary : Colors.transparent,
+                color: active
+                    ? primary
+                    : showUnread
+                        ? Colors.amber
+                        : Colors.transparent,
                 width: 2,
               ),
             ),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'JetBrainsMono',
-              fontSize: 11,
-              fontWeight: active ? FontWeight.bold : FontWeight.normal,
-              color: active ? primary : primary.withAlpha(100),
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'JetBrainsMono',
+                  fontSize: 11,
+                  fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                  color: active
+                      ? primary
+                      : showUnread
+                          ? Colors.amber
+                          : primary.withAlpha(100),
+                ),
+              ),
+              if (showUnread) ...[
+                const SizedBox(width: 4),
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Colors.amber,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),

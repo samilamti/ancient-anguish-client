@@ -5,9 +5,12 @@ import 'package:flutter/widgets.dart' show FocusNode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/connection_info.dart';
+import '../models/social_panel_state.dart';
 import '../protocol/ansi/styled_span.dart';
 import '../protocol/telnet/telnet_events.dart';
 import '../services/connection/connection_service.dart';
+import '../services/parser/emoji_parser.dart';
+import '../services/parser/link_parser.dart';
 import '../services/parser/output_parser.dart';
 import '../models/social_message.dart';
 import '../services/social/social_message_parser.dart';
@@ -124,8 +127,12 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                 // If the entire line was the prompt, gag it.
                 if (vitals.remainder.isEmpty) continue;
                 // Otherwise, re-parse the remainder as a new line.
-                final remainderLine =
+                var remainderLine =
                     StyledLine([StyledSpan(text: vitals.remainder)]);
+                final settings = ref.read(settingsProvider);
+                if (settings.emojiParsingEnabled) {
+                  remainderLine = EmojiParser.processLine(remainderLine);
+                }
                 final result = triggerEngine.processLine(remainderLine);
                 if (!result.gagged) {
                   processedLines.add(result.styledLine);
@@ -135,6 +142,12 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                 continue;
               }
             }
+
+            // Apply emoji parsing: replace text emoticons with emoji.
+            final settings = ref.read(settingsProvider);
+            final emojiLine = settings.emojiParsingEnabled
+                ? EmojiParser.processLine(line)
+                : line;
 
             // Tell history block: "thistory" / "tell $" output should not
             // be captured into the social tells window.
@@ -148,15 +161,21 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             // to their dedicated buffers. When gagging is enabled, skip
             // adding them to the main terminal.
             if (_loginDetected && !_inTellHistory) {
-              final socialResult = _processSocialLine(line, plainText);
+              final socialResult =
+                  _processSocialLine(emojiLine, plainText);
               if (socialResult != _SocialLineResult.notSocial) {
-                final settings = ref.read(settingsProvider);
                 if (settings.socialWindowsEnabled &&
                     isDesktopPlatform() &&
                     settings.gagSocialFromTerminal) {
                   continue;
                 }
               }
+            }
+
+            // Headache event: suppress battle detection for the HP dip.
+            if (plainText.contains(
+                'You suddenly without reason get a bad headache.')) {
+              battleNotifier.suppressDetection(const Duration(seconds: 5));
             }
 
             // Battle pattern detection: "HP: 136  SP: 149" and miss messages.
@@ -172,7 +191,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             }
 
             // Normal trigger processing.
-            final result = triggerEngine.processLine(line);
+            final result = triggerEngine.processLine(emojiLine);
             if (!result.gagged) {
               processedLines.add(result.styledLine);
             }
@@ -243,9 +262,13 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             }
           }
 
-          // Normal trigger processing.
+          // Apply emoji parsing and trigger processing.
+          final settings = ref.read(settingsProvider);
+          final emojiLine = settings.emojiParsingEnabled
+              ? EmojiParser.processLine(flushed)
+              : flushed;
           final triggerEngine = ref.read(triggerEngineProvider);
-          final result = triggerEngine.processLine(flushed);
+          final result = triggerEngine.processLine(emojiLine);
           if (!result.gagged) {
             _addLines([result.styledLine]);
           }
@@ -297,8 +320,6 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         ref.read(gameStateProvider.notifier).reset();
         ref.read(battleStateProvider.notifier).reset();
         ref.read(loginProvider.notifier).reset();
-        ref.read(chatMessagesProvider.notifier).clear();
-        ref.read(tellMessagesProvider.notifier).clear();
         _loginDetected = false;
         _lastSocialType = null;
         _inTellHistory = false;
@@ -318,9 +339,10 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         type: SocialMessageType.chat,
         sender: chatMatch.sender,
         body: plainText,
-        styledLines: [line],
+        styledLines: [LinkParser.processLine(line)],
         timestamp: DateTime.now(),
       ));
+      _markUnreadIfInactive(isChat: true);
       return _SocialLineResult.captured;
     }
 
@@ -334,11 +356,12 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         type: _lastSocialType!,
         sender: tellMatch.sender,
         body: plainText,
-        styledLines: [line],
+        styledLines: [LinkParser.processLine(line)],
         timestamp: DateTime.now(),
       ));
       if (!tellMatch.isOutgoing) {
         tellNotifier.setLastRecipient(tellMatch.sender);
+        _markUnreadIfInactive(isChat: false);
       }
       return _SocialLineResult.captured;
     }
@@ -359,8 +382,31 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     return _SocialLineResult.notSocial;
   }
 
+  /// Marks the chat or tells panel as having unread messages if the user
+  /// isn't currently viewing that panel.
+  void _markUnreadIfInactive({required bool isChat}) {
+    final panelState = ref.read(socialPanelProvider);
+    final panelNotifier = ref.read(socialPanelProvider.notifier);
+
+    if (panelState.tabMode == PanelTabMode.tabbed) {
+      // In tabbed mode, mark unread if the other tab is active.
+      if (isChat && panelState.activeTab != 0) {
+        panelNotifier.markChatUnread();
+      } else if (!isChat && panelState.activeTab != 1) {
+        panelNotifier.markTellsUnread();
+      }
+    } else {
+      // In separate mode, mark unread if the panel isn't visible.
+      if (isChat && !panelState.chatPanel.visible) {
+        panelNotifier.markChatUnread();
+      } else if (!isChat && !panelState.tellsPanel.visible) {
+        panelNotifier.markTellsUnread();
+      }
+    }
+  }
+
   void _addLines(List<StyledLine> lines) {
-    final newState = [...state, ...lines];
+    final newState = [...state, ...lines.map(LinkParser.processLine)];
     // Trim to max lines.
     if (newState.length > _maxLines) {
       state = newState.sublist(newState.length - _maxLines);

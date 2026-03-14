@@ -17,7 +17,7 @@ import '../widgets/status/status_bar.dart';
 import '../widgets/terminal/input_bar.dart';
 import '../widgets/terminal/terminal_view.dart';
 import 'alias_settings_screen.dart';
-import 'audio_settings_screen.dart';
+import 'area_configuration_screen.dart';
 import 'settings_screen.dart';
 import 'trigger_settings_screen.dart';
 
@@ -95,17 +95,14 @@ class HomeScreen extends ConsumerWidget {
             },
           ),
 
-          // Audio settings.
+          // Area configuration.
           IconButton(
-            icon: Icon(
-              audioState.audioEnabled ? Icons.music_note : Icons.music_off,
-              size: 20,
-            ),
-            tooltip: 'Audio settings',
+            icon: const Icon(Icons.landscape, size: 20),
+            tooltip: 'Area configuration',
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => const AudioSettingsScreen(),
+                  builder: (_) => const AreaConfigurationScreen(),
                 ),
               );
             },

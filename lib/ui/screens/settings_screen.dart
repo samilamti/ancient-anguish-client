@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/settings_provider.dart';
 import 'about_screen.dart';
 import 'alias_settings_screen.dart';
-import 'background_image_settings_screen.dart';
+import 'area_configuration_screen.dart';
 import 'trigger_settings_screen.dart';
 
 /// Settings screen for configuring the client.
@@ -101,14 +101,14 @@ class SettingsScreen extends ConsumerWidget {
           ),
 
           ListTile(
-            leading: const Icon(Icons.image),
-            title: const Text('Background Images'),
-            subtitle: const Text('Assign images to game areas'),
+            leading: const Icon(Icons.landscape),
+            title: const Text('Area Configuration'),
+            subtitle: const Text('Music, backgrounds, and coordinates per area'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => const BackgroundImageSettingsScreen(),
+                  builder: (_) => const AreaConfigurationScreen(),
                 ),
               );
             },

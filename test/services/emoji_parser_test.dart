@@ -122,11 +122,11 @@ void main() {
           equals('\u{1F618}'));
     });
 
-    test('replaces thumbs up/down', () {
+    test('replaces thumbs up', () {
       expect(EmojiParser.replaceEmoticons('(y)'),
           equals('\u{1F44D}'));
-      expect(EmojiParser.replaceEmoticons('(n)'),
-          equals('\u{1F44E}'));
+      // (n) removed — conflicts with MUD direction paths like (n) for north.
+      expect(EmojiParser.replaceEmoticons('(n)'), equals('(n)'));
     });
 
     test('replaces multiple emoticons in one string', () {
@@ -287,11 +287,12 @@ void main() {
           equals('</3'));
     });
 
-    test('converts thumbs up/down emoji back to emoticon', () {
+    test('converts thumbs up emoji back to emoticon', () {
       expect(EmojiParser.reverseEmojis('\u{1F44D}'),
           equals('(y)'));
+      // 👎 no longer has a reverse mapping since (n) was removed.
       expect(EmojiParser.reverseEmojis('\u{1F44E}'),
-          equals('(n)'));
+          equals('\u{1F44E}'));
     });
 
     test('converts multiple emoji in one string', () {

@@ -77,7 +77,6 @@ class EmojiParser {
     // Gestures / symbols.
     r'\m/': '\u{1F918}', // 🤘 metal horns
     '(y)': '\u{1F44D}', // 👍 thumbs up
-    '(n)': '\u{1F44E}', // 👎 thumbs down
   };
 
   /// Pre-compiled regex matching all known emoticon patterns.

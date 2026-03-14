@@ -85,13 +85,19 @@ class GameStateNotifier extends Notifier<GameState> {
       coins: state.coins,
       xp: state.xp,
       currentArea: area,
-      commandsSinceCoordChange:
-          coordsChanged ? 0 : state.commandsSinceCoordChange,
+      directionalMovesAtSameCoords:
+          coordsChanged ? 0 : state.directionalMovesAtSameCoords,
     );
   }
 
   /// Called with room description text for text-based area detection fallback.
+  ///
+  /// Only applies when coordinates are unavailable. When coordinates are
+  /// present, area resolution is handled exclusively by the coordinate lookup
+  /// in [updateVitalsAndCoordinates] so that unmapped coordinates can be
+  /// detected and offered for naming.
   void processRoomText(String roomText) {
+    if (state.hasCoordinates) return;
     final detector = ref.read(areaDetectorProvider).value;
     if (detector == null) return;
     final area = detector.detect(roomText: roomText);
@@ -108,10 +114,15 @@ class GameStateNotifier extends Notifier<GameState> {
     state = state.copyWith(hp: hp ?? state.hp, sp: sp ?? state.sp);
   }
 
-  /// Increments the command counter (called when a command is sent to the MUD).
-  void incrementCommandCounter() {
+  /// Records a directional movement attempt at unchanged coordinates.
+  ///
+  /// Only increments the counter if [command] is a recognized directional
+  /// command (n, ne, north, etc.). Non-directional commands are ignored.
+  void recordDirectionalAttempt(String command) {
+    final normalized = command.trim().toLowerCase();
+    if (!GameState.directionalCommands.contains(normalized)) return;
     state = state.copyWith(
-      commandsSinceCoordChange: state.commandsSinceCoordChange + 1,
+      directionalMovesAtSameCoords: state.directionalMovesAtSameCoords + 1,
     );
   }
 

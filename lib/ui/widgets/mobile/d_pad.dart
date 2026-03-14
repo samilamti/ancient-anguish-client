@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/connection_provider.dart';
+import '../../../providers/game_state_provider.dart';
 
 /// A compass-rose directional pad for mobile navigation.
 ///
@@ -16,6 +17,7 @@ class DPad extends ConsumerWidget {
 
     void send(String command) {
       ref.read(connectionServiceProvider).sendCommand(command);
+      ref.read(gameStateProvider.notifier).recordDirectionalAttempt(command);
     }
 
     return Container(
@@ -157,10 +159,16 @@ class _CompassRose extends StatelessWidget {
 }
 
 /// The center piece of the compass rose.
-class _CompassCenter extends StatelessWidget {
+///
+/// Shows the current area name when known, or a compass icon otherwise.
+class _CompassCenter extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final areaName = ref.watch(
+      gameStateProvider.select((s) => s.currentArea),
+    );
+
     return Padding(
       padding: const EdgeInsets.all(2),
       child: SizedBox(
@@ -173,11 +181,29 @@ class _CompassCenter extends StatelessWidget {
               color: theme.colorScheme.primary.withAlpha(60),
             ),
           ),
-          child: Icon(
-            Icons.explore,
-            size: 20,
-            color: theme.colorScheme.primary.withAlpha(120),
-          ),
+          child: areaName != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Text(
+                      areaName,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'JetBrainsMono',
+                        fontSize: 7,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                )
+              : Icon(
+                  Icons.explore,
+                  size: 20,
+                  color: theme.colorScheme.primary.withAlpha(120),
+                ),
         ),
       ),
     );

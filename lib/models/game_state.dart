@@ -1,5 +1,12 @@
 /// Parsed game state extracted from the MUD prompt/output.
 class GameState {
+  /// All recognized directional movement commands (short and long forms).
+  static const Set<String> directionalCommands = {
+    'n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw',
+    'north', 'northeast', 'east', 'southeast',
+    'south', 'southwest', 'west', 'northwest',
+  };
+
   final int hp;
   final int maxHp;
   final int sp;
@@ -12,9 +19,9 @@ class GameState {
   final int? xp;
   final String? currentArea;
 
-  /// Number of commands sent since the last coordinate change.
-  /// Used to detect when the player has settled at unmapped coordinates.
-  final int commandsSinceCoordChange;
+  /// Number of directional commands sent while coordinates stayed the same.
+  /// Used to detect when the player is in an unmapped indoor area.
+  final int directionalMovesAtSameCoords;
 
   const GameState({
     this.hp = 0,
@@ -28,7 +35,7 @@ class GameState {
     this.coins,
     this.xp,
     this.currentArea,
-    this.commandsSinceCoordChange = 0,
+    this.directionalMovesAtSameCoords = 0,
   });
 
   /// Creates a copy with updated fields.
@@ -44,7 +51,7 @@ class GameState {
     int? coins,
     int? xp,
     String? currentArea,
-    int? commandsSinceCoordChange,
+    int? directionalMovesAtSameCoords,
   }) {
     return GameState(
       hp: hp ?? this.hp,
@@ -58,8 +65,8 @@ class GameState {
       coins: coins ?? this.coins,
       xp: xp ?? this.xp,
       currentArea: currentArea ?? this.currentArea,
-      commandsSinceCoordChange:
-          commandsSinceCoordChange ?? this.commandsSinceCoordChange,
+      directionalMovesAtSameCoords:
+          directionalMovesAtSameCoords ?? this.directionalMovesAtSameCoords,
     );
   }
 

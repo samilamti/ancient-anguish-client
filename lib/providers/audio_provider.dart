@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../core/constants.dart';
 
 import '../models/battle_state.dart';
 import '../models/game_state.dart';
@@ -114,9 +117,17 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
   String? _pendingAreaChange;
   bool? _pendingBattleChange;
   bool _pendingFadeOut = false;
+  String? _pendingTrackAdvance;
+
+  /// Timer for delaying town music start.
+  Timer? _townDelayTimer;
 
   @override
   AudioUiState build() {
+    // Register track-finished callback for auto-advancing playlists.
+    final audioService = ref.read(audioServiceProvider);
+    audioService.onTrackFinished = _onTrackFinished;
+
     // Listen for game state changes to trigger area audio.
     ref.listen<GameState>(gameStateProvider, (previous, next) {
       // Check coordinate config for audio path (highest priority).
@@ -129,10 +140,21 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
             ? unifiedConfig?.getMusicForArea(entry.name)
             : null;
         if (audioPath != null) {
-          _playConfigAudio(audioPath, entry!.name);
+          _cancelTownDelay();
+          if (_isTownArea(entry!.name)) {
+            final delayedPath = audioPath;
+            final delayedArea = entry.name;
+            _townDelayTimer = Timer(
+              const Duration(milliseconds: AudioDefaults.townDelayMs),
+              () => _playConfigAudio(delayedPath, delayedArea),
+            );
+          } else {
+            _playConfigAudio(audioPath, entry.name);
+          }
           return;
         }
         // Coordinates changed but no audio for new position — fade out.
+        _cancelTownDelay();
         _fadeOutIfPlaying();
         return;
       }
@@ -140,7 +162,16 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       // Fall back to area-based audio.
       if (next.currentArea != null &&
           next.currentArea != previous?.currentArea) {
-        onAreaChanged(next.currentArea!);
+        _cancelTownDelay();
+        if (_isTownArea(next.currentArea!)) {
+          final delayedArea = next.currentArea!;
+          _townDelayTimer = Timer(
+            const Duration(milliseconds: AudioDefaults.townDelayMs),
+            () => onAreaChanged(delayedArea),
+          );
+        } else {
+          onAreaChanged(next.currentArea!);
+        }
       }
     });
 
@@ -163,6 +194,7 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       _pendingBattleChange = null;
       _pendingConfigAudio = null;
       _pendingAreaChange = null;
+      _pendingTrackAdvance = null;
       _pendingFadeOut = false;
       _onBattleStateChanged(inBattle);
       return;
@@ -171,6 +203,7 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       final pending = _pendingConfigAudio!;
       _pendingConfigAudio = null;
       _pendingAreaChange = null;
+      _pendingTrackAdvance = null;
       _pendingFadeOut = false;
       _playConfigAudio(pending.audioPath, pending.areaName);
       return;
@@ -178,8 +211,16 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
     if (_pendingAreaChange != null) {
       final area = _pendingAreaChange!;
       _pendingAreaChange = null;
+      _pendingTrackAdvance = null;
       _pendingFadeOut = false;
       onAreaChanged(area);
+      return;
+    }
+    if (_pendingTrackAdvance != null) {
+      final area = _pendingTrackAdvance!;
+      _pendingTrackAdvance = null;
+      _pendingFadeOut = false;
+      _playNextTrackForArea(area);
       return;
     }
     if (_pendingFadeOut) {
@@ -200,11 +241,74 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       if (ref.read(areaAudioManagerProvider).inBattle) return;
       final audioService = ref.read(audioServiceProvider);
       if (audioService.isPlaying) {
-        await audioService.stop();
+        await audioService.fadeOutAndStop();
         state = state.copyWith(isPlaying: false, currentTrackPath: null);
       }
     } catch (e) {
       debugPrint('AudioUiNotifier._fadeOutIfPlaying error: $e');
+    } finally {
+      _loadingAudio = false;
+      _drainPending();
+    }
+  }
+
+  /// Whether [areaName] has multiple music tracks configured.
+  bool _isMultiTrack(String areaName) {
+    final unifiedConfig = ref.read(unifiedAreaConfigProvider).value;
+    return (unifiedConfig?.getMusicListForArea(areaName).length ?? 0) > 1;
+  }
+
+  /// Whether [areaName] is a town (uses area_definitions.json theme field).
+  bool _isTownArea(String areaName) {
+    final areaDetector =
+        ref.read(areaDetectorProvider).value ?? AreaDetector();
+    return areaDetector.getAreaConfig(areaName)?.theme == 'town';
+  }
+
+  /// Cancels any pending town delay timer.
+  void _cancelTownDelay() {
+    _townDelayTimer?.cancel();
+    _townDelayTimer = null;
+  }
+
+  /// Called by [AudioService] when a non-looping track finishes.
+  void _onTrackFinished() {
+    if (ref.read(areaAudioManagerProvider).inBattle) return;
+    final currentArea = state.currentArea;
+    if (currentArea == null) return;
+    _playNextTrackForArea(currentArea);
+  }
+
+  /// Advances the music cycle and plays the next track for [areaName].
+  Future<void> _playNextTrackForArea(String areaName) async {
+    if (_toggling) return;
+    if (_loadingAudio) {
+      _pendingTrackAdvance = areaName;
+      return;
+    }
+    _loadingAudio = true;
+    try {
+      final unifiedConfig = ref.read(unifiedAreaConfigProvider).value;
+      if (unifiedConfig == null) return;
+
+      // Advance to next track in the cycle.
+      unifiedConfig.advanceMusicCycle(areaName);
+      final nextTrack = unifiedConfig.getMusicForArea(areaName);
+      if (nextTrack == null || !await File(nextTrack).exists()) return;
+
+      final audioService = ref.read(audioServiceProvider);
+      await audioService.play(nextTrack, looping: false);
+
+      // Update AreaAudioManager's track map so battle restore works.
+      final manager = ref.read(areaAudioManagerProvider);
+      manager.setTrackForArea(areaName, nextTrack);
+
+      state = state.copyWith(
+        isPlaying: audioService.isPlaying,
+        currentTrackPath: nextTrack,
+      );
+    } catch (e) {
+      debugPrint('AudioUiNotifier._playNextTrackForArea error: $e');
     } finally {
       _loadingAudio = false;
       _drainPending();
@@ -223,8 +327,9 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
     try {
       if (!await File(audioPath).exists()) return;
       final audioService = ref.read(audioServiceProvider);
+      final shouldLoop = !_isMultiTrack(areaName);
       if (audioPath != audioService.currentTrackPath) {
-        await audioService.play(audioPath);
+        await audioService.play(audioPath, looping: shouldLoop);
       }
       state = state.copyWith(
         currentArea: areaName,
@@ -249,7 +354,8 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
     _loadingAudio = true;
     try {
       final manager = ref.read(areaAudioManagerProvider);
-      await manager.onAreaChanged(newArea);
+      final shouldLoop = !_isMultiTrack(newArea);
+      await manager.onAreaChanged(newArea, looping: shouldLoop);
 
       state = state.copyWith(
         currentArea: newArea,
@@ -334,6 +440,7 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
 
   /// Stops all audio.
   Future<void> stop() async {
+    _cancelTownDelay();
     try {
       final manager = ref.read(areaAudioManagerProvider);
       await manager.reset();
@@ -351,6 +458,7 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
 
   /// Handles battle state transitions.
   Future<void> _onBattleStateChanged(bool inBattle) async {
+    _cancelTownDelay();
     if (_toggling) return;
     if (_loadingAudio) {
       _pendingBattleChange = inBattle;

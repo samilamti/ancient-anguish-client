@@ -36,11 +36,17 @@ class AreaAudioManager {
   /// Pending area change queued while busy.
   String? _pendingAreaChange;
 
+  /// Looping flag for the pending area change.
+  bool _pendingAreaLooping = true;
+
   /// Pending battle state change queued while busy.
   bool? _pendingBattleChange;
 
   /// The area track that was playing when battle started (for restoration).
   String? _areaTrackBeforeBattle;
+
+  /// Whether the pre-battle track was looping (for correct restoration).
+  bool _restoreLooping = true;
 
   AreaAudioManager({
     required AudioService audioService,
@@ -68,7 +74,7 @@ class AreaAudioManager {
     _enabled = enabled;
     if (!enabled) {
       try {
-        await _audioService.stop();
+        await _audioService.fadeOutAndStop();
       } catch (e) {
         debugPrint('AreaAudioManager.setEnabled stop error: $e');
       }
@@ -153,8 +159,10 @@ class AreaAudioManager {
     }
     if (_pendingAreaChange != null) {
       final area = _pendingAreaChange!;
+      final looping = _pendingAreaLooping;
       _pendingAreaChange = null;
-      onAreaChanged(area);
+      _pendingAreaLooping = true;
+      onAreaChanged(area, looping: looping);
     }
   }
 
@@ -197,7 +205,7 @@ class AreaAudioManager {
 
         if (restorePath != null && await File(restorePath).exists()) {
           try {
-            await _audioService.play(restorePath);
+            await _audioService.play(restorePath, looping: _restoreLooping);
             return restorePath;
           } catch (e) {
             debugPrint(
@@ -205,7 +213,7 @@ class AreaAudioManager {
           }
         } else {
           try {
-            await _audioService.stop();
+            await _audioService.fadeOutAndStop();
           } catch (e) {
             debugPrint(
                 'AreaAudioManager.onBattleStateChanged stop error: $e');
@@ -224,12 +232,13 @@ class AreaAudioManager {
   ///
   /// This is the main entry point – call this whenever the area detector
   /// reports a new area.
-  Future<void> onAreaChanged(String newArea) async {
+  Future<void> onAreaChanged(String newArea, {bool looping = true}) async {
     if (!_enabled) return;
     if (newArea == _currentPlayingArea) return;
 
     if (_busy) {
       _pendingAreaChange = newArea;
+      _pendingAreaLooping = looping;
       return;
     }
     _busy = true;
@@ -246,9 +255,9 @@ class AreaAudioManager {
       final trackPath = _resolveTrackPath(newArea);
 
       if (trackPath == null) {
-        // No track for this area – stop.
+        // No track for this area – fade out.
         try {
-          await _audioService.stop();
+          await _audioService.fadeOutAndStop();
         } catch (e) {
           debugPrint('AreaAudioManager.onAreaChanged stop error: $e');
         }
@@ -258,7 +267,7 @@ class AreaAudioManager {
       // Verify the file exists.
       if (!await File(trackPath).exists()) {
         try {
-          await _audioService.stop();
+          await _audioService.fadeOutAndStop();
         } catch (e) {
           debugPrint('AreaAudioManager.onAreaChanged stop error: $e');
         }
@@ -269,9 +278,12 @@ class AreaAudioManager {
       final areaConfig = _areaDetector.getAreaConfig(newArea);
       final volume = areaConfig?.audio?.volume ?? 0.7;
 
+      // Save looping state for battle restore.
+      _restoreLooping = looping;
+
       // Play the new track.
       try {
-        await _audioService.play(trackPath, volume: volume);
+        await _audioService.play(trackPath, volume: volume, looping: looping);
       } catch (e) {
         debugPrint('AreaAudioManager.onAreaChanged play error: $e');
       }
@@ -315,6 +327,7 @@ class AreaAudioManager {
     _currentPlayingArea = null;
     _inBattle = false;
     _areaTrackBeforeBattle = null;
+    _restoreLooping = true;
   }
 
   /// Cleans up manager state. Does NOT dispose the AudioService

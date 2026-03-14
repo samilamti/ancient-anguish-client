@@ -40,4 +40,14 @@ class AudioDefaults {
   AudioDefaults._();
 
   static const double masterVolume = 0.7;
+
+  /// Default fade-in duration in milliseconds.
+  static const int fadeInMs = 2000;
+
+  /// Default fade-out duration in milliseconds.
+  static const int fadeOutMs = 2000;
+
+  /// Delay before starting town music, in milliseconds.
+  /// Prevents rapid switching when players enter/leave towns through portals.
+  static const int townDelayMs = 5000;
 }

@@ -17,6 +17,7 @@ class AudioService {
 
   bool _initialized = false;
   AudioSource? _currentSource;
+  AudioSource? _previousSource;
   SoundHandle? _currentHandle;
   StreamSubscription<void>? _finishedSub;
 
@@ -26,6 +27,9 @@ class AudioService {
   bool _isPlaying = false;
   bool _busy = false;
   double _trackVolume = 0.7;
+
+  /// Called when a non-looping track finishes playing.
+  VoidCallback? onTrackFinished;
 
   AudioService()
       : _testMode = false,
@@ -89,17 +93,23 @@ class AudioService {
     _initialized = true;
   }
 
-  /// Plays a track. Stops any current playback first.
+  /// Plays a track with crossfade. Fades out any current playback while
+  /// fading in the new track.
   ///
   /// If the same track is already playing, this is a no-op.
   /// Concurrent calls are dropped to prevent player state corruption.
-  Future<void> play(String filePath, {double volume = 0.7}) async {
+  Future<void> play(
+    String filePath, {
+    double volume = 0.7,
+    bool looping = true,
+    int fadeInMs = AudioDefaults.fadeInMs,
+    int fadeOutMs = AudioDefaults.fadeOutMs,
+  }) async {
     if (filePath == _currentTrackPath && _isPlaying) return;
     if (_busy) return;
     _busy = true;
     try {
       await _ensureInitialized();
-      await stop();
 
       _trackVolume = volume;
 
@@ -109,28 +119,62 @@ class AudioService {
         return;
       }
 
-      // Dispose previous source if loaded.
-      if (_currentSource != null) {
+      // Crossfade: schedule the old handle to fade out and stop.
+      if (_currentHandle != null) {
         try {
-          await _soloud.disposeSource(_currentSource!);
+          final fadeDuration = Duration(milliseconds: fadeOutMs);
+          _soloud.fadeVolume(_currentHandle!, 0.0, fadeDuration);
+          _soloud.scheduleStop(_currentHandle!, fadeDuration);
         } catch (e) {
-          debugPrint('AudioService: disposeSource error: $e');
+          debugPrint('AudioService: crossfade-out error: $e');
+          // Fall back to immediate stop.
+          try {
+            _soloud.stop(_currentHandle!);
+          } catch (_) {}
         }
+      }
+      _currentHandle = null;
+      _isPlaying = false;
+      _currentTrackPath = null;
+
+      // Dispose previous source if loaded.
+      // Note: we must not dispose until the fade-out finishes, but SoLoud
+      // handles this internally — scheduleStop keeps the source alive.
+      // We track the old source to dispose on the *next* play() call.
+      if (_currentSource != null) {
+        _previousSource = _currentSource;
         _currentSource = null;
       }
 
       _currentSource = await _soloud.loadFile(filePath);
 
-      // Safety net: detect unexpected completion (shouldn't fire with looping).
+      // Dispose previous source now that the new one is loaded.
+      // The fade-out handle keeps its own reference.
+      if (_previousSource != null) {
+        try {
+          await _soloud.disposeSource(_previousSource!);
+        } catch (e) {
+          debugPrint('AudioService: disposeSource error: $e');
+        }
+        _previousSource = null;
+      }
+
+      // Listen for track completion.
       _finishedSub?.cancel();
       _finishedSub = _currentSource!.allInstancesFinished.listen((_) {
         _onAllInstancesFinished();
       });
 
+      // Start at volume 0 and fade in.
       _currentHandle = await _soloud.play(
         _currentSource!,
-        looping: true,
-        volume: _effectiveVolume,
+        looping: looping,
+        volume: 0.0,
+      );
+      _soloud.fadeVolume(
+        _currentHandle!,
+        _effectiveVolume,
+        Duration(milliseconds: fadeInMs),
       );
       _currentTrackPath = filePath;
       _isPlaying = true;
@@ -151,6 +195,32 @@ class AudioService {
         _soloud.stop(_currentHandle!);
       } catch (e) {
         debugPrint('AudioService.stop error: $e');
+      }
+    }
+    _currentHandle = null;
+    _isPlaying = false;
+    _currentTrackPath = null;
+  }
+
+  /// Fades out and stops playback over [fadeOutMs] milliseconds.
+  ///
+  /// State is updated immediately so new [play] calls aren't blocked.
+  /// The native engine handles the actual fade and scheduled stop.
+  Future<void> fadeOutAndStop({
+    int fadeOutMs = AudioDefaults.fadeOutMs,
+  }) async {
+    if (!_isPlaying && _currentHandle == null) return;
+    if (!_testMode && _currentHandle != null) {
+      try {
+        final fadeDuration = Duration(milliseconds: fadeOutMs);
+        _soloud.fadeVolume(_currentHandle!, 0.0, fadeDuration);
+        _soloud.scheduleStop(_currentHandle!, fadeDuration);
+      } catch (e) {
+        debugPrint('AudioService.fadeOutAndStop error: $e');
+        // Fall back to immediate stop.
+        try {
+          _soloud.stop(_currentHandle!);
+        } catch (_) {}
       }
     }
     _currentHandle = null;
@@ -185,14 +255,17 @@ class AudioService {
     await stop();
     _finishedSub?.cancel();
     _finishedSub = null;
-    if (!_testMode && _currentSource != null) {
-      try {
-        await _soloud.disposeSource(_currentSource!);
-      } catch (e) {
-        debugPrint('AudioService: disposeSource error: $e');
+    for (final source in [_currentSource, _previousSource]) {
+      if (!_testMode && source != null) {
+        try {
+          await _soloud.disposeSource(source);
+        } catch (e) {
+          debugPrint('AudioService: disposeSource error: $e');
+        }
       }
     }
     _currentSource = null;
+    _previousSource = null;
     if (!_testMode && _initialized) {
       try {
         _soloud.deinit();
@@ -206,14 +279,20 @@ class AudioService {
   // ── Helpers ──
 
   /// Detects when SoLoud reports all instances of the current source finished.
-  /// With looping enabled this should never fire, but serves as a safety net.
+  /// For non-looping tracks this fires the [onTrackFinished] callback.
   void _onAllInstancesFinished() {
     if (!_isPlaying) return;
-    debugPrint(
-        'AudioService: sound finished unexpectedly, resetting state');
+    debugPrint('AudioService: track finished');
     _isPlaying = false;
     _currentTrackPath = null;
     _currentHandle = null;
+    onTrackFinished?.call();
+  }
+
+  /// Simulates a track finishing (for tests).
+  @visibleForTesting
+  void simulateTrackFinished() {
+    _onAllInstancesFinished();
   }
 
   /// Returns the path to the audio cache directory.

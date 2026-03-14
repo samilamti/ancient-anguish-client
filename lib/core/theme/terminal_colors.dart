@@ -13,7 +13,7 @@ class TerminalColors {
   static const Color red = Color(0xFFAA0000);
   static const Color green = Color(0xFF00AA00);
   static const Color yellow = Color(0xFFAA5500);
-  static const Color blue = Color(0xFF0000AA);
+  static const Color blue = Color(0xFF5C5CFF);
   static const Color magenta = Color(0xFFAA00AA);
   static const Color cyan = Color(0xFF00AAAA);
   static const Color white = Color(0xFFAAAAAA);
@@ -22,7 +22,7 @@ class TerminalColors {
   static const Color brightRed = Color(0xFFFF5555);
   static const Color brightGreen = Color(0xFF55FF55);
   static const Color brightYellow = Color(0xFFFFFF55);
-  static const Color brightBlue = Color(0xFF5555FF);
+  static const Color brightBlue = Color(0xFF7A7AFF);
   static const Color brightMagenta = Color(0xFFFF55FF);
   static const Color brightCyan = Color(0xFF55FFFF);
   static const Color brightWhite = Color(0xFFFFFFFF);

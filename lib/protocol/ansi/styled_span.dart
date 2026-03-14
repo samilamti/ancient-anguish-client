@@ -1,4 +1,7 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart';
+import 'package:flutter/services.dart' show SystemMouseCursors;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/terminal_colors.dart';
 
@@ -14,6 +17,7 @@ class StyledSpan {
   final bool italic;
   final bool underline;
   final bool strikethrough;
+  final Uri? link;
 
   const StyledSpan({
     required this.text,
@@ -23,7 +27,16 @@ class StyledSpan {
     this.italic = false,
     this.underline = false,
     this.strikethrough = false,
+    this.link,
   });
+
+  /// Display text — strips http(s):// prefix for link spans.
+  String get displayText {
+    if (link == null) return text;
+    return text
+        .replaceFirst(RegExp(r'^https://'), '')
+        .replaceFirst(RegExp(r'^http://'), '');
+  }
 
   /// Converts this styled span to a Flutter [TextSpan].
   ///
@@ -32,8 +45,9 @@ class StyledSpan {
     required String fontFamily,
     required double fontSize,
   }) {
+    final isLink = link != null;
     return TextSpan(
-      text: text,
+      text: displayText,
       style: TextStyle(
         fontFamily: fontFamily,
         fontSize: fontSize,
@@ -42,8 +56,17 @@ class StyledSpan {
             background == TerminalColors.defaultBackground ? null : background,
         fontWeight: bold ? FontWeight.bold : FontWeight.normal,
         fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-        decoration: _textDecoration,
+        decoration: isLink ? TextDecoration.underline : _textDecoration,
+        decorationColor: isLink ? foreground : null,
+        shadows: const [
+          Shadow(color: Color(0xFF000000), blurRadius: 1.0),
+        ],
       ),
+      recognizer: isLink
+          ? (TapGestureRecognizer()
+            ..onTap = () => launchUrl(link!, mode: LaunchMode.externalApplication))
+          : null,
+      mouseCursor: isLink ? SystemMouseCursors.click : null,
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/alias_provider.dart';
 import '../../../providers/connection_provider.dart'
     show connectionServiceProvider, commandHistoryProvider, inputFocusProvider;
+import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../services/parser/emoji_parser.dart';
 
@@ -24,6 +25,12 @@ class InputBar extends ConsumerStatefulWidget {
 class _InputBarState extends ConsumerState<InputBar> {
   final TextEditingController _controller = TextEditingController();
   late final FocusNode _focusNode = ref.read(inputFocusProvider);
+
+  // TAB completion state.
+  String? _tabPrefix;
+  int _tabInsertStart = 0;
+  int _tabCycleIndex = -1;
+  List<String> _tabMatches = [];
 
   @override
   void initState() {
@@ -98,10 +105,73 @@ class _InputBarState extends ConsumerState<InputBar> {
     }
   }
 
+  void _resetTabCompletion() {
+    _tabPrefix = null;
+    _tabCycleIndex = -1;
+    _tabMatches = [];
+  }
+
+  void _handleTab() {
+    final words = ref.read(recentWordsProvider);
+    if (words.isEmpty) return;
+
+    if (_tabPrefix == null) {
+      // Start a new completion cycle.
+      final text = _controller.text;
+      final cursor = _controller.selection.baseOffset;
+      if (cursor < 0) return;
+
+      // Scan backwards from cursor to find word start.
+      var wordStart = cursor;
+      while (wordStart > 0 && text[wordStart - 1] != ' ') {
+        wordStart--;
+      }
+      final prefix = text.substring(wordStart, cursor).toLowerCase();
+
+      // Filter matches.
+      _tabMatches = prefix.isEmpty
+          ? words
+          : words.where((w) => w.startsWith(prefix)).toList();
+      if (_tabMatches.isEmpty) return;
+
+      _tabPrefix = prefix;
+      _tabInsertStart = wordStart;
+      _tabCycleIndex = 0;
+    } else {
+      // Cycle to next match.
+      _tabCycleIndex = (_tabCycleIndex + 1) % _tabMatches.length;
+    }
+
+    final match = _tabMatches[_tabCycleIndex];
+    final text = _controller.text;
+    // Find end of current completed word (from insert start to next space or end).
+    final afterInsert = text.substring(_tabInsertStart);
+    final spaceIdx = afterInsert.indexOf(' ');
+    final wordEnd = spaceIdx < 0
+        ? text.length
+        : _tabInsertStart + spaceIdx;
+
+    final newText = text.substring(0, _tabInsertStart) +
+        match +
+        text.substring(wordEnd);
+    _controller.text = newText;
+    _controller.selection = TextSelection.collapsed(
+      offset: _tabInsertStart + match.length,
+    );
+  }
+
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+
+    if (event.logicalKey == LogicalKeyboardKey.tab) {
+      _handleTab();
+      return KeyEventResult.handled;
+    }
+
+    // Any non-TAB key resets completion state.
+    _resetTabCompletion();
 
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _controller.clear();

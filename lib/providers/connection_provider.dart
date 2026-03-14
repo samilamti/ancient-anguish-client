@@ -20,6 +20,7 @@ import 'login_provider.dart';
 import 'settings_provider.dart';
 import 'social_message_provider.dart';
 import 'social_panel_provider.dart';
+import 'recent_words_provider.dart';
 import 'trigger_provider.dart';
 
 /// Provides the singleton [ConnectionService].
@@ -189,6 +190,9 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             } else if (BattleNotifier.isBattleIndicator(plainText)) {
               battleNotifier.onBattlePatternDetected();
             }
+
+            // Extract capitalized words for TAB completion.
+            ref.read(recentWordsProvider.notifier).extractFromLine(plainText);
 
             // Normal trigger processing.
             final result = triggerEngine.processLine(emojiLine);

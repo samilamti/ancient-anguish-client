@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/connection_provider.dart'
     show connectionServiceProvider;
+import '../../../providers/settings_provider.dart';
 import '../../../providers/social_input_provider.dart';
 import '../../../providers/social_message_provider.dart';
+import '../../../services/parser/emoji_parser.dart';
 import 'social_message_list.dart';
 
 /// Input bar for social windows (Chat or Tell).
@@ -43,9 +45,13 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
     if (text.isEmpty) return;
 
     final service = ref.read(connectionServiceProvider);
+    final settings = ref.read(settingsProvider);
+    final outText = settings.emojiParsingEnabled
+        ? EmojiParser.reverseEmojis(text)
+        : text;
 
     if (widget.type == SocialListType.chat) {
-      service.sendCommand('chat $text');
+      service.sendCommand('chat $outText');
       ref.read(chatHistoryProvider.notifier).add(text);
     } else {
       final name = _nameController.text.trim();
@@ -54,7 +60,7 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
         _nameFocusNode.requestFocus();
         return;
       }
-      service.sendCommand('tell $name $text');
+      service.sendCommand('tell $name $outText');
       ref.read(tellHistoryProvider.notifier).add(text);
       ref.read(tellMessagesProvider.notifier).setLastRecipient(name);
     }

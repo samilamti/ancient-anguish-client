@@ -15,6 +15,7 @@ class AppSettings {
   final Map<String, int> customThemeColors;
   final bool socialWindowsEnabled; // desktop-only floating chat/tell panels
   final bool gagSocialFromTerminal; // hide social messages from main terminal
+  final bool emojiParsingEnabled; // replace text emoticons with emoji
 
   static const Map<String, int> defaultCustomColors = {
     'primary': 0xFFD4A057,
@@ -36,6 +37,7 @@ class AppSettings {
     this.customThemeColors = defaultCustomColors,
     this.socialWindowsEnabled = true,
     this.gagSocialFromTerminal = true,
+    this.emojiParsingEnabled = true,
   });
 
   AppSettings copyWith({
@@ -50,6 +52,7 @@ class AppSettings {
     Map<String, int>? customThemeColors,
     bool? socialWindowsEnabled,
     bool? gagSocialFromTerminal,
+    bool? emojiParsingEnabled,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -65,6 +68,8 @@ class AppSettings {
           socialWindowsEnabled ?? this.socialWindowsEnabled,
       gagSocialFromTerminal:
           gagSocialFromTerminal ?? this.gagSocialFromTerminal,
+      emojiParsingEnabled:
+          emojiParsingEnabled ?? this.emojiParsingEnabled,
     );
   }
 }
@@ -114,6 +119,10 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void toggleGagSocial() {
     state =
         state.copyWith(gagSocialFromTerminal: !state.gagSocialFromTerminal);
+  }
+
+  void toggleEmojiParsing() {
+    state = state.copyWith(emojiParsingEnabled: !state.emojiParsingEnabled);
   }
 
   Future<void> toggleLogging() async {

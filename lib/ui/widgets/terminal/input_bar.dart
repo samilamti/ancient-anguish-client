@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/alias_provider.dart';
 import '../../../providers/connection_provider.dart'
     show connectionServiceProvider, commandHistoryProvider, inputFocusProvider;
+import '../../../providers/settings_provider.dart';
+import '../../../services/parser/emoji_parser.dart';
 
 /// The command input bar at the bottom of the terminal.
 ///
@@ -56,8 +58,12 @@ class _InputBarState extends ConsumerState<InputBar> {
 
     // Expand aliases — may produce multiple commands (semicolons).
     final expanded = aliasEngine.expand(command);
+    final settings = ref.read(settingsProvider);
     for (final cmd in expanded) {
-      service.sendCommand(cmd);
+      final outgoing = settings.emojiParsingEnabled
+          ? EmojiParser.reverseEmojis(cmd)
+          : cmd;
+      service.sendCommand(outgoing);
     }
     history.add(command);
     // Select all text so the user can resend with Enter or type to replace.

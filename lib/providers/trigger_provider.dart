@@ -28,14 +28,14 @@ class TriggerRulesNotifier extends Notifier<List<TriggerRule>> {
   @override
   List<TriggerRule> build() {
     _engine = ref.read(triggerEngineProvider);
-    final defaults = _defaults();
-    _engine.setRules(defaults);
+    final defaultRules = defaults();
+    _engine.setRules(defaultRules);
     // Fire-and-forget: load saved rules from disk, replacing defaults.
     _loadFromDisk();
-    return List.unmodifiable(defaults);
+    return List.unmodifiable(defaultRules);
   }
 
-  static List<TriggerRule> _defaults() {
+  static List<TriggerRule> defaults() {
     return [
       TriggerRule(
         id: 'hl_01',

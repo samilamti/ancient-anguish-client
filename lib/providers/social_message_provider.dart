@@ -1,19 +1,37 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/social_message.dart';
 import '../protocol/ansi/styled_span.dart';
+import '../services/social/social_history_service.dart';
 
 /// Chat message buffer.
 final chatMessagesProvider =
     NotifierProvider<ChatMessagesNotifier, List<SocialMessage>>(
         ChatMessagesNotifier.new);
 
-/// Manages the chat message buffer.
+/// Manages the chat message buffer with disk persistence.
 class ChatMessagesNotifier extends Notifier<List<SocialMessage>> {
   static const int _maxMessages = 500;
 
   @override
-  List<SocialMessage> build() => [];
+  List<SocialMessage> build() {
+    _loadFromDisk();
+    return [];
+  }
+
+  Future<void> _loadFromDisk() async {
+    try {
+      final messages = await SocialHistoryService.loadChat();
+      if (messages.isNotEmpty) {
+        state = messages.length > _maxMessages
+            ? messages.sublist(messages.length - _maxMessages)
+            : messages;
+      }
+    } catch (e) {
+      debugPrint('ChatMessagesNotifier._loadFromDisk: $e');
+    }
+  }
 
   /// Adds a complete chat message.
   void addMessage(SocialMessage message) {
@@ -23,6 +41,7 @@ class ChatMessagesNotifier extends Notifier<List<SocialMessage>> {
     } else {
       state = newState;
     }
+    SocialHistoryService.appendMessage(message, isChat: true);
   }
 
   /// Appends continuation text to the most recent message.
@@ -32,6 +51,7 @@ class ChatMessagesNotifier extends Notifier<List<SocialMessage>> {
     updated[updated.length - 1] =
         updated.last.withContinuation(styledLine, plainText);
     state = updated;
+    SocialHistoryService.appendContinuation(plainText, isChat: true);
   }
 
   void clear() => state = [];
@@ -42,7 +62,8 @@ final tellMessagesProvider =
     NotifierProvider<TellMessagesNotifier, List<SocialMessage>>(
         TellMessagesNotifier.new);
 
-/// Manages the tell message buffer and tracks the last recipient.
+/// Manages the tell message buffer with disk persistence and tracks the last
+/// recipient.
 class TellMessagesNotifier extends Notifier<List<SocialMessage>> {
   static const int _maxMessages = 500;
   String? _lastRecipient;
@@ -53,7 +74,21 @@ class TellMessagesNotifier extends Notifier<List<SocialMessage>> {
   @override
   List<SocialMessage> build() {
     _lastRecipient = null;
+    _loadFromDisk();
     return [];
+  }
+
+  Future<void> _loadFromDisk() async {
+    try {
+      final messages = await SocialHistoryService.loadTells();
+      if (messages.isNotEmpty) {
+        state = messages.length > _maxMessages
+            ? messages.sublist(messages.length - _maxMessages)
+            : messages;
+      }
+    } catch (e) {
+      debugPrint('TellMessagesNotifier._loadFromDisk: $e');
+    }
   }
 
   /// Adds a complete tell message.
@@ -64,6 +99,7 @@ class TellMessagesNotifier extends Notifier<List<SocialMessage>> {
     } else {
       state = newState;
     }
+    SocialHistoryService.appendMessage(message, isChat: false);
   }
 
   /// Appends continuation text to the most recent message.
@@ -73,6 +109,7 @@ class TellMessagesNotifier extends Notifier<List<SocialMessage>> {
     updated[updated.length - 1] =
         updated.last.withContinuation(styledLine, plainText);
     state = updated;
+    SocialHistoryService.appendContinuation(plainText, isChat: false);
   }
 
   /// Sets the last tell recipient (for quick-reply).

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' show Color;
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/widgets.dart' show FocusNode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,6 +14,7 @@ import '../services/parser/emoji_parser.dart';
 import '../services/parser/link_parser.dart';
 import '../services/parser/output_parser.dart';
 import '../models/social_message.dart';
+import '../services/command_history_service.dart';
 import '../services/social/social_message_parser.dart';
 import 'battle_provider.dart';
 import 'game_state_provider.dart';
@@ -489,7 +491,23 @@ class CommandHistoryNotifier extends Notifier<List<String>> {
   int _filteredPosition = -1;
 
   @override
-  List<String> build() => [];
+  List<String> build() {
+    _loadFromDisk();
+    return [];
+  }
+
+  Future<void> _loadFromDisk() async {
+    try {
+      final commands = await CommandHistoryService.loadHistory(
+        maxEntries: _maxHistory,
+      );
+      if (commands.isNotEmpty) {
+        state = commands;
+      }
+    } catch (e) {
+      debugPrint('CommandHistoryNotifier._loadFromDisk: $e');
+    }
+  }
 
   /// Adds a command to history (most recent first).
   void add(String command) {
@@ -508,6 +526,7 @@ class CommandHistoryNotifier extends Notifier<List<String>> {
     }
     _position = -1;
     _resetFilter();
+    CommandHistoryService.appendCommand(command);
   }
 
   /// Navigates backward (older) in history, filtered by [prefix].

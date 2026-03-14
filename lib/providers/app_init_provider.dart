@@ -24,6 +24,7 @@ final appInitProvider = FutureProvider<void>((ref) async {
       _ensureAlts(basePath),
       _ensureFile('$basePath/Chat History.md'),
       _ensureFile('$basePath/Tell History.md'),
+      _ensureFile('$basePath/Command History.md'),
     ]);
   } catch (e) {
     debugPrint('appInitProvider: $e');

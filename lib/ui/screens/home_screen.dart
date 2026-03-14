@@ -72,7 +72,7 @@ class HomeScreen extends ConsumerWidget {
           // Triggers settings.
           IconButton(
             icon: const Icon(Icons.highlight, size: 20),
-            tooltip: 'Triggers & Highlights',
+            tooltip: 'Immersions',
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(

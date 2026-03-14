@@ -19,7 +19,7 @@ class TriggerSettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Triggers & Highlights'),
+        title: const Text('Immersions'),
         actions: [
           IconButton(
             icon: const Icon(Icons.help_outline),
@@ -44,12 +44,12 @@ class TriggerSettingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'No triggers configured',
+                    'No immersions configured',
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Tap + to add a trigger rule',
+                    'Tap + to add an immersion rule',
                     style: TextStyle(
                       color: theme.colorScheme.onSurface.withAlpha(120),
                     ),
@@ -84,18 +84,18 @@ class TriggerSettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('About Triggers'),
+        title: const Text('About Immersions'),
         content: const SingleChildScrollView(
           child: Text(
-            'Triggers match patterns in MUD output and perform '
+            'Immersions match patterns in MUD output and perform '
             'client-side actions:\n\n'
             '• Highlight — Change the color/style of matched text.\n'
             '• Play Sound — Play an MP3 when the pattern is seen.\n'
             '• Gag — Hide matching lines from the terminal.\n\n'
             'Patterns use regular expressions (regex).\n'
             'Example: "\\w+ tells you:" matches any tell.\n\n'
-            'Note: Ancient Anguish prohibits triggers that auto-send '
-            'commands. These triggers only perform visual/audio actions.',
+            'Note: Ancient Anguish prohibits immersions that auto-send '
+            'commands. These immersions only perform visual/audio actions.',
           ),
         ),
         actions: [
@@ -346,7 +346,7 @@ class _TriggerEditScreenState extends ConsumerState<_TriggerEditScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Trigger' : 'New Trigger'),
+        title: Text(isEditing ? 'Edit Immersion' : 'New Immersion'),
         actions: [
           TextButton(
             onPressed: _save,
@@ -361,7 +361,7 @@ class _TriggerEditScreenState extends ConsumerState<_TriggerEditScreen> {
           TextField(
             controller: _nameController,
             decoration: const InputDecoration(
-              labelText: 'Trigger Name',
+              labelText: 'Immersion Name',
               hintText: 'e.g., Tells, Combat hits',
             ),
           ),

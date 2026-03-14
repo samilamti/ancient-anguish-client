@@ -143,6 +143,16 @@ class SettingsScreen extends ConsumerWidget {
               ),
           ],
 
+          SwitchListTile(
+            title: const Text('Emoji Parsing'),
+            subtitle: const Text(
+              'Replace text emoticons like :) with emoji',
+            ),
+            value: settings.emojiParsingEnabled,
+            onChanged: (_) => notifier.toggleEmojiParsing(),
+            secondary: const Icon(Icons.emoji_emotions),
+          ),
+
           // Quick commands toggle (mobile only).
           if (defaultTargetPlatform != TargetPlatform.windows &&
               defaultTargetPlatform != TargetPlatform.macOS) ...[
@@ -177,8 +187,8 @@ class SettingsScreen extends ConsumerWidget {
 
           ListTile(
             leading: const Icon(Icons.highlight),
-            title: const Text('Triggers & Highlights'),
-            subtitle: const Text('Highlight text, play sounds on patterns'),
+            title: const Text('Immersions'),
+            subtitle: const Text('Highlights, sounds, and gags on patterns'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.of(context).push(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../providers/battle_provider.dart';
 import '../../../providers/game_state_provider.dart';
 import '../../../providers/unified_area_config_provider.dart';
 import 'vitals_gauge.dart';
@@ -78,20 +79,89 @@ class StatusBar extends ConsumerStatefulWidget {
   ConsumerState<StatusBar> createState() => _StatusBarState();
 }
 
-class _StatusBarState extends ConsumerState<StatusBar> {
-  final TextEditingController _nameController = TextEditingController();
-  bool _showNameInput = false;
+class _StatusBarState extends ConsumerState<StatusBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.06).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
-  void _saveArea() {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+  void _onNameAreaPressed() {
+    final battleState = ref.read(battleStateProvider);
+    if (battleState.inBattle) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot name areas during battle — wait until '
+              'combat ends.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    _showNameAreaDialog();
+  }
 
+  void _showNameAreaDialog() {
+    final controller = TextEditingController();
+    showDialog<String>(
+      context: context,
+      useRootNavigator: true,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Name this area'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Enter area name...',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) {
+              Navigator.of(dialogContext).pop(value.trim());
+            }
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final name = controller.text.trim();
+              if (name.isNotEmpty) {
+                Navigator.of(dialogContext).pop(name);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ).then((name) {
+      controller.dispose();
+      if (name != null && name.isNotEmpty && mounted) {
+        _saveArea(name);
+      }
+    });
+  }
+
+  void _saveArea(String name) {
     final gameState = ref.read(gameStateProvider);
     if (!gameState.hasCoordinates) return;
 
@@ -100,9 +170,6 @@ class _StatusBarState extends ConsumerState<StatusBar> {
 
     config.addCoordinateToArea(name, gameState.x!, gameState.y!);
     ref.read(gameStateProvider.notifier).setCurrentArea(name);
-
-    _nameController.clear();
-    setState(() => _showNameInput = false);
   }
 
   @override
@@ -119,10 +186,22 @@ class _StatusBarState extends ConsumerState<StatusBar> {
       return const SizedBox.shrink();
     }
 
-    // Show naming prompt when at unmapped coords for 10+ commands.
+    // Show naming prompt when at unmapped coords for 3+ directional moves.
     final canNameArea = gameState.hasCoordinates &&
         gameState.currentArea == null &&
-        gameState.commandsSinceCoordChange >= 10;
+        gameState.directionalMovesAtSameCoords >= 3;
+
+    // Drive the pulse animation based on whether the button should show.
+    if (canNameArea) {
+      if (!_pulseController.isAnimating) {
+        _pulseController.repeat(reverse: true);
+      }
+    } else {
+      if (_pulseController.isAnimating) {
+        _pulseController.stop();
+        _pulseController.reset();
+      }
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -163,27 +242,35 @@ class _StatusBarState extends ConsumerState<StatusBar> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ] else if (canNameArea && !_showNameInput) ...[
-                InkWell(
-                  onTap: () => setState(() => _showNameInput = true),
-                  borderRadius: BorderRadius.circular(4),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add_location_alt, size: 14,
-                            color: theme.colorScheme.primary.withAlpha(180)),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Name this area',
-                          style: _infoTextStyle(theme).copyWith(
-                            color: theme.colorScheme.primary,
-                            fontStyle: FontStyle.italic,
-                          ),
+              ] else if (canNameArea) ...[
+                ScaleTransition(
+                  scale: _pulseAnimation,
+                  child: Material(
+                    color: const Color(0xFFD4A057),
+                    borderRadius: BorderRadius.circular(16),
+                    elevation: 2,
+                    child: InkWell(
+                      onTap: _onNameAreaPressed,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.add_location_alt, size: 14,
+                                color: Colors.white),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Name this area',
+                              style: _infoTextStyle(theme).copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -198,68 +285,6 @@ class _StatusBarState extends ConsumerState<StatusBar> {
                 ),
             ],
           ),
-
-          // Inline area naming input.
-          if (canNameArea && _showNameInput)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Row(
-                children: [
-                  Icon(Icons.add_location_alt, size: 14,
-                      color: theme.colorScheme.primary.withAlpha(180)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: SizedBox(
-                      height: 28,
-                      child: TextField(
-                        controller: _nameController,
-                        autofocus: true,
-                        style: _infoTextStyle(theme).copyWith(
-                          color: theme.colorScheme.onSurface,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Area name...',
-                          hintStyle: _infoTextStyle(theme),
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 6),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        onSubmitted: (_) => _saveArea(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: Icon(Icons.check, size: 16,
-                          color: theme.colorScheme.primary),
-                      tooltip: 'Save area',
-                      onPressed: _saveArea,
-                    ),
-                  ),
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: Icon(Icons.close, size: 16,
-                          color: theme.colorScheme.onSurface.withAlpha(140)),
-                      tooltip: 'Cancel',
-                      onPressed: () {
-                        _nameController.clear();
-                        setState(() => _showNameInput = false);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
           // Player info row.
           if (gameState.coins != null)

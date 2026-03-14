@@ -7,25 +7,22 @@ import 'package:ancient_anguish_client/models/trigger_rule.dart';
 import 'package:ancient_anguish_client/services/config/markdown_config_parser.dart';
 
 void main() {
-  group('MarkdownConfigParser — triggers', () {
-    test('parses a trigger with all properties', () {
+  group('MarkdownConfigParser — immersions', () {
+    test('parses highlights with all properties', () {
       const md = '''
-# Triggers
+# Highlights
 
-## Battle Vitals
-- **Id:** trig_vitals
-- **Pattern:** `HP:\\s+(\\d+)\\s+SP:\\s+(\\d+)`
-- **Enabled:** true
-- **Action:** highlight
-- **Highlight Foreground:** #FF5555
-- **Highlight Background:** #330000
-- **Highlight Bold:** true
-- **Highlight Whole Line:** false
+## 01 - Battle Vitals
+Pattern: `HP:\\s+(\\d+)\\s+SP:\\s+(\\d+)`
+Foreground: #FF5555
+Background: #330000
+Bold: true
+Whole Line: true
 ''';
-      final rules = MarkdownConfigParser.parseTriggers(md);
+      final rules = MarkdownConfigParser.parseImmersions(md);
       expect(rules, hasLength(1));
       final r = rules.first;
-      expect(r.id, 'trig_vitals');
+      expect(r.id, 'hl_01');
       expect(r.name, 'Battle Vitals');
       expect(r.pattern, r'HP:\s+(\d+)\s+SP:\s+(\d+)');
       expect(r.enabled, true);
@@ -33,37 +30,101 @@ void main() {
       expect(r.highlightForeground, const Color(0xFFFF5555));
       expect(r.highlightBackground, const Color(0xFF330000));
       expect(r.highlightBold, true);
-      expect(r.highlightWholeLine, false);
+      expect(r.highlightWholeLine, true);
     });
 
-    test('parses multiple triggers', () {
+    test('parses multiple sections', () {
       const md = '''
-# Triggers
+# Highlights
 
-## Tell
-- **Pattern:** `\\w+ tells you:`
-- **Action:** highlightAndSound
-- **Sound:** C:/sounds/tell.mp3
+## 01 - Tells
+Pattern: `\\w+ tells you:`
+Foreground: #00FF00
+Bold: true
 
-## Gag Spam
-- **Pattern:** `^\\*\\*\\* .+ has`
-- **Action:** gag
-- **Enabled:** false
+## 02 - Attacks
+Pattern: `attacks you`
+Foreground: #FF0000
+
+# Sounds
+
+## 01 - Tell notification
+Pattern: `\\w+ tells you:`
+Sound: C:/sounds/tell.mp3
+
+# Gags
+
+`spam pattern`
+`more spam`
 ''';
-      final rules = MarkdownConfigParser.parseTriggers(md);
-      expect(rules, hasLength(2));
-      expect(rules[0].name, 'Tell');
-      expect(rules[0].action, TriggerAction.highlightAndSound);
-      expect(rules[0].soundPath, 'C:/sounds/tell.mp3');
-      expect(rules[1].name, 'Gag Spam');
-      expect(rules[1].action, TriggerAction.gag);
-      expect(rules[1].enabled, false);
+      final rules = MarkdownConfigParser.parseImmersions(md);
+      expect(rules, hasLength(5));
+
+      // Highlights.
+      expect(rules[0].name, 'Tells');
+      expect(rules[0].action, TriggerAction.highlight);
+      expect(rules[0].highlightForeground, const Color(0xFF00FF00));
+      expect(rules[0].highlightBold, true);
+      expect(rules[1].name, 'Attacks');
+      expect(rules[1].action, TriggerAction.highlight);
+
+      // Sounds.
+      expect(rules[2].name, 'Tell notification');
+      expect(rules[2].action, TriggerAction.playSound);
+      expect(rules[2].soundPath, 'C:/sounds/tell.mp3');
+
+      // Gags.
+      expect(rules[3].action, TriggerAction.gag);
+      expect(rules[3].pattern, 'spam pattern');
+      expect(rules[4].action, TriggerAction.gag);
+      expect(rules[4].pattern, 'more spam');
     });
 
-    test('round-trips triggers through serialize/parse', () {
+    test('parses disabled entries', () {
+      const md = '''
+# Highlights
+
+## 01 - Active rule
+Pattern: `active`
+Foreground: #00FF00
+
+## 02 - Disabled rule (disabled)
+Pattern: `disabled`
+Foreground: #FF0000
+''';
+      final rules = MarkdownConfigParser.parseImmersions(md);
+      expect(rules, hasLength(2));
+      expect(rules[0].enabled, true);
+      expect(rules[0].name, 'Active rule');
+      expect(rules[1].enabled, false);
+      expect(rules[1].name, 'Disabled rule');
+    });
+
+    test('parses empty content', () {
+      final rules = MarkdownConfigParser.parseImmersions('');
+      expect(rules, isEmpty);
+    });
+
+    test('parses gags-only file', () {
+      const md = '''
+# Gags
+
+`birds chirping`
+`ice cream pattern`
+''';
+      final rules = MarkdownConfigParser.parseImmersions(md);
+      expect(rules, hasLength(2));
+      expect(rules[0].id, 'gag_0');
+      expect(rules[0].pattern, 'birds chirping');
+      expect(rules[0].action, TriggerAction.gag);
+      expect(rules[1].id, 'gag_1');
+      expect(rules[1].pattern, 'ice cream pattern');
+    });
+
+    test('round-trips highlights through serialize/parse', () {
       final original = [
         TriggerRule(
-          id: 'trig_1',
+          id: 'hl_01',
           name: 'Test Trigger',
           pattern: r'hello\s+world',
           action: TriggerAction.highlight,
@@ -71,10 +132,9 @@ void main() {
           highlightBackground: const Color(0xFFCC0000),
           highlightBold: true,
           highlightWholeLine: true,
-          soundPath: null,
         ),
         TriggerRule(
-          id: 'trig_2',
+          id: 'snd_01',
           name: 'Sound Only',
           pattern: r'beep',
           action: TriggerAction.playSound,
@@ -82,11 +142,10 @@ void main() {
         ),
       ];
 
-      final md = MarkdownConfigParser.serializeTriggers(original);
-      final parsed = MarkdownConfigParser.parseTriggers(md);
+      final md = MarkdownConfigParser.serializeImmersions(original);
+      final parsed = MarkdownConfigParser.parseImmersions(md);
 
       expect(parsed, hasLength(2));
-      expect(parsed[0].id, 'trig_1');
       expect(parsed[0].name, 'Test Trigger');
       expect(parsed[0].pattern, original[0].pattern);
       expect(parsed[0].action, TriggerAction.highlight);
@@ -95,58 +154,144 @@ void main() {
       expect(parsed[0].highlightBold, true);
       expect(parsed[0].highlightWholeLine, true);
 
-      expect(parsed[1].id, 'trig_2');
       expect(parsed[1].action, TriggerAction.playSound);
       expect(parsed[1].soundPath, '/sounds/beep.mp3');
     });
 
-    test('defaults missing properties', () {
-      const md = '''
-## Minimal
-- **Pattern:** `test`
-''';
-      final rules = MarkdownConfigParser.parseTriggers(md);
-      expect(rules, hasLength(1));
-      expect(rules[0].enabled, true);
-      expect(rules[0].action, TriggerAction.highlight);
-      expect(rules[0].highlightBold, false);
-      expect(rules[0].highlightWholeLine, false);
-      expect(rules[0].highlightForeground, isNull);
-      expect(rules[0].soundPath, isNull);
+    test('round-trips gags through serialize/parse', () {
+      final original = [
+        TriggerRule(
+          id: 'gag_0',
+          name: 'Gag 1',
+          pattern: 'spam',
+          action: TriggerAction.gag,
+        ),
+        TriggerRule(
+          id: 'gag_1',
+          name: 'Gag 2',
+          pattern: 'noise',
+          action: TriggerAction.gag,
+        ),
+      ];
+
+      final md = MarkdownConfigParser.serializeImmersions(original);
+      final parsed = MarkdownConfigParser.parseImmersions(md);
+
+      expect(parsed, hasLength(2));
+      expect(parsed[0].pattern, 'spam');
+      expect(parsed[0].action, TriggerAction.gag);
+      expect(parsed[1].pattern, 'noise');
+    });
+
+    test('splits highlightAndSound into both sections', () {
+      final original = [
+        TriggerRule(
+          id: 'trig_1',
+          name: 'Combined',
+          pattern: r'\w+ tells you:',
+          action: TriggerAction.highlightAndSound,
+          highlightForeground: const Color(0xFF00FF00),
+          soundPath: '/sounds/tell.mp3',
+        ),
+      ];
+
+      final md = MarkdownConfigParser.serializeImmersions(original);
+      expect(md, contains('# Highlights'));
+      expect(md, contains('# Sounds'));
+      expect(md, contains('Foreground: #00FF00'));
+      expect(md, contains('Sound: /sounds/tell.mp3'));
+
+      // Parsing produces two separate rules.
+      final parsed = MarkdownConfigParser.parseImmersions(md);
+      expect(parsed, hasLength(2));
+      expect(parsed[0].action, TriggerAction.highlight);
+      expect(parsed[1].action, TriggerAction.playSound);
+    });
+
+    test('omits empty sections', () {
+      final original = [
+        TriggerRule(
+          id: 'gag_0',
+          name: 'Gag 1',
+          pattern: 'spam',
+          action: TriggerAction.gag,
+        ),
+      ];
+
+      final md = MarkdownConfigParser.serializeImmersions(original);
+      expect(md, isNot(contains('# Highlights')));
+      expect(md, isNot(contains('# Sounds')));
+      expect(md, contains('# Gags'));
+    });
+
+    test('only writes non-default highlight properties', () {
+      final original = [
+        TriggerRule(
+          id: 'hl_01',
+          name: 'Minimal',
+          pattern: 'test',
+          action: TriggerAction.highlight,
+          // No foreground/background, bold=false, wholeLine=false.
+        ),
+      ];
+
+      final md = MarkdownConfigParser.serializeImmersions(original);
+      expect(md, isNot(contains('Foreground:')));
+      expect(md, isNot(contains('Background:')));
+      expect(md, isNot(contains('Bold:')));
+      expect(md, isNot(contains('Whole Line:')));
     });
   });
 
   group('MarkdownConfigParser — aliases', () {
-    test('parses aliases', () {
+    test('parses aliases with comments', () {
       const md = '''
-# Aliases
-
-## Get All
-- **Id:** alias_ga
-- **Keyword:** ga
-- **Expansion:** get all
-- **Enabled:** true
-- **Description:** Get all items from the ground
+# 01 - ga
+Expansion: get all
+Comments: Get all items from the ground
 ''';
       final rules = MarkdownConfigParser.parseAliases(md);
       expect(rules, hasLength(1));
-      expect(rules[0].id, 'alias_ga');
+      expect(rules[0].id, 'alias_01');
       expect(rules[0].keyword, 'ga');
       expect(rules[0].expansion, 'get all');
       expect(rules[0].enabled, true);
       expect(rules[0].description, 'Get all items from the ground');
     });
 
+    test('parses disabled alias', () {
+      const md = '''
+# 01 - old (disabled)
+Expansion: something
+''';
+      final rules = MarkdownConfigParser.parseAliases(md);
+      expect(rules, hasLength(1));
+      expect(rules[0].keyword, 'old');
+      expect(rules[0].enabled, false);
+    });
+
+    test('parses alias without comments', () {
+      const md = '''
+# 01 - k
+Expansion: kill \$1
+''';
+      final rules = MarkdownConfigParser.parseAliases(md);
+      expect(rules, hasLength(1));
+      expect(rules[0].keyword, 'k');
+      expect(rules[0].expansion, r'kill $1');
+      expect(rules[0].description, isNull);
+    });
+
     test('round-trips aliases through serialize/parse', () {
       final original = [
         const AliasRule(
-          id: 'alias_1',
+          id: 'alias_01',
           keyword: 'k',
           expansion: r'kill $1',
           description: 'Kill target',
         ),
         const AliasRule(
-          id: 'alias_2',
+          id: 'alias_02',
           keyword: 'buff',
           expansion: 'cast str;cast dex',
           enabled: false,
@@ -157,12 +302,99 @@ void main() {
       final parsed = MarkdownConfigParser.parseAliases(md);
 
       expect(parsed, hasLength(2));
-      expect(parsed[0].id, 'alias_1');
       expect(parsed[0].keyword, 'k');
       expect(parsed[0].expansion, r'kill $1');
       expect(parsed[0].description, 'Kill target');
-      expect(parsed[1].id, 'alias_2');
+      expect(parsed[0].enabled, true);
+      expect(parsed[1].keyword, 'buff');
       expect(parsed[1].enabled, false);
+      expect(parsed[1].description, isNull);
+    });
+
+    test('parses empty content', () {
+      final rules = MarkdownConfigParser.parseAliases('');
+      expect(rules, isEmpty);
+    });
+  });
+
+  group('MarkdownConfigParser — legacy triggers', () {
+    test('parses old bold-property format', () {
+      const md = '''
+# Triggers
+
+## Tell
+- **Pattern:** `\\w+ tells you:`
+- **Action:** highlightAndSound
+- **Sound:** C:/sounds/tell.mp3
+- **Highlight Foreground:** #00FF00
+
+## Gag Spam
+- **Pattern:** `^\\*\\*\\* .+ has`
+- **Action:** gag
+- **Enabled:** false
+''';
+      final rules = MarkdownConfigParser.parseLegacyTriggers(md);
+      expect(rules, hasLength(2));
+      expect(rules[0].name, 'Tell');
+      expect(rules[0].action, TriggerAction.highlightAndSound);
+      expect(rules[0].soundPath, 'C:/sounds/tell.mp3');
+      expect(rules[0].highlightForeground, const Color(0xFF00FF00));
+      expect(rules[1].name, 'Gag Spam');
+      expect(rules[1].action, TriggerAction.gag);
+      expect(rules[1].enabled, false);
+    });
+
+    test('migration: legacy triggers serialize to immersions format', () {
+      const legacyMd = '''
+## Tells
+- **Id:** trig_tells
+- **Pattern:** `\\w+ tells you:`
+- **Action:** highlight
+- **Highlight Foreground:** #00FF00
+- **Highlight Bold:** true
+''';
+      final rules = MarkdownConfigParser.parseLegacyTriggers(legacyMd);
+      final newMd = MarkdownConfigParser.serializeImmersions(rules);
+      expect(newMd, contains('# Highlights'));
+      expect(newMd, contains('## 01 - Tells'));
+      expect(newMd, contains('Pattern: `'));
+      expect(newMd, contains('Foreground: #00FF00'));
+      expect(newMd, contains('Bold: true'));
+    });
+  });
+
+  group('MarkdownConfigParser — legacy aliases', () {
+    test('parses old bold-property format', () {
+      const md = '''
+# Aliases
+
+## Get All
+- **Id:** alias_ga
+- **Keyword:** ga
+- **Expansion:** get all
+- **Enabled:** true
+- **Description:** Get all items from the ground
+''';
+      final rules = MarkdownConfigParser.parseLegacyAliases(md);
+      expect(rules, hasLength(1));
+      expect(rules[0].id, 'alias_ga');
+      expect(rules[0].keyword, 'ga');
+      expect(rules[0].expansion, 'get all');
+      expect(rules[0].description, 'Get all items from the ground');
+    });
+
+    test('migration: legacy aliases serialize to new format', () {
+      const legacyMd = '''
+## k
+- **Keyword:** k
+- **Expansion:** kill \$1
+- **Description:** Kill target
+''';
+      final rules = MarkdownConfigParser.parseLegacyAliases(legacyMd);
+      final newMd = MarkdownConfigParser.serializeAliases(rules);
+      expect(newMd, contains('# 01 - k'));
+      expect(newMd, contains('Expansion: kill \$1'));
+      expect(newMd, contains('Comments: Kill target'));
     });
   });
 
@@ -436,32 +668,34 @@ Backgrounds:
     test('round-trips opaque colors as 6-digit hex', () {
       final rules = [
         TriggerRule(
-          id: 'test',
+          id: 'hl_01',
           name: 'Color Test',
           pattern: 'x',
+          action: TriggerAction.highlight,
           highlightForeground: const Color(0xFF00FF00),
         ),
       ];
-      final md = MarkdownConfigParser.serializeTriggers(rules);
+      final md = MarkdownConfigParser.serializeImmersions(rules);
       expect(md, contains('#00FF00'));
 
-      final parsed = MarkdownConfigParser.parseTriggers(md);
+      final parsed = MarkdownConfigParser.parseImmersions(md);
       expect(parsed[0].highlightForeground, const Color(0xFF00FF00));
     });
 
     test('round-trips translucent colors as 8-digit hex', () {
       final rules = [
         TriggerRule(
-          id: 'test',
+          id: 'hl_01',
           name: 'Alpha Test',
           pattern: 'x',
+          action: TriggerAction.highlight,
           highlightForeground: const Color(0x8000FF00),
         ),
       ];
-      final md = MarkdownConfigParser.serializeTriggers(rules);
+      final md = MarkdownConfigParser.serializeImmersions(rules);
       expect(md, contains('#8000FF00'));
 
-      final parsed = MarkdownConfigParser.parseTriggers(md);
+      final parsed = MarkdownConfigParser.parseImmersions(md);
       expect(parsed[0].highlightForeground, const Color(0x8000FF00));
     });
   });

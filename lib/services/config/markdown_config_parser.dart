@@ -7,37 +7,290 @@ import '../../models/trigger_rule.dart';
 /// Parses and serializes configuration data in human-readable Markdown format.
 ///
 /// Format conventions:
-/// - `## Heading` — names a trigger/alias entry
-/// - `- **Key:** value` — a property within an entry
+/// - Immersions: `# Highlights` / `# Sounds` / `# Gags` sections
+/// - Aliases: `# NN - keyword` headings
+/// - `Key: value` property lines
 /// - Markdown tables — area-to-path mappings
 /// - Ordered lists — sequential items (e.g., battle themes)
 class MarkdownConfigParser {
-  // ── Triggers ──
+  // ── Immersions (triggers) ──
 
-  /// Parses a `triggers.md` file into a list of [TriggerRule]s.
-  static List<TriggerRule> parseTriggers(String content) {
+  /// Parses an `Immersions.md` file into a list of [TriggerRule]s.
+  ///
+  /// Format: H1 sections `# Highlights`, `# Sounds`, `# Gags`.
+  /// Highlights/Sounds have `## NN - Name` entries with `Key: value` props.
+  /// Gags are just backtick-wrapped patterns, one per line.
+  static List<TriggerRule> parseImmersions(String content) {
+    final rules = <TriggerRule>[];
+    String section = ''; // 'highlights', 'sounds', 'gags'
+    String? currentName;
+    String? currentId;
+    bool currentEnabled = true;
+    final props = <String, String>{};
+    int gagIndex = 0;
+
+    void flush() {
+      if (currentName != null && props.containsKey('pattern')) {
+        final action = switch (section) {
+          'sounds' => TriggerAction.playSound,
+          'gags' => TriggerAction.gag,
+          _ => TriggerAction.highlight,
+        };
+        rules.add(TriggerRule(
+          id: currentId ?? '${_sectionPrefix(section)}_${rules.length}',
+          name: currentName!,
+          pattern: _stripBackticks(props['pattern'] ?? ''),
+          enabled: currentEnabled,
+          action: action,
+          highlightForeground: _parseColor(props['foreground']),
+          highlightBackground: _parseColor(props['background']),
+          highlightBold: _parseBool(props['bold']),
+          highlightWholeLine: _parseBool(props['whole line']),
+          soundPath: props['sound'],
+        ));
+      }
+      props.clear();
+      currentName = null;
+      currentId = null;
+      currentEnabled = true;
+    }
+
+    for (final line in content.split('\n')) {
+      final trimmed = line.trim();
+
+      // H1 section heading.
+      if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
+        flush();
+        final heading = trimmed.substring(2).trim().toLowerCase();
+        if (heading == 'highlights' || heading == 'sounds' || heading == 'gags') {
+          section = heading;
+          gagIndex = 0;
+        }
+        continue;
+      }
+
+      // Gag section: backtick-wrapped patterns.
+      if (section == 'gags') {
+        final gagMatch = _backtickRegex.firstMatch(trimmed);
+        if (gagMatch != null) {
+          rules.add(TriggerRule(
+            id: 'gag_$gagIndex',
+            name: 'Gag ${gagIndex + 1}',
+            pattern: gagMatch.group(1)!,
+            action: TriggerAction.gag,
+          ));
+          gagIndex++;
+        }
+        continue;
+      }
+
+      // H2 entry heading: ## NN - Name or ## NN - Name (disabled)
+      final h2Match = _numberedH2Regex.firstMatch(trimmed);
+      if (h2Match != null) {
+        flush();
+        final num = h2Match.group(1)!;
+        var name = h2Match.group(2)!.trim();
+        currentId = '${_sectionPrefix(section)}_$num';
+        if (name.endsWith('(disabled)')) {
+          currentEnabled = false;
+          name = name.substring(0, name.length - 10).trim();
+        }
+        currentName = name;
+        continue;
+      }
+
+      // Property line: Key: value
+      if (currentName != null) {
+        final propMatch = _kvRegex.firstMatch(trimmed);
+        if (propMatch != null) {
+          final key = propMatch.group(1)!.trim().toLowerCase();
+          final value = propMatch.group(2)!.trim();
+          props[key] = value;
+        }
+      }
+    }
+    flush();
+    return rules;
+  }
+
+  /// Serializes a list of [TriggerRule]s to `Immersions.md` format.
+  static String serializeImmersions(List<TriggerRule> rules) {
+    final highlights = <TriggerRule>[];
+    final sounds = <TriggerRule>[];
+    final gags = <TriggerRule>[];
+
+    for (final rule in rules) {
+      switch (rule.action) {
+        case TriggerAction.highlight:
+          highlights.add(rule);
+        case TriggerAction.playSound:
+          sounds.add(rule);
+        case TriggerAction.highlightAndSound:
+          // Split into both sections.
+          highlights.add(rule);
+          sounds.add(rule);
+        case TriggerAction.gag:
+          gags.add(rule);
+      }
+    }
+
+    final buf = StringBuffer();
+    var needsBlank = false;
+
+    if (highlights.isNotEmpty) {
+      buf.writeln('# Highlights');
+      for (var i = 0; i < highlights.length; i++) {
+        buf.writeln();
+        final r = highlights[i];
+        final num = (i + 1).toString().padLeft(2, '0');
+        final suffix = r.enabled ? '' : ' (disabled)';
+        buf.writeln('## $num - ${r.name}$suffix');
+        buf.writeln('Pattern: `${r.pattern}`');
+        if (r.highlightForeground != null) {
+          buf.writeln('Foreground: ${_colorToHex(r.highlightForeground!)}');
+        }
+        if (r.highlightBackground != null) {
+          buf.writeln('Background: ${_colorToHex(r.highlightBackground!)}');
+        }
+        if (r.highlightBold) buf.writeln('Bold: true');
+        if (r.highlightWholeLine) buf.writeln('Whole Line: true');
+      }
+      needsBlank = true;
+    }
+
+    if (sounds.isNotEmpty) {
+      if (needsBlank) buf.writeln();
+      buf.writeln('# Sounds');
+      for (var i = 0; i < sounds.length; i++) {
+        buf.writeln();
+        final r = sounds[i];
+        final num = (i + 1).toString().padLeft(2, '0');
+        final suffix = r.enabled ? '' : ' (disabled)';
+        buf.writeln('## $num - ${r.name}$suffix');
+        buf.writeln('Pattern: `${r.pattern}`');
+        if (r.soundPath != null) buf.writeln('Sound: ${r.soundPath}');
+      }
+      needsBlank = true;
+    }
+
+    if (gags.isNotEmpty) {
+      if (needsBlank) buf.writeln();
+      buf.writeln('# Gags');
+      buf.writeln();
+      for (final r in gags) {
+        buf.writeln('`${r.pattern}`');
+      }
+    }
+
+    return buf.toString();
+  }
+
+  static String _sectionPrefix(String section) => switch (section) {
+    'highlights' => 'hl',
+    'sounds' => 'snd',
+    'gags' => 'gag',
+    _ => 'trig',
+  };
+
+  // ── Aliases ──
+
+  /// Parses an `Aliases.md` file into a list of [AliasRule]s.
+  ///
+  /// Format: `# NN - keyword` headings with `Expansion:` and `Comments:` props.
+  static List<AliasRule> parseAliases(String content) {
+    final rules = <AliasRule>[];
+    String? currentKeyword;
+    String? currentId;
+    bool currentEnabled = true;
+    final props = <String, String>{};
+
+    void flush() {
+      if (currentKeyword != null && props.containsKey('expansion')) {
+        rules.add(AliasRule(
+          id: currentId ?? 'alias_${rules.length}',
+          keyword: currentKeyword!,
+          expansion: props['expansion'] ?? '',
+          enabled: currentEnabled,
+          description: props['comments'],
+        ));
+      }
+      props.clear();
+      currentKeyword = null;
+      currentId = null;
+      currentEnabled = true;
+    }
+
+    for (final line in content.split('\n')) {
+      final trimmed = line.trim();
+
+      // H1 heading: # NN - keyword or # NN - keyword (disabled)
+      final h1Match = _numberedH1Regex.firstMatch(trimmed);
+      if (h1Match != null) {
+        flush();
+        final num = h1Match.group(1)!;
+        var keyword = h1Match.group(2)!.trim();
+        currentId = 'alias_$num';
+        if (keyword.endsWith('(disabled)')) {
+          currentEnabled = false;
+          keyword = keyword.substring(0, keyword.length - 10).trim();
+        }
+        currentKeyword = keyword;
+        continue;
+      }
+
+      // Property line: Key: value
+      if (currentKeyword != null) {
+        final propMatch = _kvRegex.firstMatch(trimmed);
+        if (propMatch != null) {
+          final key = propMatch.group(1)!.trim().toLowerCase();
+          final value = propMatch.group(2)!.trim();
+          props[key] = value;
+        }
+      }
+    }
+    flush();
+    return rules;
+  }
+
+  /// Serializes a list of [AliasRule]s to `Aliases.md` format.
+  static String serializeAliases(List<AliasRule> rules) {
+    final buf = StringBuffer();
+    for (var i = 0; i < rules.length; i++) {
+      if (i > 0) buf.writeln();
+      final rule = rules[i];
+      final num = (i + 1).toString().padLeft(2, '0');
+      final suffix = rule.enabled ? '' : ' (disabled)';
+      buf.writeln('# $num - ${rule.keyword}$suffix');
+      buf.writeln('Expansion: ${rule.expansion}');
+      if (rule.description != null && rule.description!.isNotEmpty) {
+        buf.writeln('Comments: ${rule.description}');
+      }
+    }
+    return buf.toString();
+  }
+
+  // ── Legacy triggers (old format, for migration) ──
+
+  /// Parses old-format `triggers.md` (`## Name` + `- **Key:** value` props).
+  static List<TriggerRule> parseLegacyTriggers(String content) {
     final rules = <TriggerRule>[];
     String? currentName;
     final props = <String, String>{};
 
     void flush() {
       if (currentName != null && props.containsKey('pattern')) {
-        rules.add(_buildTriggerRule(currentName, props, rules.length));
+        rules.add(_buildLegacyTriggerRule(currentName, props, rules.length));
       }
       props.clear();
     }
 
     for (final line in content.split('\n')) {
       final trimmed = line.trim();
-
-      // New trigger section.
       if (trimmed.startsWith('## ')) {
         flush();
         currentName = trimmed.substring(3).trim();
         continue;
       }
-
-      // Property line: - **Key:** value
       final propMatch = _propRegex.firstMatch(trimmed);
       if (propMatch != null && currentName != null) {
         final key = propMatch.group(1)!.trim().toLowerCase();
@@ -49,7 +302,7 @@ class MarkdownConfigParser {
     return rules;
   }
 
-  static TriggerRule _buildTriggerRule(
+  static TriggerRule _buildLegacyTriggerRule(
     String name,
     Map<String, String> props,
     int index,
@@ -68,61 +321,32 @@ class MarkdownConfigParser {
     );
   }
 
-  /// Serializes a list of [TriggerRule]s to Markdown.
-  static String serializeTriggers(List<TriggerRule> rules) {
-    final buf = StringBuffer('# Triggers\n');
-    for (final rule in rules) {
-      buf.writeln();
-      buf.writeln('## ${rule.name}');
-      buf.writeln('- **Id:** ${rule.id}');
-      buf.writeln('- **Pattern:** `${rule.pattern}`');
-      buf.writeln('- **Enabled:** ${rule.enabled}');
-      buf.writeln('- **Action:** ${rule.action.name}');
-      if (rule.highlightForeground != null) {
-        buf.writeln(
-            '- **Highlight Foreground:** ${_colorToHex(rule.highlightForeground!)}');
-      }
-      if (rule.highlightBackground != null) {
-        buf.writeln(
-            '- **Highlight Background:** ${_colorToHex(rule.highlightBackground!)}');
-      }
-      if (rule.highlightBold) {
-        buf.writeln('- **Highlight Bold:** true');
-      }
-      if (rule.highlightWholeLine) {
-        buf.writeln('- **Highlight Whole Line:** true');
-      }
-      if (rule.soundPath != null) {
-        buf.writeln('- **Sound:** ${rule.soundPath}');
-      }
-    }
-    return buf.toString();
-  }
-
-  // ── Aliases ──
-
-  /// Parses an `aliases.md` file into a list of [AliasRule]s.
-  static List<AliasRule> parseAliases(String content) {
+  /// Parses old-format `aliases.md` (`## Name` + `- **Key:** value` props).
+  static List<AliasRule> parseLegacyAliases(String content) {
     final rules = <AliasRule>[];
     String? currentName;
     final props = <String, String>{};
 
     void flush() {
       if (currentName != null && props.containsKey('keyword')) {
-        rules.add(_buildAliasRule(currentName, props, rules.length));
+        rules.add(AliasRule(
+          id: props['id'] ?? 'alias_${rules.length}',
+          keyword: props['keyword'] ?? '',
+          expansion: props['expansion'] ?? '',
+          enabled: _parseBool(props['enabled'], defaultValue: true),
+          description: props['description'],
+        ));
       }
       props.clear();
     }
 
     for (final line in content.split('\n')) {
       final trimmed = line.trim();
-
       if (trimmed.startsWith('## ')) {
         flush();
         currentName = trimmed.substring(3).trim();
         continue;
       }
-
       final propMatch = _propRegex.firstMatch(trimmed);
       if (propMatch != null && currentName != null) {
         final key = propMatch.group(1)!.trim().toLowerCase();
@@ -132,37 +356,6 @@ class MarkdownConfigParser {
     }
     flush();
     return rules;
-  }
-
-  static AliasRule _buildAliasRule(
-    String name,
-    Map<String, String> props,
-    int index,
-  ) {
-    return AliasRule(
-      id: props['id'] ?? 'alias_$index',
-      keyword: props['keyword'] ?? '',
-      expansion: props['expansion'] ?? '',
-      enabled: _parseBool(props['enabled'], defaultValue: true),
-      description: props['description'],
-    );
-  }
-
-  /// Serializes a list of [AliasRule]s to Markdown.
-  static String serializeAliases(List<AliasRule> rules) {
-    final buf = StringBuffer('# Aliases\n');
-    for (final rule in rules) {
-      buf.writeln();
-      buf.writeln('## ${rule.keyword}');
-      buf.writeln('- **Id:** ${rule.id}');
-      buf.writeln('- **Keyword:** ${rule.keyword}');
-      buf.writeln('- **Expansion:** ${rule.expansion}');
-      buf.writeln('- **Enabled:** ${rule.enabled}');
-      if (rule.description != null) {
-        buf.writeln('- **Description:** ${rule.description}');
-      }
-    }
-    return buf.toString();
   }
 
   // ── Area tables (images, audio tracks) ──
@@ -464,7 +657,19 @@ class MarkdownConfigParser {
 
   // ── Helpers ──
 
-  /// Matches `- **Key:** value` or `- **Key:** value`.
+  /// Matches `## NN - Name` headings (for immersions).
+  static final _numberedH2Regex = RegExp(r'^## (\d+) - (.+)$');
+
+  /// Matches `# NN - Name` headings (for aliases).
+  static final _numberedH1Regex = RegExp(r'^# (\d+) - (.+)$');
+
+  /// Matches simple `Key: value` property lines.
+  static final _kvRegex = RegExp(r'^(\w[\w\s]*?):\s+(.+)$');
+
+  /// Matches backtick-wrapped patterns like `` `regex` ``.
+  static final _backtickRegex = RegExp(r'^`(.+)`$');
+
+  /// Matches `- **Key:** value` (legacy format).
   static final _propRegex =
       RegExp(r'^-\s+\*\*(.+?):\*\*\s*(.*)$');
 

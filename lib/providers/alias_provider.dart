@@ -1,7 +1,12 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../models/alias_rule.dart';
 import '../services/alias/alias_engine.dart';
+import '../services/config/markdown_config_parser.dart';
 
 /// Provides the singleton [AliasEngine].
 final aliasEngineProvider = Provider<AliasEngine>((ref) {
@@ -14,37 +19,94 @@ final aliasRulesProvider =
         AliasRulesNotifier.new);
 
 /// Manages alias rules: add, remove, update, toggle.
+///
+/// Persists rules to `Aliases.md` in the app documents directory.
 class AliasRulesNotifier extends Notifier<List<AliasRule>> {
   late final AliasEngine _engine;
 
   @override
   List<AliasRule> build() {
     _engine = ref.read(aliasEngineProvider);
-    return _loadDefaults();
-  }
-
-  List<AliasRule> _loadDefaults() {
     final defaults = AliasEngine.defaultAliases();
     _engine.setRules(defaults);
+    // Fire-and-forget: load saved rules from disk, replacing defaults.
+    _loadFromDisk();
     return List.unmodifiable(defaults);
+  }
+
+  Future<File> _file() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/AncientAnguishClient/Aliases.md');
+  }
+
+  Future<File> _legacyFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/AncientAnguishClient/aliases.md');
+  }
+
+  Future<void> _loadFromDisk() async {
+    try {
+      final file = await _file();
+      if (file.existsSync()) {
+        final contents = await file.readAsString();
+        if (contents.trim().isNotEmpty) {
+          final rules = MarkdownConfigParser.parseAliases(contents);
+          if (rules.isNotEmpty) {
+            _engine.setRules(rules);
+            state = List.unmodifiable(_engine.rules);
+            return;
+          }
+        }
+      }
+
+      // Migration: try old aliases.md format.
+      final legacy = await _legacyFile();
+      if (legacy.existsSync()) {
+        final contents = await legacy.readAsString();
+        if (contents.trim().isNotEmpty) {
+          final rules = MarkdownConfigParser.parseLegacyAliases(contents);
+          if (rules.isNotEmpty) {
+            _engine.setRules(rules);
+            state = List.unmodifiable(_engine.rules);
+            _saveToDisk(); // Re-save in new format.
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('AliasRulesNotifier._loadFromDisk: $e');
+    }
+  }
+
+  Future<void> _saveToDisk() async {
+    try {
+      final file = await _file();
+      await file.parent.create(recursive: true);
+      final md = MarkdownConfigParser.serializeAliases(_engine.rules);
+      await file.writeAsString(md);
+    } catch (e) {
+      debugPrint('AliasRulesNotifier._saveToDisk: $e');
+    }
   }
 
   /// Adds a new alias rule.
   void addRule(AliasRule rule) {
     _engine.addRule(rule);
     state = List.unmodifiable(_engine.rules);
+    _saveToDisk();
   }
 
   /// Removes an alias rule by ID.
   void removeRule(String id) {
     _engine.removeRule(id);
     state = List.unmodifiable(_engine.rules);
+    _saveToDisk();
   }
 
   /// Updates an existing alias rule.
   void updateRule(AliasRule updated) {
     _engine.updateRule(updated);
     state = List.unmodifiable(_engine.rules);
+    _saveToDisk();
   }
 
   /// Toggles an alias rule's enabled state.
@@ -53,6 +115,7 @@ class AliasRulesNotifier extends Notifier<List<AliasRule>> {
     if (rule != null) {
       _engine.updateRule(rule.copyWith(enabled: !rule.enabled));
       state = List.unmodifiable(_engine.rules);
+      _saveToDisk();
     }
   }
 
@@ -60,5 +123,6 @@ class AliasRulesNotifier extends Notifier<List<AliasRule>> {
   void setRules(List<AliasRule> rules) {
     _engine.setRules(rules);
     state = List.unmodifiable(_engine.rules);
+    _saveToDisk();
   }
 }

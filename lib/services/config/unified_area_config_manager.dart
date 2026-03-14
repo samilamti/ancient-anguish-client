@@ -112,6 +112,17 @@ class UnifiedAreaConfigManager {
 
   // ── Mutations ──
 
+  /// Creates or updates an area entry with the given coordinate.
+  void addCoordinateToArea(String areaName, int x, int y) {
+    final coordStr = '$x,$y';
+    final entry = _getOrCreateEntry(areaName);
+    if (entry.coordinates.contains(coordStr)) return;
+    _updateEntry(entry.copyWith(
+      coordinates: [...entry.coordinates, coordStr],
+    ));
+    _saveToDisk();
+  }
+
   /// Adds a background image for an area. If the path already exists, no-op.
   void addBackgroundForArea(String areaName, String filePath) {
     final entry = _getOrCreateEntry(areaName);

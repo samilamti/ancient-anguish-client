@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/game_state_provider.dart';
+import '../../../providers/unified_area_config_provider.dart';
 import 'vitals_gauge.dart';
 
 /// HP and SP bars displayed side by side at the top of the screen.
@@ -70,11 +71,42 @@ class VitalsRow extends ConsumerWidget {
 /// Status bar showing coordinates, area, and player info.
 ///
 /// HP/SP gauges are shown separately by [VitalsRow].
-class StatusBar extends ConsumerWidget {
+class StatusBar extends ConsumerStatefulWidget {
   const StatusBar({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StatusBar> createState() => _StatusBarState();
+}
+
+class _StatusBarState extends ConsumerState<StatusBar> {
+  final TextEditingController _nameController = TextEditingController();
+  bool _showNameInput = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _saveArea() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
+
+    final gameState = ref.read(gameStateProvider);
+    if (!gameState.hasCoordinates) return;
+
+    final config = ref.read(unifiedAreaConfigProvider).value;
+    if (config == null) return;
+
+    config.addCoordinateToArea(name, gameState.x!, gameState.y!);
+    ref.read(gameStateProvider.notifier).setCurrentArea(name);
+
+    _nameController.clear();
+    setState(() => _showNameInput = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final gameState = ref.watch(gameStateProvider);
     final theme = Theme.of(context);
 
@@ -86,6 +118,11 @@ class StatusBar extends ConsumerWidget {
         gameState.coins == null) {
       return const SizedBox.shrink();
     }
+
+    // Show naming prompt when at unmapped coords for 10+ commands.
+    final canNameArea = gameState.hasCoordinates &&
+        gameState.currentArea == null &&
+        gameState.commandsSinceCoordChange >= 10;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -126,6 +163,30 @@ class StatusBar extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+              ] else if (canNameArea && !_showNameInput) ...[
+                InkWell(
+                  onTap: () => setState(() => _showNameInput = true),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add_location_alt, size: 14,
+                            color: theme.colorScheme.primary.withAlpha(180)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Name this area',
+                          style: _infoTextStyle(theme).copyWith(
+                            color: theme.colorScheme.primary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
               const Spacer(),
               if (gameState.xp != null)
@@ -137,6 +198,68 @@ class StatusBar extends ConsumerWidget {
                 ),
             ],
           ),
+
+          // Inline area naming input.
+          if (canNameArea && _showNameInput)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.add_location_alt, size: 14,
+                      color: theme.colorScheme.primary.withAlpha(180)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: SizedBox(
+                      height: 28,
+                      child: TextField(
+                        controller: _nameController,
+                        autofocus: true,
+                        style: _infoTextStyle(theme).copyWith(
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Area name...',
+                          hintStyle: _infoTextStyle(theme),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 6),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        onSubmitted: (_) => _saveArea(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: Icon(Icons.check, size: 16,
+                          color: theme.colorScheme.primary),
+                      tooltip: 'Save area',
+                      onPressed: _saveArea,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: Icon(Icons.close, size: 16,
+                          color: theme.colorScheme.onSurface.withAlpha(140)),
+                      tooltip: 'Cancel',
+                      onPressed: () {
+                        _nameController.clear();
+                        setState(() => _showNameInput = false);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Player info row.
           if (gameState.coins != null)

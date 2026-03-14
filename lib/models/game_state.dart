@@ -12,6 +12,10 @@ class GameState {
   final int? xp;
   final String? currentArea;
 
+  /// Number of commands sent since the last coordinate change.
+  /// Used to detect when the player has settled at unmapped coordinates.
+  final int commandsSinceCoordChange;
+
   const GameState({
     this.hp = 0,
     this.maxHp = 0,
@@ -24,6 +28,7 @@ class GameState {
     this.coins,
     this.xp,
     this.currentArea,
+    this.commandsSinceCoordChange = 0,
   });
 
   /// Creates a copy with updated fields.
@@ -39,6 +44,7 @@ class GameState {
     int? coins,
     int? xp,
     String? currentArea,
+    int? commandsSinceCoordChange,
   }) {
     return GameState(
       hp: hp ?? this.hp,
@@ -52,6 +58,8 @@ class GameState {
       coins: coins ?? this.coins,
       xp: xp ?? this.xp,
       currentArea: currentArea ?? this.currentArea,
+      commandsSinceCoordChange:
+          commandsSinceCoordChange ?? this.commandsSinceCoordChange,
     );
   }
 

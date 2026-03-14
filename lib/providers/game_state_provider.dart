@@ -85,6 +85,8 @@ class GameStateNotifier extends Notifier<GameState> {
       coins: state.coins,
       xp: state.xp,
       currentArea: area,
+      commandsSinceCoordChange:
+          coordsChanged ? 0 : state.commandsSinceCoordChange,
     );
   }
 
@@ -104,6 +106,18 @@ class GameStateNotifier extends Notifier<GameState> {
   /// Used by the battle pattern detector which only provides current vitals.
   void updateCurrentVitals({int? hp, int? sp}) {
     state = state.copyWith(hp: hp ?? state.hp, sp: sp ?? state.sp);
+  }
+
+  /// Increments the command counter (called when a command is sent to the MUD).
+  void incrementCommandCounter() {
+    state = state.copyWith(
+      commandsSinceCoordChange: state.commandsSinceCoordChange + 1,
+    );
+  }
+
+  /// Sets the current area name directly (e.g., after the player names a new area).
+  void setCurrentArea(String area) {
+    state = state.copyWith(currentArea: area);
   }
 
   /// Sets the player name (called after login dialog submission).

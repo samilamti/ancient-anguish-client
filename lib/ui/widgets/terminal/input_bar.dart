@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/alias_provider.dart';
 import '../../../providers/connection_provider.dart'
     show connectionServiceProvider, commandHistoryProvider, inputFocusProvider;
+import '../../../providers/game_state_provider.dart';
 import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../services/parser/emoji_parser.dart';
@@ -73,6 +74,7 @@ class _InputBarState extends ConsumerState<InputBar> {
       service.sendCommand(outgoing);
     }
     history.add(command);
+    ref.read(gameStateProvider.notifier).incrementCommandCounter();
     // Select all text so the user can resend with Enter or type to replace.
     _controller.selection = TextSelection(
       baseOffset: 0,

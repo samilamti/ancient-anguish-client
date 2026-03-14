@@ -46,3 +46,11 @@ app.*.map.json
 
 # Machine-specific
 android/local.properties
+
+# Sensitive files
+clueless
+key
+key.pub
+
+# Build artifacts
+releases/

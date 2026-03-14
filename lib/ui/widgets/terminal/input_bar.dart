@@ -74,7 +74,8 @@ class _InputBarState extends ConsumerState<InputBar> {
       service.sendCommand(outgoing);
     }
     history.add(command);
-    ref.read(gameStateProvider.notifier).incrementCommandCounter();
+    _resetHistorySearch();
+    ref.read(gameStateProvider.notifier).recordDirectionalAttempt(command);
     // Select all text so the user can resend with Enter or type to replace.
     _controller.selection = TextSelection(
       baseOffset: 0,
@@ -85,9 +86,15 @@ class _InputBarState extends ConsumerState<InputBar> {
     _focusNode.requestFocus();
   }
 
+  /// The text in the input bar when the user first pressed Up.
+  /// Used as the prefix filter for history navigation.
+  String? _historySearchPrefix;
+
   void _historyUp() {
     final history = ref.read(commandHistoryProvider.notifier);
-    final previous = history.previous();
+    // On the first Up press, capture the current input as the search prefix.
+    _historySearchPrefix ??= _controller.text;
+    final previous = history.previous(_historySearchPrefix!);
     if (previous != null) {
       _controller.text = previous;
       _controller.selection = TextSelection.collapsed(
@@ -105,6 +112,11 @@ class _InputBarState extends ConsumerState<InputBar> {
         offset: _controller.text.length,
       );
     }
+  }
+
+  void _resetHistorySearch() {
+    _historySearchPrefix = null;
+    ref.read(commandHistoryProvider.notifier).resetPosition();
   }
 
   void _resetTabCompletion() {
@@ -177,6 +189,7 @@ class _InputBarState extends ConsumerState<InputBar> {
 
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _controller.clear();
+      _resetHistorySearch();
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
@@ -187,6 +200,9 @@ class _InputBarState extends ConsumerState<InputBar> {
       _historyDown();
       return KeyEventResult.handled;
     }
+
+    // Any other key resets history search — user is typing new input.
+    _resetHistorySearch();
 
     return KeyEventResult.ignored;
   }

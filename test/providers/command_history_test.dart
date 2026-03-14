@@ -58,13 +58,13 @@ void main() {
 
   group('CommandHistoryNotifier - previous', () {
     test('returns null when history is empty', () {
-      expect(notifier.previous(), isNull);
+      expect(notifier.previous(''), isNull);
     });
 
     test('returns most recent command on first call', () {
       notifier.add('first');
       notifier.add('second');
-      expect(notifier.previous(), 'second');
+      expect(notifier.previous(''), 'second');
     });
 
     test('returns progressively older commands on repeated calls', () {
@@ -72,16 +72,16 @@ void main() {
       notifier.add('second');
       notifier.add('third');
 
-      expect(notifier.previous(), 'third');
-      expect(notifier.previous(), 'second');
-      expect(notifier.previous(), 'first');
+      expect(notifier.previous(''), 'third');
+      expect(notifier.previous(''), 'second');
+      expect(notifier.previous(''), 'first');
     });
 
     test('stops at oldest command and keeps returning it', () {
       notifier.add('only');
-      expect(notifier.previous(), 'only');
-      expect(notifier.previous(), 'only');
-      expect(notifier.previous(), 'only');
+      expect(notifier.previous(''), 'only');
+      expect(notifier.previous(''), 'only');
+      expect(notifier.previous(''), 'only');
     });
   });
 
@@ -98,8 +98,8 @@ void main() {
       notifier.add('third');
 
       // Go back two steps.
-      notifier.previous(); // third
-      notifier.previous(); // second
+      notifier.previous(''); // third
+      notifier.previous(''); // second
 
       // Go forward.
       expect(notifier.next(), 'third');
@@ -109,7 +109,7 @@ void main() {
       notifier.add('first');
       notifier.add('second');
 
-      notifier.previous(); // second
+      notifier.previous(''); // second
       notifier.next(); // back to "newest" (position 0)
       expect(notifier.next(), ''); // past newest
     });
@@ -120,12 +120,79 @@ void main() {
       notifier.add('first');
       notifier.add('second');
 
-      notifier.previous(); // second
-      notifier.previous(); // first
+      notifier.previous(''); // second
+      notifier.previous(''); // first
 
       notifier.resetPosition();
 
-      expect(notifier.previous(), 'second'); // starts from newest
+      expect(notifier.previous(''), 'second'); // starts from newest
+    });
+  });
+
+  group('CommandHistoryNotifier - prefix filtering', () {
+    test('filters history by prefix', () {
+      notifier.add('look');
+      notifier.add('north');
+      notifier.add('northeast');
+      notifier.add('south');
+      notifier.add('northwest');
+
+      // Only "north*" commands.
+      expect(notifier.previous('north'), 'northwest');
+      expect(notifier.previous('north'), 'northeast');
+      expect(notifier.previous('north'), 'north');
+    });
+
+    test('returns null when no history matches prefix', () {
+      notifier.add('look');
+      notifier.add('north');
+      expect(notifier.previous('kill'), isNull);
+    });
+
+    test('next navigates forward within filtered results', () {
+      notifier.add('look');
+      notifier.add('north');
+      notifier.add('northeast');
+      notifier.add('south');
+      notifier.add('northwest');
+
+      notifier.previous('north'); // northwest
+      notifier.previous('north'); // northeast
+      notifier.previous('north'); // north
+
+      expect(notifier.next(), 'northeast');
+      expect(notifier.next(), 'northwest');
+    });
+
+    test('next returns prefix when navigating past newest match', () {
+      notifier.add('look');
+      notifier.add('north');
+
+      notifier.previous('north'); // north
+      expect(notifier.next(), 'north'); // returns the prefix
+    });
+
+    test('resetPosition clears prefix filter', () {
+      notifier.add('look');
+      notifier.add('north');
+      notifier.add('northeast');
+
+      notifier.previous('north'); // northeast
+      notifier.resetPosition();
+
+      // After reset, empty prefix shows all.
+      expect(notifier.previous(''), 'northeast');
+      expect(notifier.previous(''), 'north');
+      expect(notifier.previous(''), 'look');
+    });
+
+    test('stops at oldest matching command', () {
+      notifier.add('look');
+      notifier.add('north');
+      notifier.add('south');
+
+      expect(notifier.previous('north'), 'north');
+      expect(notifier.previous('north'), 'north'); // stays at oldest match
     });
   });
 
@@ -134,13 +201,13 @@ void main() {
       notifier.add('first');
       notifier.add('second');
 
-      notifier.previous(); // second
-      notifier.previous(); // first
+      notifier.previous(''); // second
+      notifier.previous(''); // first
 
       notifier.add('third');
 
       // Position should be reset, so previous returns newest.
-      expect(notifier.previous(), 'third');
+      expect(notifier.previous(''), 'third');
     });
 
     test('full up-down navigation cycle works correctly', () {
@@ -149,9 +216,9 @@ void main() {
       notifier.add('gamma');
 
       // Navigate all the way back.
-      expect(notifier.previous(), 'gamma');
-      expect(notifier.previous(), 'beta');
-      expect(notifier.previous(), 'alpha');
+      expect(notifier.previous(''), 'gamma');
+      expect(notifier.previous(''), 'beta');
+      expect(notifier.previous(''), 'alpha');
 
       // Navigate all the way forward.
       expect(notifier.next(), 'beta');

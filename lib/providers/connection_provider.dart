@@ -470,9 +470,23 @@ final commandHistoryProvider =
         CommandHistoryNotifier.new);
 
 /// Manages the user's command history for up/down arrow recall.
+///
+/// Supports prefix-filtered navigation: when the user has typed a partial
+/// command, Up/Down only cycle through history entries that start with that
+/// prefix. An empty prefix matches everything (original behavior).
 class CommandHistoryNotifier extends Notifier<List<String>> {
   static const int _maxHistory = 500;
   int _position = -1;
+
+  /// The prefix used to filter history during the current navigation session.
+  /// Set on the first Up press and cleared when navigation resets.
+  String? _filterPrefix;
+
+  /// Indices into [state] that match [_filterPrefix].
+  List<int> _filteredIndices = [];
+
+  /// Current position within [_filteredIndices].
+  int _filteredPosition = -1;
 
   @override
   List<String> build() => [];
@@ -483,6 +497,7 @@ class CommandHistoryNotifier extends Notifier<List<String>> {
     // Remove duplicate if it's the same as the most recent.
     if (state.isNotEmpty && state.first == command) {
       _position = -1;
+      _resetFilter();
       return;
     }
     final newState = [command, ...state];
@@ -492,27 +507,70 @@ class CommandHistoryNotifier extends Notifier<List<String>> {
       state = newState;
     }
     _position = -1;
+    _resetFilter();
   }
 
-  /// Navigates backward (older) in history. Returns the command or null.
-  String? previous() {
+  /// Navigates backward (older) in history, filtered by [prefix].
+  ///
+  /// On the first call of a navigation session, builds a filtered index list
+  /// of history entries starting with [prefix]. Subsequent calls cycle through
+  /// that list. An empty prefix matches all entries.
+  String? previous(String prefix) {
     if (state.isEmpty) return null;
-    if (_position < state.length - 1) {
-      _position++;
+
+    // Start a new filtered session if prefix changed or no session active.
+    if (_filterPrefix == null || _filterPrefix != prefix) {
+      _filterPrefix = prefix;
+      _buildFilteredIndices(prefix);
+      _filteredPosition = -1;
     }
+
+    if (_filteredIndices.isEmpty) return null;
+
+    if (_filteredPosition < _filteredIndices.length - 1) {
+      _filteredPosition++;
+    }
+    _position = _filteredIndices[_filteredPosition];
     return state[_position];
   }
 
-  /// Navigates forward (newer) in history. Returns the command or null.
+  /// Navigates forward (newer) in history within the current filter.
   String? next() {
-    if (_position <= 0) {
+    if (_filterPrefix == null || _filteredIndices.isEmpty) {
       _position = -1;
       return '';
     }
-    _position--;
+
+    if (_filteredPosition <= 0) {
+      _position = -1;
+      _filteredPosition = -1;
+      return _filterPrefix ?? '';
+    }
+    _filteredPosition--;
+    _position = _filteredIndices[_filteredPosition];
     return state[_position];
   }
 
-  /// Resets the navigation position.
-  void resetPosition() => _position = -1;
+  /// Resets the navigation position and filter.
+  void resetPosition() {
+    _position = -1;
+    _resetFilter();
+  }
+
+  void _resetFilter() {
+    _filterPrefix = null;
+    _filteredIndices = [];
+    _filteredPosition = -1;
+  }
+
+  void _buildFilteredIndices(String prefix) {
+    if (prefix.isEmpty) {
+      _filteredIndices = List.generate(state.length, (i) => i);
+    } else {
+      _filteredIndices = [
+        for (int i = 0; i < state.length; i++)
+          if (state[i].startsWith(prefix)) i,
+      ];
+    }
+  }
 }

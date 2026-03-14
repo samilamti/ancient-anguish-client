@@ -119,6 +119,17 @@ class AudioService {
         return;
       }
 
+      // Dispose the source from two play() calls ago. By now its fade-out
+      // has long finished, so the C++ sound hash is safe to remove.
+      if (_previousSource != null) {
+        try {
+          await _soloud.disposeSource(_previousSource!);
+        } catch (e) {
+          debugPrint('AudioService: disposeSource error: $e');
+        }
+        _previousSource = null;
+      }
+
       // Crossfade: schedule the old handle to fade out and stop.
       if (_currentHandle != null) {
         try {
@@ -137,27 +148,14 @@ class AudioService {
       _isPlaying = false;
       _currentTrackPath = null;
 
-      // Dispose previous source if loaded.
-      // Note: we must not dispose until the fade-out finishes, but SoLoud
-      // handles this internally — scheduleStop keeps the source alive.
-      // We track the old source to dispose on the *next* play() call.
+      // Track the current source for disposal on the NEXT play() call.
+      // It may still be fading out, so we must not dispose it yet.
       if (_currentSource != null) {
         _previousSource = _currentSource;
         _currentSource = null;
       }
 
       _currentSource = await _soloud.loadFile(filePath);
-
-      // Dispose previous source now that the new one is loaded.
-      // The fade-out handle keeps its own reference.
-      if (_previousSource != null) {
-        try {
-          await _soloud.disposeSource(_previousSource!);
-        } catch (e) {
-          debugPrint('AudioService: disposeSource error: $e');
-        }
-        _previousSource = null;
-      }
 
       // Listen for track completion.
       _finishedSub?.cancel();

@@ -15,6 +15,7 @@ import '../services/parser/link_parser.dart';
 import '../services/parser/output_parser.dart';
 import '../models/social_message.dart';
 import '../services/command_history_service.dart';
+import '../services/platform/window_service.dart';
 import '../services/social/social_message_parser.dart';
 import 'battle_provider.dart';
 import 'game_state_provider.dart';
@@ -368,6 +369,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       if (!tellMatch.isOutgoing) {
         tellNotifier.setLastRecipient(tellMatch.sender);
         _markUnreadIfInactive(isChat: false);
+        WindowService.requestAttention();
       }
       return _SocialLineResult.captured;
     }

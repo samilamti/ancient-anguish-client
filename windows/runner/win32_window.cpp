@@ -213,12 +213,27 @@ Win32Window::MessageHandler(HWND hwnd,
       }
       return 0;
 
+    case WM_ACTIVATEAPP:
+      is_focused_ = (wparam != 0);
+      return 0;
+
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
       return 0;
   }
 
   return DefWindowProc(window_handle_, message, wparam, lparam);
+}
+
+void Win32Window::FlashTaskbar() {
+  if (window_handle_ == nullptr || is_focused_) return;
+  FLASHWINFO fi = {};
+  fi.cbSize = sizeof(FLASHWINFO);
+  fi.hwnd = window_handle_;
+  fi.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
+  fi.uCount = 3;
+  fi.dwTimeout = 0;  // use default cursor blink rate
+  FlashWindowEx(&fi);
 }
 
 void Win32Window::Destroy() {

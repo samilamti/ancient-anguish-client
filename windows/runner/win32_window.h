@@ -18,6 +18,12 @@ class Win32Window {
     Point(unsigned int x, unsigned int y) : x(x), y(y) {}
   };
 
+  // Flashes the taskbar icon if the window is not focused.
+  void FlashTaskbar();
+
+  // Returns whether the window currently has focus.
+  bool IsFocused() const { return is_focused_; }
+
   struct Size {
     unsigned int width;
     unsigned int height;
@@ -91,6 +97,9 @@ class Win32Window {
   static void UpdateTheme(HWND const window);
 
   bool quit_on_close_ = false;
+
+  // Whether the application window currently has focus.
+  bool is_focused_ = true;
 
   // window handle for top level window.
   HWND window_handle_ = nullptr;

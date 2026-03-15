@@ -115,14 +115,38 @@ class EmojiParser {
     return changed ? StyledLine(newSpans) : line;
   }
 
+  /// Regex to detect URL regions that should be protected from replacement.
+  static final RegExp _urlPattern = RegExp(r'https?://[^\s]+');
+
   /// Replaces emoticons in a single text string.
   /// Returns the original string instance if no replacements were made.
+  /// URLs are preserved — emoticon patterns inside URLs are not replaced.
   static String replaceEmoticons(String text) {
     if (text.isEmpty) return text;
+
+    // Find URL regions to protect.
+    final urlRanges = _urlPattern
+        .allMatches(text)
+        .map((m) => (start: m.start, end: m.end))
+        .toList();
+
+    if (urlRanges.isEmpty) {
+      // Fast path: no URLs, use simple replacement.
+      final result = text.replaceAllMapped(_regex, (match) {
+        return emoticonMap[match.group(0)!] ?? match.group(0)!;
+      });
+      return result == text ? text : result;
+    }
+
+    // Slow path: skip emoticon matches that overlap any URL region.
     final result = text.replaceAllMapped(_regex, (match) {
+      for (final range in urlRanges) {
+        if (match.start >= range.start && match.start < range.end) {
+          return match.group(0)!; // Inside a URL — keep as-is.
+        }
+      }
       return emoticonMap[match.group(0)!] ?? match.group(0)!;
     });
-    // Return original instance when nothing changed (avoids allocation).
     return result == text ? text : result;
   }
 

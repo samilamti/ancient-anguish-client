@@ -165,6 +165,28 @@ void main() {
       expect(result, equals('\u{1F494}')); // broken heart
     });
 
+    test('preserves URLs with :// intact', () {
+      const url = 'https://github.com/user/repo';
+      expect(EmojiParser.replaceEmoticons(url), equals(url));
+    });
+
+    test('preserves http URLs', () {
+      const url = 'http://example.com/path?q=1';
+      expect(EmojiParser.replaceEmoticons(url), equals(url));
+    });
+
+    test('preserves URL but replaces emoticon outside it', () {
+      expect(
+        EmojiParser.replaceEmoticons('check https://x.com/path :)'),
+        equals('check https://x.com/path \u{1F642}'),
+      );
+    });
+
+    test('preserves multiple URLs in same string', () {
+      const text = 'see https://a.com and http://b.com/foo';
+      expect(EmojiParser.replaceEmoticons(text), equals(text));
+    });
+
     test('does not false-positive on HP: 100', () {
       const text = 'HP: 100  SP: 50';
       expect(EmojiParser.replaceEmoticons(text), equals(text));

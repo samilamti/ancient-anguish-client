@@ -17,6 +17,11 @@ import 'social_message_parser.dart';
 /// 09:16 Frodo: Pretty rough actually
 /// ```
 class SocialHistoryService {
+  // Write queues serialize disk I/O per file so that continuation lines
+  // are always written after the initial message completes.
+  static Future<void> _chatQueue = Future.value();
+  static Future<void> _tellQueue = Future.value();
+
   static Future<String> _dir() async {
     final dir = await getApplicationDocumentsDirectory();
     return '${dir.path}/AncientAnguishClient';
@@ -28,8 +33,33 @@ class SocialHistoryService {
   static Future<File> _tellFile() async =>
       File('${await _dir()}/Tell History.md');
 
-  /// Appends a message to the appropriate history file.
-  static Future<void> appendMessage(
+  /// Queues a message append to the appropriate history file.
+  static void appendMessage(
+    SocialMessage msg, {
+    required bool isChat,
+  }) {
+    if (isChat) {
+      _chatQueue = _chatQueue.then((_) => _doAppendMessage(msg, isChat: true));
+    } else {
+      _tellQueue = _tellQueue.then((_) => _doAppendMessage(msg, isChat: false));
+    }
+  }
+
+  /// Queues a continuation line append to the history file.
+  static void appendContinuation(
+    String plainText, {
+    required bool isChat,
+  }) {
+    if (isChat) {
+      _chatQueue =
+          _chatQueue.then((_) => _doAppendContinuation(plainText, isChat: true));
+    } else {
+      _tellQueue =
+          _tellQueue.then((_) => _doAppendContinuation(plainText, isChat: false));
+    }
+  }
+
+  static Future<void> _doAppendMessage(
     SocialMessage msg, {
     required bool isChat,
   }) async {
@@ -65,12 +95,11 @@ class SocialHistoryService {
         await sink.close();
       }
     } catch (e) {
-      debugPrint('SocialHistoryService.appendMessage: $e');
+      debugPrint('SocialHistoryService._doAppendMessage: $e');
     }
   }
 
-  /// Appends a continuation line to the history file.
-  static Future<void> appendContinuation(
+  static Future<void> _doAppendContinuation(
     String plainText, {
     required bool isChat,
   }) async {
@@ -79,7 +108,7 @@ class SocialHistoryService {
       if (!file.existsSync()) return;
       await file.writeAsString('$plainText\n', mode: FileMode.append);
     } catch (e) {
-      debugPrint('SocialHistoryService.appendContinuation: $e');
+      debugPrint('SocialHistoryService._doAppendContinuation: $e');
     }
   }
 

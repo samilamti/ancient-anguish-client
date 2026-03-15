@@ -25,6 +25,10 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    // Scroll to bottom on initial build (e.g. after tab switch).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+    });
   }
 
   @override

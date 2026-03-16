@@ -1,23 +1,40 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants.dart';
-
+import '../core/web_config.dart';
+import '../models/auth_state.dart';
 import '../models/battle_state.dart';
 import '../models/game_state.dart';
 import '../services/area/area_detector.dart';
 import '../services/audio/area_audio_manager.dart';
-import '../services/audio/audio_service.dart';
+import '../services/audio/audio_interface.dart';
+import '../services/audio/create_audio.dart';
+import 'auth_provider.dart';
 import 'battle_provider.dart';
 import 'game_state_provider.dart';
 import 'unified_area_config_provider.dart';
 
-/// Provides the [AudioService] singleton.
-final audioServiceProvider = Provider<AudioService>((ref) {
-  final service = AudioService();
+/// Provides the [AudioInterface] singleton.
+///
+/// Platform selection is handled at compile time via conditional imports
+/// in `create_audio.dart`.
+final audioServiceProvider = Provider<AudioInterface>((ref) {
+  AudioInterface service;
+  if (kIsWeb) {
+    final authState = ref.watch(authProvider);
+    if (authState is! AuthAuthenticated) {
+      throw StateError('AudioService requires authentication on web');
+    }
+    service = createAudioService(
+      baseUrl: WebConfig.serverUrl,
+      tokenProvider: () => ref.read(authProvider.notifier).token ?? '',
+    );
+  } else {
+    service = createAudioService();
+  }
   ref.onDispose(() => service.dispose());
   return service;
 });
@@ -294,9 +311,9 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       // Advance to next track in the cycle.
       unifiedConfig.advanceMusicCycle(areaName);
       final nextTrack = unifiedConfig.getMusicForArea(areaName);
-      if (nextTrack == null || !await File(nextTrack).exists()) return;
-
       final audioService = ref.read(audioServiceProvider);
+      if (nextTrack == null || !await audioService.canPlay(nextTrack)) return;
+
       await audioService.play(nextTrack, looping: false);
 
       // Update AreaAudioManager's track map so battle restore works.
@@ -325,8 +342,8 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
     if (ref.read(areaAudioManagerProvider).inBattle) return;
     _loadingAudio = true;
     try {
-      if (!await File(audioPath).exists()) return;
       final audioService = ref.read(audioServiceProvider);
+      if (!await audioService.canPlay(audioPath)) return;
       final shouldLoop = !_isMultiTrack(areaName);
       if (audioPath != audioService.currentTrackPath) {
         await audioService.play(audioPath, looping: shouldLoop);

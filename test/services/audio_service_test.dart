@@ -5,10 +5,10 @@ import 'package:ancient_anguish_client/services/audio/audio_service.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late AudioService service;
+  late NativeAudioService service;
 
   setUp(() {
-    service = AudioService.forTesting();
+    service = NativeAudioService.forTesting();
   });
 
   tearDown(() async {

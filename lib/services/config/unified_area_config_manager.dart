@@ -1,11 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart' show debugPrint;
-import 'package:path_provider/path_provider.dart';
 
 import '../../models/area_config_entry.dart';
-import 'coord_area_config.dart';
+import '../storage/storage_service.dart';
 import 'markdown_config_parser.dart';
+import 'migration.dart';
 
 /// Central manager for the unified `Area Configuration.md` file.
 ///
@@ -21,6 +19,11 @@ class UnifiedAreaConfigManager {
 
   /// Whether persistence is active.
   bool _persistEnabled = false;
+
+  /// Storage service for file I/O. Set during [loadFromDisk].
+  StorageService? _storage;
+
+  static const _fileName = 'Area Configuration.md';
 
   /// The current in-memory config.
   UnifiedAreaConfig get config => _config;
@@ -254,30 +257,19 @@ class UnifiedAreaConfigManager {
 
   // ── Persistence ──
 
-  static Future<String> _dir() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return '${dir.path}/AncientAnguishClient';
-  }
-
-  static Future<File> _file() async {
-    return File('${await _dir()}/Area Configuration.md');
-  }
-
   /// Loads the unified config from disk, migrating from old files if needed.
-  Future<void> loadFromDisk() async {
+  Future<void> loadFromDisk(StorageService storage) async {
+    _storage = storage;
     try {
-      final file = await _file();
-      if (file.existsSync()) {
-        final contents = await file.readAsString();
-        if (contents.trim().isNotEmpty) {
-          _config = MarkdownConfigParser.parseUnifiedAreaConfig(contents);
-          _persistEnabled = true;
-          return;
-        }
+      final contents = await storage.readFile(_fileName);
+      if (contents.trim().isNotEmpty) {
+        _config = MarkdownConfigParser.parseUnifiedAreaConfig(contents);
+        _persistEnabled = true;
+        return;
       }
 
-      // No unified file — try migrating from old files.
-      await _migrateFromOldFiles();
+      // No unified file — try migrating from old files (desktop only).
+      await _migrateFromOldFiles(storage);
     } catch (e) {
       debugPrint('UnifiedAreaConfigManager.loadFromDisk: $e');
     }
@@ -285,33 +277,22 @@ class UnifiedAreaConfigManager {
   }
 
   /// Merges old config files into the unified format.
-  Future<void> _migrateFromOldFiles() async {
-    final appDir = await _dir();
-    final areas = <String, AreaConfigEntry>{};
+  ///
+  /// Migration reads from CWD and legacy app-documents paths using `dart:io`
+  /// directly. This is inherently desktop-only and will be skipped on web
+  /// (the files simply won't exist).
+  Future<void> _migrateFromOldFiles(StorageService storage) async {
+    // 1. Old Area Configuration.md from CWD (coord + audio entries).
+    // Desktop only — web returns empty map.
+    final areas = loadLegacyCwdConfig();
     var battleThemes = <String>[];
 
-    // 1. Old Area Configuration.md from CWD (coord + audio entries).
+    // 2. Old area-audio.md (user tracks + battle themes).
     try {
-      final oldCoordFile = File('Area Configuration.md');
-      if (oldCoordFile.existsSync()) {
-        final coordConfig = CoordAreaConfig();
-        coordConfig.loadFromFileSync('Area Configuration.md');
-        for (final entry in coordConfig.entries) {
-          final existing = areas[entry.areaName] ??
-              AreaConfigEntry(name: entry.areaName);
-          areas[entry.areaName] = existing.copyWith(
-            coordinates: [
-              ...existing.coordinates,
-              '${entry.x},${entry.y}',
-            ],
-            music: entry.audioPath != null &&
-                    !existing.music.contains(entry.audioPath)
-                ? [...existing.music, entry.audioPath!]
-                : null,
-          );
-        }
-        // Area-only audio mappings.
-        for (final MapEntry(:key, :value) in coordConfig.areaAudioMap.entries) {
+      final legacyAudioContents = await storage.readFile('area-audio.md');
+      if (legacyAudioContents.trim().isNotEmpty) {
+        final parsed = MarkdownConfigParser.parseAreaAudio(legacyAudioContents);
+        for (final MapEntry(:key, :value) in parsed.tracks.entries) {
           final existing = areas[key] ?? AreaConfigEntry(name: key);
           if (!existing.music.contains(value)) {
             areas[key] = existing.copyWith(
@@ -319,29 +300,7 @@ class UnifiedAreaConfigManager {
             );
           }
         }
-      }
-    } catch (e) {
-      debugPrint('Migration: old coord config error: $e');
-    }
-
-    // 2. Old area-audio.md (user tracks + battle themes).
-    try {
-      final oldAudioFile = File('$appDir/area-audio.md');
-      if (oldAudioFile.existsSync()) {
-        final contents = await oldAudioFile.readAsString();
-        if (contents.trim().isNotEmpty) {
-          final parsed = MarkdownConfigParser.parseAreaAudio(contents);
-          for (final MapEntry(:key, :value) in parsed.tracks.entries) {
-            final existing = areas[key] ?? AreaConfigEntry(name: key);
-            // User overrides replace coord-config tracks.
-            if (!existing.music.contains(value)) {
-              areas[key] = existing.copyWith(
-                music: [...existing.music, value],
-              );
-            }
-          }
-          battleThemes = parsed.battleThemes;
-        }
+        battleThemes = parsed.battleThemes;
       }
     } catch (e) {
       debugPrint('Migration: old audio config error: $e');
@@ -349,18 +308,15 @@ class UnifiedAreaConfigManager {
 
     // 3. Old area-images.md (backgrounds).
     try {
-      final oldImagesFile = File('$appDir/area-images.md');
-      if (oldImagesFile.existsSync()) {
-        final contents = await oldImagesFile.readAsString();
-        if (contents.trim().isNotEmpty) {
-          final parsed = MarkdownConfigParser.parseAreaTable(contents);
-          for (final MapEntry(:key, :value) in parsed.entries) {
-            final existing = areas[key] ?? AreaConfigEntry(name: key);
-            if (!existing.backgrounds.contains(value)) {
-              areas[key] = existing.copyWith(
-                backgrounds: [...existing.backgrounds, value],
-              );
-            }
+      final legacyImagesContents = await storage.readFile('area-images.md');
+      if (legacyImagesContents.trim().isNotEmpty) {
+        final parsed = MarkdownConfigParser.parseAreaTable(legacyImagesContents);
+        for (final MapEntry(:key, :value) in parsed.entries) {
+          final existing = areas[key] ?? AreaConfigEntry(name: key);
+          if (!existing.backgrounds.contains(value)) {
+            areas[key] = existing.copyWith(
+              backgrounds: [...existing.backgrounds, value],
+            );
           }
         }
       }
@@ -379,17 +335,15 @@ class UnifiedAreaConfigManager {
 
   /// Persists current config to disk (fire-and-forget).
   void _saveToDisk() {
-    if (!_persistEnabled) return;
+    if (!_persistEnabled || _storage == null) return;
     _saveToDiskAsync();
   }
 
   /// Persists current config to disk.
   Future<void> _saveToDiskAsync() async {
     try {
-      final file = await _file();
-      await file.parent.create(recursive: true);
       final md = MarkdownConfigParser.serializeUnifiedAreaConfig(_config);
-      await file.writeAsString(md);
+      await _storage!.writeFile(_fileName, md);
     } catch (e) {
       debugPrint('UnifiedAreaConfigManager._saveToDisk: $e');
     }

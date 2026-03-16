@@ -54,3 +54,13 @@ key.pub
 
 # Build artifacts
 releases/
+
+# Server runtime data (user profiles, credentials)
+server/data/
+
+# User content (audio/image files for area immersion)
+Area Images/
+Area Music/
+
+# Claude Code local settings
+.claude/settings.local.json

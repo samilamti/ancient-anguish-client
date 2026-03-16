@@ -1,9 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 
 import '../area/area_detector.dart';
-import 'audio_service.dart';
+import 'audio_interface.dart';
 
 /// Manages area-based soundtrack playback.
 ///
@@ -11,7 +9,7 @@ import 'audio_service.dart';
 /// audio track via [AudioService]. Handles switching between area tracks,
 /// silence for unmapped areas, and user-configured track overrides.
 class AreaAudioManager {
-  final AudioService _audioService;
+  final AudioInterface _audioService;
   final AreaDetector _areaDetector;
 
   String? _currentPlayingArea;
@@ -49,7 +47,7 @@ class AreaAudioManager {
   bool _restoreLooping = true;
 
   AreaAudioManager({
-    required AudioService audioService,
+    required AudioInterface audioService,
     required AreaDetector areaDetector,
   })  : _audioService = audioService,
         _areaDetector = areaDetector;
@@ -67,7 +65,7 @@ class AreaAudioManager {
   }
 
   /// The audio service (for direct volume/mute control).
-  AudioService get audioService => _audioService;
+  AudioInterface get audioService => _audioService;
 
   /// Enables or disables area-based audio.
   Future<void> setEnabled(bool enabled) async {
@@ -189,7 +187,7 @@ class AreaAudioManager {
         final theme = _battleThemes[_battleThemeIndex];
         _battleThemeIndex = (_battleThemeIndex + 1) % _battleThemes.length;
 
-        if (!await File(theme).exists()) return null;
+        if (!await _audioService.canPlay(theme)) return null;
         try {
           await _audioService.play(theme);
           return theme;
@@ -203,7 +201,7 @@ class AreaAudioManager {
         final restorePath = _areaTrackBeforeBattle;
         _areaTrackBeforeBattle = null;
 
-        if (restorePath != null && await File(restorePath).exists()) {
+        if (restorePath != null && await _audioService.canPlay(restorePath)) {
           try {
             await _audioService.play(restorePath, looping: _restoreLooping);
             return restorePath;
@@ -265,7 +263,7 @@ class AreaAudioManager {
       }
 
       // Verify the file exists.
-      if (!await File(trackPath).exists()) {
+      if (!await _audioService.canPlay(trackPath)) {
         try {
           await _audioService.fadeOutAndStop();
         } catch (e) {

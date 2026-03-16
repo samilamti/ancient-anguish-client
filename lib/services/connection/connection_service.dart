@@ -8,6 +8,7 @@ import '../../models/connection_info.dart';
 import '../../protocol/telnet/telnet_events.dart';
 import '../../protocol/telnet/telnet_option.dart';
 import '../../protocol/telnet/telnet_protocol.dart';
+import 'connection_interface.dart';
 
 /// Manages the TCP socket connection to a MUD server.
 ///
@@ -16,7 +17,7 @@ import '../../protocol/telnet/telnet_protocol.dart';
 /// - Telnet option negotiation (NAWS, TTYPE, SGA, ECHO).
 /// - Emitting parsed [TelnetEvent]s to listeners.
 /// - Sending user commands with CR+LF termination.
-class ConnectionService {
+class TcpConnectionService implements MudConnectionService {
   Socket? _socket;
   final TelnetProtocol _telnet = TelnetProtocol();
   StreamSubscription<Uint8List>? _subscription;
@@ -29,25 +30,25 @@ class ConnectionService {
   final _statusController = StreamController<ConnectionStatus>.broadcast();
   final _rawDataController = StreamController<Uint8List>.broadcast();
 
-  /// Stream of parsed telnet events (data, negotiations, commands).
+  @override
   Stream<TelnetEvent> get events => _eventController.stream;
 
-  /// Stream of connection status changes.
+  @override
   Stream<ConnectionStatus> get statusStream => _statusController.stream;
 
-  /// Stream of raw data bytes (before telnet parsing) for debugging.
+  @override
   Stream<Uint8List> get rawData => _rawDataController.stream;
 
-  /// Current connection status.
+  @override
   ConnectionStatus get status => _status;
 
-  /// Whether the socket is currently connected.
+  @override
   bool get isConnected => _status == ConnectionStatus.connected;
 
-  /// The current connection info, or null if not connected.
+  @override
   ConnectionInfo? get connectionInfo => _connectionInfo;
 
-  /// Connects to the specified MUD server.
+  @override
   Future<void> connect([
     ConnectionInfo info = ConnectionInfo.ancientAnguish,
   ]) async {
@@ -90,7 +91,7 @@ class ConnectionService {
     }
   }
 
-  /// Disconnects from the server.
+  @override
   Future<void> disconnect() async {
     if (_status == ConnectionStatus.disconnected ||
         _status == ConnectionStatus.disconnecting) {
@@ -112,7 +113,7 @@ class ConnectionService {
     _setStatus(ConnectionStatus.disconnected);
   }
 
-  /// Sends a user command to the MUD, terminated with CR+LF.
+  @override
   void sendCommand(String command) {
     if (!isConnected || _socket == null) return;
     try {
@@ -123,7 +124,7 @@ class ConnectionService {
     }
   }
 
-  /// Sends raw bytes to the socket (for telnet negotiation responses).
+  @override
   void sendBytes(Uint8List bytes) {
     if (!isConnected || _socket == null) return;
     try {
@@ -134,7 +135,7 @@ class ConnectionService {
     }
   }
 
-  /// Disposes all resources.
+  @override
   Future<void> dispose() async {
     await disconnect();
     await _eventController.close();

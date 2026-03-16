@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/social_message.dart';
 import '../protocol/ansi/styled_span.dart';
 import '../services/social/social_history_service.dart';
+import '../services/storage/storage_service.dart';
+import 'storage_provider.dart';
 
 /// Chat message buffer.
 final chatMessagesProvider =
@@ -14,6 +16,8 @@ final chatMessagesProvider =
 class ChatMessagesNotifier extends Notifier<List<SocialMessage>> {
   static const int _maxMessages = 500;
 
+  StorageService get _storage => ref.read(storageServiceProvider);
+
   @override
   List<SocialMessage> build() {
     _loadFromDisk();
@@ -22,7 +26,7 @@ class ChatMessagesNotifier extends Notifier<List<SocialMessage>> {
 
   Future<void> _loadFromDisk() async {
     try {
-      final messages = await SocialHistoryService.loadChat();
+      final messages = await SocialHistoryService.loadChat(_storage);
       if (messages.isNotEmpty) {
         state = messages.length > _maxMessages
             ? messages.sublist(messages.length - _maxMessages)
@@ -41,7 +45,7 @@ class ChatMessagesNotifier extends Notifier<List<SocialMessage>> {
     } else {
       state = newState;
     }
-    SocialHistoryService.appendMessage(message, isChat: true);
+    SocialHistoryService.appendMessage(_storage, message, isChat: true);
   }
 
   /// Appends continuation text to the most recent message.
@@ -51,7 +55,7 @@ class ChatMessagesNotifier extends Notifier<List<SocialMessage>> {
     updated[updated.length - 1] =
         updated.last.withContinuation(styledLine, plainText);
     state = updated;
-    SocialHistoryService.appendContinuation(plainText, isChat: true);
+    SocialHistoryService.appendContinuation(_storage, plainText, isChat: true);
   }
 
   void clear() => state = [];
@@ -68,6 +72,8 @@ class TellMessagesNotifier extends Notifier<List<SocialMessage>> {
   static const int _maxMessages = 500;
   String? _lastRecipient;
 
+  StorageService get _storage => ref.read(storageServiceProvider);
+
   /// Most recent tell recipient for quick-reply.
   String? get lastRecipient => _lastRecipient;
 
@@ -80,7 +86,7 @@ class TellMessagesNotifier extends Notifier<List<SocialMessage>> {
 
   Future<void> _loadFromDisk() async {
     try {
-      final messages = await SocialHistoryService.loadTells();
+      final messages = await SocialHistoryService.loadTells(_storage);
       if (messages.isNotEmpty) {
         state = messages.length > _maxMessages
             ? messages.sublist(messages.length - _maxMessages)
@@ -99,7 +105,7 @@ class TellMessagesNotifier extends Notifier<List<SocialMessage>> {
     } else {
       state = newState;
     }
-    SocialHistoryService.appendMessage(message, isChat: false);
+    SocialHistoryService.appendMessage(_storage, message, isChat: false);
   }
 
   /// Appends continuation text to the most recent message.
@@ -109,7 +115,7 @@ class TellMessagesNotifier extends Notifier<List<SocialMessage>> {
     updated[updated.length - 1] =
         updated.last.withContinuation(styledLine, plainText);
     state = updated;
-    SocialHistoryService.appendContinuation(plainText, isChat: false);
+    SocialHistoryService.appendContinuation(_storage, plainText, isChat: false);
   }
 
   /// Sets the last tell recipient (for quick-reply).
@@ -129,4 +135,19 @@ final lastTellRecipientProvider = Provider<String?>((ref) {
   // Force a dependency on tellMessagesProvider so this updates.
   ref.watch(tellMessagesProvider);
   return ref.read(tellMessagesProvider.notifier).lastRecipient;
+});
+
+/// Unique recent tell partner names, most-recent first. Max 20.
+final recentTellPartnersProvider = Provider<List<String>>((ref) {
+  final messages = ref.watch(tellMessagesProvider);
+  final seen = <String>{};
+  final partners = <String>[];
+  for (var i = messages.length - 1; i >= 0; i--) {
+    final name = messages[i].sender.toLowerCase();
+    if (seen.add(name)) {
+      partners.add(messages[i].sender);
+      if (partners.length >= 20) break;
+    }
+  }
+  return partners;
 });

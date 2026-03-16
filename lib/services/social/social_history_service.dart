@@ -1,10 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart' show debugPrint;
-import 'package:path_provider/path_provider.dart';
 
 import '../../models/social_message.dart';
 import '../../protocol/ansi/styled_span.dart';
+import '../storage/storage_service.dart';
 import 'social_message_parser.dart';
 
 /// Persists social messages to human-readable Markdown files.
@@ -22,113 +20,106 @@ class SocialHistoryService {
   static Future<void> _chatQueue = Future.value();
   static Future<void> _tellQueue = Future.value();
 
-  static Future<String> _dir() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return '${dir.path}/AncientAnguishClient';
-  }
-
-  static Future<File> _chatFile() async =>
-      File('${await _dir()}/Chat History.md');
-
-  static Future<File> _tellFile() async =>
-      File('${await _dir()}/Tell History.md');
+  static const _chatFileName = 'Chat History.md';
+  static const _tellFileName = 'Tell History.md';
 
   /// Queues a message append to the appropriate history file.
   static void appendMessage(
+    StorageService storage,
     SocialMessage msg, {
     required bool isChat,
   }) {
     if (isChat) {
-      _chatQueue = _chatQueue.then((_) => _doAppendMessage(msg, isChat: true));
+      _chatQueue = _chatQueue.then((_) => _doAppendMessage(storage, msg, isChat: true));
     } else {
-      _tellQueue = _tellQueue.then((_) => _doAppendMessage(msg, isChat: false));
+      _tellQueue = _tellQueue.then((_) => _doAppendMessage(storage, msg, isChat: false));
     }
   }
 
   /// Queues a continuation line append to the history file.
   static void appendContinuation(
+    StorageService storage,
     String plainText, {
     required bool isChat,
   }) {
     if (isChat) {
       _chatQueue =
-          _chatQueue.then((_) => _doAppendContinuation(plainText, isChat: true));
+          _chatQueue.then((_) => _doAppendContinuation(storage, plainText, isChat: true));
     } else {
       _tellQueue =
-          _tellQueue.then((_) => _doAppendContinuation(plainText, isChat: false));
+          _tellQueue.then((_) => _doAppendContinuation(storage, plainText, isChat: false));
     }
   }
 
   static Future<void> _doAppendMessage(
+    StorageService storage,
     SocialMessage msg, {
     required bool isChat,
   }) async {
     try {
-      final file = isChat ? await _chatFile() : await _tellFile();
-      await file.parent.create(recursive: true);
-
+      final fileName = isChat ? _chatFileName : _tellFileName;
       final dateStr = _formatDate(msg.timestamp);
       final timeStr = _formatTime(msg.timestamp);
 
-      final sink = file.openWrite(mode: FileMode.append);
-      try {
-        // Check if we need a new date header.
-        final needsHeader = await _needsDateHeader(file, dateStr);
-        if (needsHeader) {
-          // Add blank line before header (unless file is empty).
-          final length = await file.length();
-          if (length > 0) sink.write('\n');
-          sink.writeln('# $dateStr');
-          sink.writeln();
-        }
+      // Check if we need a new date header.
+      final needsHeader = await _needsDateHeader(storage, fileName, dateStr);
 
-        // Format the message body.
-        final body = isChat ? _stripChatPrefix(msg.body) : msg.body;
-        // Handle multi-line bodies (continuations).
-        final lines = body.split('\n');
-        sink.writeln('$timeStr ${lines.first}');
-        for (var i = 1; i < lines.length; i++) {
-          sink.writeln(lines[i]);
-        }
-      } finally {
-        await sink.flush();
-        await sink.close();
+      final buffer = StringBuffer();
+      if (needsHeader) {
+        // Add blank line before header (unless file is empty).
+        final length = await storage.fileLength(fileName);
+        if (length > 0) buffer.write('\n');
+        buffer.writeln('# $dateStr');
+        buffer.writeln();
       }
+
+      // Format the message body.
+      final body = isChat ? _stripChatPrefix(msg.body) : msg.body;
+      // Handle multi-line bodies (continuations).
+      final lines = body.split('\n');
+      buffer.writeln('$timeStr ${lines.first}');
+      for (var i = 1; i < lines.length; i++) {
+        buffer.writeln(lines[i]);
+      }
+
+      await storage.appendToFile(fileName, buffer.toString());
     } catch (e) {
       debugPrint('SocialHistoryService._doAppendMessage: $e');
     }
   }
 
   static Future<void> _doAppendContinuation(
+    StorageService storage,
     String plainText, {
     required bool isChat,
   }) async {
     try {
-      final file = isChat ? await _chatFile() : await _tellFile();
-      if (!file.existsSync()) return;
-      await file.writeAsString('$plainText\n', mode: FileMode.append);
+      final fileName = isChat ? _chatFileName : _tellFileName;
+      final exists = await storage.fileExists(fileName);
+      if (!exists) return;
+      await storage.appendToFile(fileName, '$plainText\n');
     } catch (e) {
       debugPrint('SocialHistoryService._doAppendContinuation: $e');
     }
   }
 
   /// Loads chat messages from disk.
-  static Future<List<SocialMessage>> loadChat() async {
-    return _loadFile(await _chatFile(), isChat: true);
+  static Future<List<SocialMessage>> loadChat(StorageService storage) async {
+    return _loadFile(storage, _chatFileName, isChat: true);
   }
 
   /// Loads tell messages from disk.
-  static Future<List<SocialMessage>> loadTells() async {
-    return _loadFile(await _tellFile(), isChat: false);
+  static Future<List<SocialMessage>> loadTells(StorageService storage) async {
+    return _loadFile(storage, _tellFileName, isChat: false);
   }
 
   static Future<List<SocialMessage>> _loadFile(
-    File file, {
+    StorageService storage,
+    String fileName, {
     required bool isChat,
   }) async {
     try {
-      if (!file.existsSync()) return [];
-      final contents = await file.readAsString();
+      final contents = await storage.readFile(fileName);
       if (contents.trim().isEmpty) return [];
       return _parseHistory(contents, isChat: isChat);
     } catch (e) {
@@ -243,13 +234,18 @@ class SocialHistoryService {
     }
   }
 
-  static Future<bool> _needsDateHeader(File file, String dateStr) async {
-    if (!file.existsSync()) return true;
-    final length = await file.length();
+  static Future<bool> _needsDateHeader(
+    StorageService storage,
+    String fileName,
+    String dateStr,
+  ) async {
+    final exists = await storage.fileExists(fileName);
+    if (!exists) return true;
+    final length = await storage.fileLength(fileName);
     if (length == 0) return true;
 
-    // Read the last portion of the file to find the most recent date header.
-    final contents = await file.readAsString();
+    // Read the file to find the most recent date header.
+    final contents = await storage.readFile(fileName);
     final matches = _dateHeaderRegex.allMatches(contents);
     if (matches.isEmpty) return true;
     return matches.last.group(1) != dateStr;

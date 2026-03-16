@@ -6,12 +6,13 @@ import 'package:flutter_soloud/flutter_soloud.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/constants.dart';
+import 'audio_interface.dart';
 
-/// Low-level audio playback service.
+/// Native audio playback service using SoLoud C engine via FFI.
 ///
-/// Uses [flutter_soloud] (SoLoud C engine via FFI) for playback.
+/// Desktop-only implementation of [AudioInterface].
 /// The engine is lazily initialized on first [play] call.
-class AudioService {
+class NativeAudioService implements AudioInterface {
   late final SoLoud _soloud;
   final bool _testMode;
 
@@ -28,30 +29,30 @@ class AudioService {
   bool _busy = false;
   double _trackVolume = 0.7;
 
-  /// Called when a non-looping track finishes playing.
+  @override
   VoidCallback? onTrackFinished;
 
-  AudioService()
+  NativeAudioService()
       : _testMode = false,
         _soloud = SoLoud.instance;
 
-  /// Creates an AudioService that skips all native SoLoud calls.
+  /// Creates a NativeAudioService that skips all native SoLoud calls.
   ///
   /// Use in tests to exercise state-management logic (busy flag,
   /// same-track detection, volume/mute) without requiring the native library.
   @visibleForTesting
-  AudioService.forTesting() : _testMode = true;
+  NativeAudioService.forTesting() : _testMode = true;
 
-  /// Current master volume (0.0 – 1.0).
+  @override
   double get masterVolume => _masterVolume;
 
-  /// Whether audio is muted.
+  @override
   bool get isMuted => _muted;
 
-  /// Whether audio is currently playing.
+  @override
   bool get isPlaying => _isPlaying;
 
-  /// The file path of the currently playing track, or null.
+  @override
   String? get currentTrackPath => _currentTrackPath;
 
   // ── Volume helpers ──
@@ -67,19 +68,19 @@ class AudioService {
     }
   }
 
-  /// Sets the master volume (0.0 – 1.0).
+  @override
   void setMasterVolume(double volume) {
     _masterVolume = volume.clamp(0.0, 1.0);
     _applyVolume();
   }
 
-  /// Toggles mute on/off.
+  @override
   void toggleMute() {
     _muted = !_muted;
     _applyVolume();
   }
 
-  /// Sets mute state explicitly.
+  @override
   void setMuted(bool muted) {
     _muted = muted;
     _applyVolume();
@@ -93,11 +94,7 @@ class AudioService {
     _initialized = true;
   }
 
-  /// Plays a track with crossfade. Fades out any current playback while
-  /// fading in the new track.
-  ///
-  /// If the same track is already playing, this is a no-op.
-  /// Concurrent calls are dropped to prevent player state corruption.
+  @override
   Future<void> play(
     String filePath, {
     double volume = 0.7,
@@ -186,7 +183,7 @@ class AudioService {
     }
   }
 
-  /// Stops all playback.
+  @override
   Future<void> stop() async {
     if (!_testMode && _currentHandle != null) {
       try {
@@ -200,10 +197,7 @@ class AudioService {
     _currentTrackPath = null;
   }
 
-  /// Fades out and stops playback over [fadeOutMs] milliseconds.
-  ///
-  /// State is updated immediately so new [play] calls aren't blocked.
-  /// The native engine handles the actual fade and scheduled stop.
+  @override
   Future<void> fadeOutAndStop({
     int fadeOutMs = AudioDefaults.fadeOutMs,
   }) async {
@@ -226,7 +220,7 @@ class AudioService {
     _currentTrackPath = null;
   }
 
-  /// Pauses the current playback.
+  @override
   Future<void> pause() async {
     if (_isPlaying && _currentHandle != null && !_testMode) {
       try {
@@ -237,7 +231,7 @@ class AudioService {
     }
   }
 
-  /// Resumes paused playback.
+  @override
   Future<void> resume() async {
     if (_isPlaying && _currentHandle != null && !_testMode) {
       try {
@@ -248,7 +242,10 @@ class AudioService {
     }
   }
 
-  /// Disposes the audio engine. Call when the service is no longer needed.
+  @override
+  Future<bool> canPlay(String path) => File(path).exists();
+
+  @override
   Future<void> dispose() async {
     await stop();
     _finishedSub?.cancel();

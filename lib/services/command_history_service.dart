@@ -1,25 +1,22 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart' show debugPrint;
-import 'package:path_provider/path_provider.dart';
+
+import 'storage/storage_service.dart';
 
 /// Persists command history to a plain-text file (one command per line).
 ///
-/// File location: `{appDocuments}/AncientAnguishClient/Command History.md`
+/// File location: `Command History.md` (resolved by [StorageService]).
 class CommandHistoryService {
-  static Future<File> _file() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}/AncientAnguishClient/Command History.md');
-  }
+  static const _fileName = 'Command History.md';
 
   /// Loads history from disk, returning commands newest-first.
   ///
   /// Returns at most [maxEntries] commands. Returns an empty list on error.
-  static Future<List<String>> loadHistory({int maxEntries = 500}) async {
+  static Future<List<String>> loadHistory(
+    StorageService storage, {
+    int maxEntries = 500,
+  }) async {
     try {
-      final file = await _file();
-      if (!file.existsSync()) return [];
-      final lines = await file.readAsLines();
+      final lines = await storage.readFileLines(_fileName);
       // File stores oldest-first (append order). Reverse for newest-first.
       final commands = lines.where((l) => l.isNotEmpty).toList().reversed.toList();
       if (commands.length > maxEntries) {
@@ -33,11 +30,12 @@ class CommandHistoryService {
   }
 
   /// Appends a single command to the history file.
-  static Future<void> appendCommand(String command) async {
+  static Future<void> appendCommand(
+    StorageService storage,
+    String command,
+  ) async {
     try {
-      final file = await _file();
-      await file.parent.create(recursive: true);
-      await file.writeAsString('$command\n', mode: FileMode.append);
+      await storage.appendToFile(_fileName, '$command\n');
     } catch (e) {
       debugPrint('CommandHistoryService.appendCommand: $e');
     }

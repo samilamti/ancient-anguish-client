@@ -1,13 +1,13 @@
-import 'dart:io';
 import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../models/trigger_rule.dart';
 import '../services/config/markdown_config_parser.dart';
+import '../services/storage/storage_service.dart';
 import '../services/trigger/trigger_engine.dart';
+import 'storage_provider.dart';
 
 /// Provides the singleton [TriggerEngine].
 final triggerEngineProvider = Provider<TriggerEngine>((ref) {
@@ -24,10 +24,12 @@ final triggerRulesProvider =
 /// Persists rules to `Immersions.md` in the app documents directory.
 class TriggerRulesNotifier extends Notifier<List<TriggerRule>> {
   late final TriggerEngine _engine;
+  late final StorageService _storage;
 
   @override
   List<TriggerRule> build() {
     _engine = ref.read(triggerEngineProvider);
+    _storage = ref.read(storageServiceProvider);
     final defaultRules = defaults();
     _engine.setRules(defaultRules);
     // Fire-and-forget: load saved rules from disk, replacing defaults.
@@ -76,42 +78,29 @@ class TriggerRulesNotifier extends Notifier<List<TriggerRule>> {
     ];
   }
 
-  Future<File> _file() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}/AncientAnguishClient/Immersions.md');
-  }
-
-  Future<File> _legacyFile() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}/AncientAnguishClient/triggers.md');
-  }
+  static const _fileName = 'Immersions.md';
+  static const _legacyFileName = 'triggers.md';
 
   Future<void> _loadFromDisk() async {
     try {
-      final file = await _file();
-      if (file.existsSync()) {
-        final contents = await file.readAsString();
-        if (contents.trim().isNotEmpty) {
-          final rules = MarkdownConfigParser.parseImmersions(contents);
-          if (rules.isNotEmpty) {
-            _engine.setRules(rules);
-            state = List.unmodifiable(_engine.rules);
-            return;
-          }
+      final contents = await _storage.readFile(_fileName);
+      if (contents.trim().isNotEmpty) {
+        final rules = MarkdownConfigParser.parseImmersions(contents);
+        if (rules.isNotEmpty) {
+          _engine.setRules(rules);
+          state = List.unmodifiable(_engine.rules);
+          return;
         }
       }
 
       // Migration: try old triggers.md format.
-      final legacy = await _legacyFile();
-      if (legacy.existsSync()) {
-        final contents = await legacy.readAsString();
-        if (contents.trim().isNotEmpty) {
-          final rules = MarkdownConfigParser.parseLegacyTriggers(contents);
-          if (rules.isNotEmpty) {
-            _engine.setRules(rules);
-            state = List.unmodifiable(_engine.rules);
-            _saveToDisk(); // Re-save in new format.
-          }
+      final legacyContents = await _storage.readFile(_legacyFileName);
+      if (legacyContents.trim().isNotEmpty) {
+        final rules = MarkdownConfigParser.parseLegacyTriggers(legacyContents);
+        if (rules.isNotEmpty) {
+          _engine.setRules(rules);
+          state = List.unmodifiable(_engine.rules);
+          _saveToDisk(); // Re-save in new format.
         }
       }
     } catch (e) {
@@ -121,10 +110,8 @@ class TriggerRulesNotifier extends Notifier<List<TriggerRule>> {
 
   Future<void> _saveToDisk() async {
     try {
-      final file = await _file();
-      await file.parent.create(recursive: true);
       final md = MarkdownConfigParser.serializeImmersions(_engine.rules);
-      await file.writeAsString(md);
+      await _storage.writeFile(_fileName, md);
     } catch (e) {
       debugPrint('TriggerRulesNotifier._saveToDisk: $e');
     }

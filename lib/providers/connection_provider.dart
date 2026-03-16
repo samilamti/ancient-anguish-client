@@ -1,21 +1,26 @@
 import 'dart:async';
 import 'dart:ui' show Color;
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/widgets.dart' show FocusNode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/web_config.dart';
+import '../models/auth_state.dart';
 import '../models/connection_info.dart';
 import '../models/social_panel_state.dart';
 import '../protocol/ansi/styled_span.dart';
 import '../protocol/telnet/telnet_events.dart';
-import '../services/connection/connection_service.dart';
+import '../services/connection/connection_interface.dart';
+import '../services/connection/create_connection.dart';
 import '../services/parser/emoji_parser.dart';
 import '../services/parser/link_parser.dart';
 import '../services/parser/output_parser.dart';
 import '../models/social_message.dart';
 import '../services/command_history_service.dart';
 import '../services/platform/window_service.dart';
+import 'auth_provider.dart';
+import 'storage_provider.dart';
 import '../services/social/social_message_parser.dart';
 import 'battle_provider.dart';
 import 'game_state_provider.dart';
@@ -26,9 +31,27 @@ import 'social_panel_provider.dart';
 import 'recent_words_provider.dart';
 import 'trigger_provider.dart';
 
-/// Provides the singleton [ConnectionService].
-final connectionServiceProvider = Provider<ConnectionService>((ref) {
-  final service = ConnectionService();
+/// Provides the singleton [MudConnectionService].
+///
+/// Desktop: [TcpConnectionService] (raw TCP socket).
+/// Web: [WebConnectionService] (WebSocket via server proxy).
+///
+/// Platform selection is handled at compile time via conditional imports
+/// in `create_connection.dart`.
+final connectionServiceProvider = Provider<MudConnectionService>((ref) {
+  MudConnectionService service;
+  if (kIsWeb) {
+    final authState = ref.watch(authProvider);
+    if (authState is! AuthAuthenticated) {
+      throw StateError('ConnectionService requires authentication on web');
+    }
+    service = createConnectionService(
+      serverUrl: WebConfig.serverUrl,
+      tokenProvider: () => ref.read(authProvider.notifier).token ?? '',
+    );
+  } else {
+    service = createConnectionService();
+  }
   ref.onDispose(() => service.dispose());
   return service;
 });
@@ -500,7 +523,9 @@ class CommandHistoryNotifier extends Notifier<List<String>> {
 
   Future<void> _loadFromDisk() async {
     try {
+      final storage = ref.read(storageServiceProvider);
       final commands = await CommandHistoryService.loadHistory(
+        storage,
         maxEntries: _maxHistory,
       );
       if (commands.isNotEmpty) {
@@ -528,7 +553,7 @@ class CommandHistoryNotifier extends Notifier<List<String>> {
     }
     _position = -1;
     _resetFilter();
-    CommandHistoryService.appendCommand(command);
+    CommandHistoryService.appendCommand(ref.read(storageServiceProvider), command);
   }
 
   /// Navigates backward (older) in history, filtered by [prefix].

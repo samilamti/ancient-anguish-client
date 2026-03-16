@@ -1,12 +1,12 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 
+import '../services/storage/storage_service.dart';
 import 'connection_provider.dart';
 import 'game_state_provider.dart';
+import 'storage_provider.dart';
 
 // ── Login state ──
 
@@ -46,12 +46,15 @@ class SavedAlt {
       );
 }
 
+const _altsFileName = 'alts.json';
+
 /// Provides the list of remembered characters with passwords, loaded from disk.
 final savedAltsProvider = FutureProvider<List<SavedAlt>>((ref) async {
-  final file = await _altsFile();
-  if (!file.existsSync()) return [];
+  final storage = ref.read(storageServiceProvider);
+  final contents = await storage.readFile(_altsFileName);
+  if (contents.trim().isEmpty) return [];
   try {
-    final json = jsonDecode(await file.readAsString());
+    final json = jsonDecode(contents);
     final list = json as List;
     if (list.isEmpty) return [];
     // Backwards compatibility: old format was ["Name1", "Name2"].
@@ -67,11 +70,6 @@ final savedAltsProvider = FutureProvider<List<SavedAlt>>((ref) async {
     return [];
   }
 });
-
-Future<File> _altsFile() async {
-  final dir = await getApplicationDocumentsDirectory();
-  return File('${dir.path}/AncientAnguishClient/alts.json');
-}
 
 // ── Login notifier ──
 
@@ -156,21 +154,34 @@ class LoginNotifier extends Notifier<LoginState> {
     await _removeAlt(name);
   }
 
-  Future<void> _saveAlt(String name, String password) async {
-    final file = await _altsFile();
-    List<SavedAlt> alts = [];
-    if (file.existsSync()) {
-      try {
-        final json = jsonDecode(await file.readAsString()) as List;
-        if (json.isNotEmpty && json.first is String) {
-          alts = json.cast<String>().map((s) => SavedAlt(name: s, password: '')).toList();
-        } else {
-          alts = json.cast<Map<String, dynamic>>().map(SavedAlt.fromJson).toList();
-        }
-      } catch (e) {
-        debugPrint('LoginNotifier._saveAlt: parse error: $e');
+  StorageService get _storage => ref.read(storageServiceProvider);
+
+  Future<List<SavedAlt>> _readAlts() async {
+    final contents = await _storage.readFile(_altsFileName);
+    if (contents.trim().isEmpty) return [];
+    try {
+      final json = jsonDecode(contents) as List;
+      if (json.isEmpty) return [];
+      if (json.first is String) {
+        return json.cast<String>().map((s) => SavedAlt(name: s, password: '')).toList();
       }
+      return json.cast<Map<String, dynamic>>().map(SavedAlt.fromJson).toList();
+    } catch (e) {
+      debugPrint('LoginNotifier._readAlts: parse error: $e');
+      return [];
     }
+  }
+
+  Future<void> _writeAlts(List<SavedAlt> alts) async {
+    await _storage.writeFile(
+      _altsFileName,
+      jsonEncode(alts.map((a) => a.toJson()).toList()),
+    );
+    ref.invalidate(savedAltsProvider);
+  }
+
+  Future<void> _saveAlt(String name, String password) async {
+    final alts = await _readAlts();
     // Upsert: update password if name exists, else insert at front.
     final index = alts.indexWhere((a) => a.name == name);
     if (index >= 0) {
@@ -178,28 +189,13 @@ class LoginNotifier extends Notifier<LoginState> {
     } else {
       alts.insert(0, SavedAlt(name: name, password: password));
     }
-    await file.parent.create(recursive: true);
-    await file.writeAsString(jsonEncode(alts.map((a) => a.toJson()).toList()));
-    ref.invalidate(savedAltsProvider);
+    await _writeAlts(alts);
   }
 
   Future<void> _removeAlt(String name) async {
-    final file = await _altsFile();
-    if (!file.existsSync()) return;
-    List<SavedAlt> alts = [];
-    try {
-      final json = jsonDecode(await file.readAsString()) as List;
-      if (json.isNotEmpty && json.first is String) {
-        alts = json.cast<String>().map((s) => SavedAlt(name: s, password: '')).toList();
-      } else {
-        alts = json.cast<Map<String, dynamic>>().map(SavedAlt.fromJson).toList();
-      }
-    } catch (e) {
-      debugPrint('LoginNotifier._removeAlt: parse error: $e');
-      return;
-    }
+    final alts = await _readAlts();
+    if (alts.isEmpty) return;
     alts.removeWhere((a) => a.name == name);
-    await file.writeAsString(jsonEncode(alts.map((a) => a.toJson()).toList()));
-    ref.invalidate(savedAltsProvider);
+    await _writeAlts(alts);
   }
 }

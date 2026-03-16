@@ -6,17 +6,17 @@ import 'package:ancient_anguish_client/models/connection_info.dart';
 import 'package:ancient_anguish_client/services/connection/connection_service.dart';
 
 void main() {
-  late ConnectionService service;
+  late TcpConnectionService service;
 
   setUp(() {
-    service = ConnectionService();
+    service = TcpConnectionService();
   });
 
   tearDown(() async {
     await service.dispose();
   });
 
-  group('ConnectionService - Lifecycle', () {
+  group('TcpConnectionService - Lifecycle', () {
     test('starts disconnected', () {
       expect(service.status, ConnectionStatus.disconnected);
       expect(service.isConnected, false);
@@ -65,7 +65,7 @@ void main() {
     });
   });
 
-  group('ConnectionService - Command Safety', () {
+  group('TcpConnectionService - Command Safety', () {
     test('sendCommand while disconnected is safe', () {
       // Should not throw.
       service.sendCommand('test');

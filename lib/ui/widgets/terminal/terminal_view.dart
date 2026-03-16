@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/gestures.dart' show kPrimaryButton, kSecondaryButton;
 import 'package:flutter/material.dart';
@@ -11,6 +10,7 @@ import '../../../protocol/ansi/styled_span.dart';
 import '../../../providers/background_image_provider.dart';
 import '../../../providers/connection_provider.dart'
     show terminalBufferProvider, inputFocusProvider;
+import '../../../services/platform/file_utils.dart';
 import 'terminal_selection.dart';
 import 'terminal_selection_controller.dart';
 
@@ -440,8 +440,8 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
                 Positioned.fill(
                   child: Opacity(
                     opacity: 0.12,
-                    child: Image.file(
-                      File(bgImagePath),
+                    child: buildFileImage(
+                      bgImagePath,
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => const SizedBox.shrink(),
                     ),

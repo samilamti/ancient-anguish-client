@@ -8,12 +8,12 @@ import 'package:ancient_anguish_client/services/audio/audio_service.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late AudioService audioService;
+  late NativeAudioService audioService;
   late AreaDetector areaDetector;
   late AreaAudioManager manager;
 
   setUp(() {
-    audioService = AudioService.forTesting();
+    audioService = NativeAudioService.forTesting();
     areaDetector = AreaDetector();
     areaDetector.loadFromList([
       const AreaConfig(

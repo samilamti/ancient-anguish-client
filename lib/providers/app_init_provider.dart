@@ -1,73 +1,82 @@
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../models/area_config_entry.dart';
 import '../services/alias/alias_engine.dart';
 import '../services/config/markdown_config_parser.dart';
+import '../services/storage/storage_service.dart';
+import 'settings_provider.dart';
+import 'storage_provider.dart';
 import 'trigger_provider.dart';
 
 /// Ensures the app data directory and all configuration files exist on disk
 /// before the UI renders. Missing files are created with sensible defaults.
+/// Also loads persisted settings from `settings.json`.
 final appInitProvider = FutureProvider<void>((ref) async {
   try {
-    final docsDir = await getApplicationDocumentsDirectory();
-    final basePath = '${docsDir.path}/AncientAnguishClient';
-    await Directory(basePath).create(recursive: true);
+    final storage = ref.read(storageServiceProvider);
+    await storage.ensureDirectories();
 
     await Future.wait([
-      _ensureImmersions(basePath),
-      _ensureAliases(basePath),
-      _ensureAreaConfig(basePath),
-      _ensureAlts(basePath),
-      _ensureFile('$basePath/Chat History.md'),
-      _ensureFile('$basePath/Tell History.md'),
-      _ensureFile('$basePath/Command History.md'),
+      _ensureImmersions(storage),
+      _ensureAliases(storage),
+      _ensureAreaConfig(storage),
+      _ensureAlts(storage),
+      storage.ensureFile('Chat History.md'),
+      storage.ensureFile('Tell History.md'),
+      storage.ensureFile('Command History.md'),
+      _loadSettings(ref, storage),
     ]);
   } catch (e) {
     debugPrint('appInitProvider: $e');
   }
 });
 
-Future<void> _ensureImmersions(String basePath) async {
-  final file = File('$basePath/Immersions.md');
-  if (!file.existsSync()) {
+Future<void> _ensureImmersions(StorageService storage) async {
+  final exists = await storage.fileExists('Immersions.md');
+  if (!exists) {
     final md =
         MarkdownConfigParser.serializeImmersions(TriggerRulesNotifier.defaults());
-    await file.writeAsString(md);
+    await storage.writeFile('Immersions.md', md);
   }
 }
 
-Future<void> _ensureAliases(String basePath) async {
-  final file = File('$basePath/Aliases.md');
-  if (!file.existsSync()) {
+Future<void> _ensureAliases(StorageService storage) async {
+  final exists = await storage.fileExists('Aliases.md');
+  if (!exists) {
     final md =
         MarkdownConfigParser.serializeAliases(AliasEngine.defaultAliases());
-    await file.writeAsString(md);
+    await storage.writeFile('Aliases.md', md);
   }
 }
 
-Future<void> _ensureAreaConfig(String basePath) async {
-  final file = File('$basePath/Area Configuration.md');
-  if (!file.existsSync()) {
+Future<void> _ensureAreaConfig(StorageService storage) async {
+  final exists = await storage.fileExists('Area Configuration.md');
+  if (!exists) {
     final md = MarkdownConfigParser.serializeUnifiedAreaConfig(
         UnifiedAreaConfig());
-    await file.writeAsString(md);
+    await storage.writeFile('Area Configuration.md', md);
   }
 }
 
-Future<void> _ensureAlts(String basePath) async {
-  final file = File('$basePath/alts.json');
-  if (!file.existsSync()) {
-    await file.writeAsString('[]');
+Future<void> _ensureAlts(StorageService storage) async {
+  final exists = await storage.fileExists('alts.json');
+  if (!exists) {
+    await storage.writeFile('alts.json', '[]');
   }
 }
 
-Future<void> _ensureFile(String path) async {
-  final file = File(path);
-  if (!file.existsSync()) {
-    await file.writeAsString('');
+/// Loads persisted settings from `settings.json` if it exists.
+Future<void> _loadSettings(Ref ref, StorageService storage) async {
+  try {
+    final contents = await storage.readFile('settings.json');
+    if (contents.trim().isNotEmpty) {
+      final json = jsonDecode(contents) as Map<String, dynamic>;
+      ref.read(settingsProvider.notifier).loadFromJson(json);
+    }
+  } catch (e) {
+    debugPrint('_loadSettings: $e');
   }
 }

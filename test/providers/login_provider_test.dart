@@ -139,7 +139,7 @@ void main() {
 }
 
 /// Fake ConnectionService that records sent commands without opening a socket.
-class FakeConnectionService extends ConnectionService {
+class FakeConnectionService extends TcpConnectionService {
   final List<String> sentCommands = [];
 
   @override

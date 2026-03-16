@@ -27,7 +27,6 @@ void main() {
       final settings = container.read(settingsProvider);
       expect(settings.fontSize, 14.0);
       expect(settings.fontFamily, 'JetBrainsMono');
-      expect(settings.scrollbackLines, 10000);
       expect(settings.themeMode, 'rpg');
       expect(settings.customPromptPattern, isNull);
       expect(settings.loggingEnabled, isFalse);
@@ -51,12 +50,10 @@ void main() {
       final copied = settings.copyWith(
         fontSize: 18.0,
         fontFamily: 'FiraCode',
-        scrollbackLines: 5000,
         themeMode: 'highContrast',
       );
       expect(copied.fontSize, 18.0);
       expect(copied.fontFamily, 'FiraCode');
-      expect(copied.scrollbackLines, 5000);
       expect(copied.themeMode, 'highContrast');
     });
   });
@@ -75,23 +72,6 @@ void main() {
     test('clamps font size above 32 to 32', () {
       notifier.setFontSize(50.0);
       expect(container.read(settingsProvider).fontSize, 32.0);
-    });
-  });
-
-  group('SettingsNotifier - setScrollbackLines', () {
-    test('sets within valid range', () {
-      notifier.setScrollbackLines(5000);
-      expect(container.read(settingsProvider).scrollbackLines, 5000);
-    });
-
-    test('clamps below 1000', () {
-      notifier.setScrollbackLines(100);
-      expect(container.read(settingsProvider).scrollbackLines, 1000);
-    });
-
-    test('clamps above 100000', () {
-      notifier.setScrollbackLines(200000);
-      expect(container.read(settingsProvider).scrollbackLines, 100000);
     });
   });
 

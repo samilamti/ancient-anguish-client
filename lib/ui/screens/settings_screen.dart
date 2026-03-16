@@ -86,19 +86,6 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
 
-          // Scrollback lines.
-          _SettingsTile(
-            title: 'Scrollback Buffer',
-            subtitle: '${settings.scrollbackLines} lines',
-            child: Slider(
-              value: settings.scrollbackLines.toDouble(),
-              min: 1000,
-              max: 100000,
-              divisions: 99,
-              label: '${settings.scrollbackLines} lines',
-              onChanged: (v) => notifier.setScrollbackLines(v.toInt()),
-            ),
-          ),
 
           ListTile(
             leading: const Icon(Icons.landscape),

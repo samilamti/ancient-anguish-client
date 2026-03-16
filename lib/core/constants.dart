@@ -27,8 +27,6 @@ class TerminalDefaults {
   static const double fontSize = 14.0;
   static const double mobileFontSize = 12.0;
   static const String fontFamily = 'JetBrainsMono';
-  static const int scrollbackLines = 10000;
-  static const int maxScrollbackLines = 100000;
 
   /// Default terminal columns/rows for NAWS negotiation.
   static const int columns = 80;

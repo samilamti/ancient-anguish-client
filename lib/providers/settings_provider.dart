@@ -10,7 +10,6 @@ import 'storage_provider.dart';
 class AppSettings {
   final double fontSize;
   final String fontFamily;
-  final int scrollbackLines;
   final String themeMode; // 'rpg', 'classic', 'highContrast'
   final String? customPromptPattern;
   final bool loggingEnabled;
@@ -32,7 +31,6 @@ class AppSettings {
   const AppSettings({
     this.fontSize = 14.0,
     this.fontFamily = 'JetBrainsMono',
-    this.scrollbackLines = 10000,
     this.themeMode = 'rpg',
     this.customPromptPattern,
     this.loggingEnabled = false,
@@ -47,7 +45,6 @@ class AppSettings {
   AppSettings copyWith({
     double? fontSize,
     String? fontFamily,
-    int? scrollbackLines,
     String? themeMode,
     String? customPromptPattern,
     bool? loggingEnabled,
@@ -61,7 +58,6 @@ class AppSettings {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
       fontFamily: fontFamily ?? this.fontFamily,
-      scrollbackLines: scrollbackLines ?? this.scrollbackLines,
       themeMode: themeMode ?? this.themeMode,
       customPromptPattern: customPromptPattern ?? this.customPromptPattern,
       loggingEnabled: loggingEnabled ?? this.loggingEnabled,
@@ -81,7 +77,6 @@ class AppSettings {
   Map<String, dynamic> toJson() => {
         'fontSize': fontSize,
         'fontFamily': fontFamily,
-        'scrollbackLines': scrollbackLines,
         'themeMode': themeMode,
         if (customPromptPattern != null)
           'customPromptPattern': customPromptPattern,
@@ -99,7 +94,6 @@ class AppSettings {
     return AppSettings(
       fontSize: (json['fontSize'] as num?)?.toDouble() ?? 14.0,
       fontFamily: json['fontFamily'] as String? ?? 'JetBrainsMono',
-      scrollbackLines: json['scrollbackLines'] as int? ?? 10000,
       themeMode: json['themeMode'] as String? ?? 'rpg',
       customPromptPattern: json['customPromptPattern'] as String?,
       loggingEnabled: json['loggingEnabled'] as bool? ?? false,
@@ -137,11 +131,6 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void setThemeMode(String mode) {
     state = state.copyWith(themeMode: mode);
-    _saveSettings();
-  }
-
-  void setScrollbackLines(int lines) {
-    state = state.copyWith(scrollbackLines: lines.clamp(1000, 100000));
     _saveSettings();
   }
 

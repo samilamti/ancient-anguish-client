@@ -235,7 +235,7 @@ class SettingsScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.only(left: 16),
               child: Text(
-                'Log path: ${ref.read(logServiceProvider).currentLogPath ?? 'N/A'}',
+                'Log file: ${ref.read(logServiceProvider).currentLogName ?? 'N/A'}',
                 style: TextStyle(
                   fontSize: 11,
                   color: theme.colorScheme.onSurface.withAlpha(100),

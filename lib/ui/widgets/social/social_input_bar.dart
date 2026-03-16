@@ -151,30 +151,68 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
           ),
           const SizedBox(width: 4),
 
-          // Recipient name field (tells only).
+          // Recipient name field with recent-partners dropdown (tells only).
           if (widget.type == SocialListType.tells) ...[
             SizedBox(
-              width: 80,
-              child: TextField(
-                controller: _nameController,
-                focusNode: _nameFocusNode,
-                style: TextStyle(
-                  fontFamily: 'JetBrainsMono',
-                  fontSize: 12,
-                  color: primary,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'name',
-                  hintStyle: TextStyle(
-                    fontSize: 11,
-                    color: primary.withAlpha(60),
+              width: 100,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _nameController,
+                      focusNode: _nameFocusNode,
+                      style: TextStyle(
+                        fontFamily: 'JetBrainsMono',
+                        fontSize: 12,
+                        color: primary,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'name',
+                        hintStyle: TextStyle(
+                          fontSize: 11,
+                          color: primary.withAlpha(60),
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 6),
+                      ),
+                      onSubmitted: (_) => _focusNode.requestFocus(),
+                      textInputAction: TextInputAction.next,
+                    ),
                   ),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 6),
-                ),
-                onSubmitted: (_) => _focusNode.requestFocus(),
-                textInputAction: TextInputAction.next,
+                  // Dropdown arrow for recent tell partners.
+                  if (ref.watch(recentTellPartnersProvider).isNotEmpty)
+                    PopupMenuButton<String>(
+                      icon: Icon(Icons.arrow_drop_down,
+                          size: 18, color: primary.withAlpha(140)),
+                      padding: EdgeInsets.zero,
+                      constraints:
+                          const BoxConstraints(maxWidth: 20, maxHeight: 24),
+                      tooltip: 'Recent recipients',
+                      onSelected: (name) {
+                        _nameController.text = name;
+                        ref
+                            .read(tellMessagesProvider.notifier)
+                            .setLastRecipient(name);
+                        _focusNode.requestFocus();
+                      },
+                      itemBuilder: (_) => ref
+                          .read(recentTellPartnersProvider)
+                          .map((name) => PopupMenuItem<String>(
+                                value: name,
+                                height: 32,
+                                child: Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontFamily: 'JetBrainsMono',
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ))
+                          .toList(),
+                    ),
+                ],
               ),
             ),
             const SizedBox(width: 2),

@@ -1,11 +1,13 @@
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/social_panel_state.dart';
 import 'settings_provider.dart';
 
-/// Whether the current platform is desktop.
+/// Whether the current platform is desktop (not web).
 bool isDesktopPlatform() {
+  if (kIsWeb) return false;
   return defaultTargetPlatform == TargetPlatform.windows ||
       defaultTargetPlatform == TargetPlatform.macOS ||
       defaultTargetPlatform == TargetPlatform.linux;

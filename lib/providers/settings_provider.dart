@@ -1,6 +1,10 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/logging/log_service.dart';
+import 'storage_provider.dart';
 
 /// Application settings state.
 class AppSettings {
@@ -72,6 +76,43 @@ class AppSettings {
           emojiParsingEnabled ?? this.emojiParsingEnabled,
     );
   }
+
+  /// Serializes settings to JSON.
+  Map<String, dynamic> toJson() => {
+        'fontSize': fontSize,
+        'fontFamily': fontFamily,
+        'scrollbackLines': scrollbackLines,
+        'themeMode': themeMode,
+        if (customPromptPattern != null)
+          'customPromptPattern': customPromptPattern,
+        'loggingEnabled': loggingEnabled,
+        'quickCommandsVisible': quickCommandsVisible,
+        'useDPad': useDPad,
+        'customThemeColors': customThemeColors,
+        'socialWindowsEnabled': socialWindowsEnabled,
+        'gagSocialFromTerminal': gagSocialFromTerminal,
+        'emojiParsingEnabled': emojiParsingEnabled,
+      };
+
+  /// Deserializes settings from JSON, with defaults for missing fields.
+  factory AppSettings.fromJson(Map<String, dynamic> json) {
+    return AppSettings(
+      fontSize: (json['fontSize'] as num?)?.toDouble() ?? 14.0,
+      fontFamily: json['fontFamily'] as String? ?? 'JetBrainsMono',
+      scrollbackLines: json['scrollbackLines'] as int? ?? 10000,
+      themeMode: json['themeMode'] as String? ?? 'rpg',
+      customPromptPattern: json['customPromptPattern'] as String?,
+      loggingEnabled: json['loggingEnabled'] as bool? ?? false,
+      quickCommandsVisible: json['quickCommandsVisible'] as bool? ?? true,
+      useDPad: json['useDPad'] as bool? ?? true,
+      customThemeColors: json['customThemeColors'] != null
+          ? Map<String, int>.from(json['customThemeColors'] as Map)
+          : defaultCustomColors,
+      socialWindowsEnabled: json['socialWindowsEnabled'] as bool? ?? true,
+      gagSocialFromTerminal: json['gagSocialFromTerminal'] as bool? ?? true,
+      emojiParsingEnabled: json['emojiParsingEnabled'] as bool? ?? true,
+    );
+  }
 }
 
 /// Provides application settings.
@@ -79,50 +120,67 @@ final settingsProvider =
     NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
 
 class SettingsNotifier extends Notifier<AppSettings> {
+  static const _fileName = 'settings.json';
+
   @override
   AppSettings build() => const AppSettings();
 
+  /// Loads settings from storage. Called by [appInitProvider] at startup.
+  void loadFromJson(Map<String, dynamic> json) {
+    state = AppSettings.fromJson(json);
+  }
+
   void setFontSize(double size) {
     state = state.copyWith(fontSize: size.clamp(8.0, 32.0));
+    _saveSettings();
   }
 
   void setThemeMode(String mode) {
     state = state.copyWith(themeMode: mode);
+    _saveSettings();
   }
 
   void setScrollbackLines(int lines) {
     state = state.copyWith(scrollbackLines: lines.clamp(1000, 100000));
+    _saveSettings();
   }
 
   void setCustomPromptPattern(String? pattern) {
     state = state.copyWith(customPromptPattern: pattern);
+    _saveSettings();
   }
 
   void toggleQuickCommands() {
     state = state.copyWith(quickCommandsVisible: !state.quickCommandsVisible);
+    _saveSettings();
   }
 
   void toggleDPad() {
     state = state.copyWith(useDPad: !state.useDPad);
+    _saveSettings();
   }
 
   void setCustomThemeColor(String key, int colorValue) {
     final updated = Map<String, int>.from(state.customThemeColors);
     updated[key] = colorValue;
     state = state.copyWith(customThemeColors: updated);
+    _saveSettings();
   }
 
   void toggleSocialWindows() {
     state = state.copyWith(socialWindowsEnabled: !state.socialWindowsEnabled);
+    _saveSettings();
   }
 
   void toggleGagSocial() {
     state =
         state.copyWith(gagSocialFromTerminal: !state.gagSocialFromTerminal);
+    _saveSettings();
   }
 
   void toggleEmojiParsing() {
     state = state.copyWith(emojiParsingEnabled: !state.emojiParsingEnabled);
+    _saveSettings();
   }
 
   Future<void> toggleLogging() async {
@@ -130,9 +188,25 @@ class SettingsNotifier extends Notifier<AppSettings> {
     if (state.loggingEnabled) {
       await logService.stopLogging();
     } else {
-      await logService.startLogging();
+      await logService.startLogging(ref.read(storageServiceProvider));
     }
     state = state.copyWith(loggingEnabled: !state.loggingEnabled);
+    _saveSettings();
+  }
+
+  /// Persists current settings to `settings.json` (fire-and-forget).
+  void _saveSettings() {
+    _saveSettingsAsync();
+  }
+
+  Future<void> _saveSettingsAsync() async {
+    try {
+      final storage = ref.read(storageServiceProvider);
+      final json = jsonEncode(state.toJson());
+      await storage.writeFile(_fileName, json);
+    } catch (e) {
+      debugPrint('SettingsNotifier._saveSettings: $e');
+    }
   }
 }
 

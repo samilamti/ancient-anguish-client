@@ -1,9 +1,13 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
+import 'models/auth_state.dart';
 import 'providers/app_init_provider.dart';
+import 'providers/auth_provider.dart';
 import 'providers/settings_provider.dart';
+import 'ui/screens/auth_screen.dart';
 import 'ui/screens/home_screen.dart';
 
 /// The root application widget.
@@ -12,6 +16,20 @@ class AncientAnguishApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // On web, require authentication BEFORE app init (which needs storage).
+    if (kIsWeb) {
+      final authState = ref.watch(authProvider);
+      if (authState is! AuthAuthenticated) {
+        return MaterialApp(
+          title: 'Ancient Anguish',
+          theme: AppTheme.rpgDark(),
+          debugShowCheckedModeBanner: false,
+          home: const AuthScreen(),
+        );
+      }
+    }
+
+    // Desktop always reaches here; web only after auth.
     final init = ref.watch(appInitProvider);
 
     return init.when(

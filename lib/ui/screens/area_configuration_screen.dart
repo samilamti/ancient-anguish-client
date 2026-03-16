@@ -1,9 +1,9 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../services/platform/file_utils.dart';
 import '../../providers/audio_provider.dart';
 import '../../providers/background_image_provider.dart';
 import '../../providers/game_state_provider.dart';
@@ -160,7 +160,7 @@ class _AreaConfigurationScreenState
                       ...musicTracks.map((path) {
                         final fileName =
                             path.split('/').last.split('\\').last;
-                        final fileExists = File(path).existsSync();
+                        final fileExists = fileExistsSync(path);
                         return ListTile(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
@@ -203,14 +203,15 @@ class _AreaConfigurationScreenState
                         );
                       }),
                     const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Add Track'),
-                        onPressed: () => _pickAndAddMusic(unifiedConfig),
+                    if (!kIsWeb)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Add Track'),
+                          onPressed: () => _pickAndAddMusic(unifiedConfig),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -255,15 +256,15 @@ class _AreaConfigurationScreenState
                       ...backgrounds.map((path) {
                         final fileName =
                             path.split('/').last.split('\\').last;
-                        final fileExists = File(path).existsSync();
+                        final fileExists = fileExistsSync(path);
                         return ListTile(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
                           leading: fileExists
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(4),
-                                  child: Image.file(
-                                    File(path),
+                                  child: buildFileImage(
+                                    path,
                                     width: 40,
                                     height: 40,
                                     fit: BoxFit.cover,
@@ -294,14 +295,15 @@ class _AreaConfigurationScreenState
                         );
                       }),
                     const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Add Image'),
-                        onPressed: () => _pickAndAddImage(unifiedConfig),
+                    if (!kIsWeb)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Add Image'),
+                          onPressed: () => _pickAndAddImage(unifiedConfig),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -341,14 +343,15 @@ class _AreaConfigurationScreenState
                     ),
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Battle Theme'),
-                      onPressed: () => _pickBattleTheme(audioNotifier),
+                  if (!kIsWeb)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Battle Theme'),
+                        onPressed: () => _pickBattleTheme(audioNotifier),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -376,7 +379,7 @@ class _AreaConfigurationScreenState
             ...List.generate(battleThemes.length, (index) {
               final path = battleThemes[index];
               final fileName = path.split('/').last.split('\\').last;
-              final fileExists = File(path).existsSync();
+              final fileExists = fileExistsSync(path);
 
               return Card(
                 child: ListTile(
@@ -447,7 +450,7 @@ class _AreaConfigurationScreenState
     if (result == null) return;
     for (final file in result.files) {
       if (file.path == null) continue;
-      if (!File(file.path!).existsSync()) {
+      if (!fileExistsSync(file.path!)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -474,7 +477,7 @@ class _AreaConfigurationScreenState
     );
     if (result == null || result.files.single.path == null) return;
     final path = result.files.single.path!;
-    if (!File(path).existsSync()) {
+    if (!fileExistsSync(path)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -499,7 +502,7 @@ class _AreaConfigurationScreenState
     if (result == null) return;
     for (final file in result.files) {
       if (file.path == null) continue;
-      if (!File(file.path!).existsSync()) {
+      if (!fileExistsSync(file.path!)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

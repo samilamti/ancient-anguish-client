@@ -18,7 +18,7 @@ class SocialPanelState {
     this.dockSide,
     this.x = 100,
     this.y = 100,
-    this.width = 340,
+    this.width = 480,
     this.height = 400,
   });
 

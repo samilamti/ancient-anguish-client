@@ -86,7 +86,7 @@ final terminalBufferProvider =
 /// Manages the terminal output buffer, listening to connection events and
 /// parsing them into styled lines.
 class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
-  static const int _maxLines = 10000;
+  static const int _maxLines = 5000;
   static const String _promptCommand =
       'prompt set @@|HP| |MAXHP| |SP| |MAXSP| |XCOORD| |YCOORD|@@';
   static final RegExp _promptLineRegex = RegExp(
@@ -193,7 +193,8 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
               if (socialResult != _SocialLineResult.notSocial) {
                 if (settings.socialWindowsEnabled &&
                     isDesktopPlatform() &&
-                    settings.gagSocialFromTerminal) {
+                    settings.gagSocialFromTerminal &&
+                    _isSocialPanelVisible()) {
                   continue;
                 }
               }
@@ -365,11 +366,15 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     final chatMatch = SocialMessageParser.matchChatLine(plainText);
     if (chatMatch != null) {
       _lastSocialType = SocialMessageType.chat;
+      // Strip "[Chat] " prefix for cleaner display in the social window.
+      final prefixLen = plainText.indexOf(chatMatch.sender);
+      final displayLine = LinkParser.processLine(line).subLine(prefixLen);
+      final displayBody = plainText.substring(prefixLen);
       chatNotifier.addMessage(SocialMessage(
         type: SocialMessageType.chat,
         sender: chatMatch.sender,
-        body: plainText,
-        styledLines: [LinkParser.processLine(line)],
+        body: displayBody,
+        styledLines: [displayLine],
         timestamp: DateTime.now(),
       ));
       _markUnreadIfInactive(isChat: true);
@@ -382,11 +387,25 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       _lastSocialType = tellMatch.isOutgoing
           ? SocialMessageType.tellOutgoing
           : SocialMessageType.tellIncoming;
+      final processedLine = LinkParser.processLine(line);
+      StyledLine displayLine;
+      String displayBody;
+      if (tellMatch.isOutgoing) {
+        // "You tell Foo: hello" → "➡️ Foo: hello"
+        displayLine = processedLine.subLine(9).prepend('\u27A1\uFE0F ');
+        displayBody = '\u27A1\uFE0F ${plainText.substring(9)}';
+      } else {
+        // "Foo tells you: hello" → "Foo: hello"
+        final removeStart = tellMatch.sender.length;
+        displayLine = processedLine.removeRange(
+            removeStart, removeStart + ' tells you'.length);
+        displayBody = plainText.replaceFirst(' tells you:', ':');
+      }
       tellNotifier.addMessage(SocialMessage(
         type: _lastSocialType!,
         sender: tellMatch.sender,
-        body: plainText,
-        styledLines: [LinkParser.processLine(line)],
+        body: displayBody,
+        styledLines: [displayLine],
         timestamp: DateTime.now(),
       ));
       if (!tellMatch.isOutgoing) {
@@ -411,6 +430,21 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     // Not a social line — reset continuation tracking.
     _lastSocialType = null;
     return _SocialLineResult.notSocial;
+  }
+
+  /// Whether the social panel for the current message type is visible.
+  /// When panels are hidden, messages should pass through to the terminal.
+  bool _isSocialPanelVisible() {
+    final ps = ref.read(socialPanelProvider);
+    if (ps.tabMode == PanelTabMode.tabbed) {
+      // Tabbed panel shows both — visible if both panels are visible.
+      return ps.chatPanel.visible && ps.tellsPanel.visible;
+    }
+    // Separate mode — check the specific panel.
+    if (_lastSocialType == SocialMessageType.chat) {
+      return ps.chatPanel.visible;
+    }
+    return ps.tellsPanel.visible;
   }
 
   /// Marks the chat or tells panel as having unread messages if the user

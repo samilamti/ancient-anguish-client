@@ -180,6 +180,83 @@ class StyledLine {
     return TextSpan(children: children);
   }
 
+  /// Returns a new [StyledLine] with the first [startCol] characters removed.
+  StyledLine subLine(int startCol) {
+    if (startCol <= 0) return this;
+    final result = <StyledSpan>[];
+    var offset = 0;
+    for (final span in spans) {
+      final spanEnd = offset + span.text.length;
+      if (spanEnd <= startCol) {
+        // Entire span is before startCol — skip.
+      } else if (offset >= startCol) {
+        // Entire span is after startCol — keep.
+        result.add(span);
+      } else {
+        // Span straddles startCol — keep the tail.
+        result.add(StyledSpan(
+          text: span.text.substring(startCol - offset),
+          foreground: span.foreground,
+          background: span.background,
+          bold: span.bold,
+          italic: span.italic,
+          underline: span.underline,
+          strikethrough: span.strikethrough,
+          link: span.link,
+        ));
+      }
+      offset = spanEnd;
+    }
+    return StyledLine(result);
+  }
+
+  /// Returns a new [StyledLine] with characters in `[start, end)` removed.
+  StyledLine removeRange(int start, int end) {
+    if (start >= end) return this;
+    final result = <StyledSpan>[];
+    var offset = 0;
+    for (final span in spans) {
+      final spanStart = offset;
+      final spanEnd = offset + span.text.length;
+
+      if (spanEnd <= start || spanStart >= end) {
+        // Entirely outside removal range — keep.
+        result.add(span);
+      } else {
+        // Partially or fully inside removal range.
+        final keepBefore = start > spanStart
+            ? span.text.substring(0, start - spanStart)
+            : '';
+        final keepAfter = end < spanEnd
+            ? span.text.substring(end - spanStart)
+            : '';
+        final kept = keepBefore + keepAfter;
+        if (kept.isNotEmpty) {
+          result.add(StyledSpan(
+            text: kept,
+            foreground: span.foreground,
+            background: span.background,
+            bold: span.bold,
+            italic: span.italic,
+            underline: span.underline,
+            strikethrough: span.strikethrough,
+            link: span.link,
+          ));
+        }
+      }
+      offset = spanEnd;
+    }
+    return StyledLine(result);
+  }
+
+  /// Returns a new [StyledLine] with a plain text span prepended.
+  StyledLine prepend(String text, {Color foreground = TerminalColors.defaultForeground}) {
+    return StyledLine([
+      StyledSpan(text: text, foreground: foreground),
+      ...spans,
+    ]);
+  }
+
   /// Creates an empty (blank) line.
   factory StyledLine.empty() => StyledLine(const []);
 

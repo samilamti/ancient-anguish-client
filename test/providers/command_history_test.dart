@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
+import 'package:ancient_anguish_client/services/command_history_service.dart';
 
 void main() {
   late ProviderContainer container;
@@ -46,13 +47,15 @@ void main() {
       expect(container.read(commandHistoryProvider), hasLength(3));
     });
 
-    test('caps history at 500 entries', () {
-      for (var i = 0; i < 510; i++) {
+    test('caps history at ${CommandHistoryService.maxEntries} entries', () {
+      for (var i = 0; i < CommandHistoryService.maxEntries + 10; i++) {
         notifier.add('command_$i');
       }
-      expect(container.read(commandHistoryProvider), hasLength(500));
+      expect(container.read(commandHistoryProvider),
+          hasLength(CommandHistoryService.maxEntries));
       // Most recent should be first.
-      expect(container.read(commandHistoryProvider).first, 'command_509');
+      expect(container.read(commandHistoryProvider).first,
+          'command_${CommandHistoryService.maxEntries + 10 - 1}');
     });
   });
 

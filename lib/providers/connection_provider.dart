@@ -536,7 +536,7 @@ final commandHistoryProvider =
 /// command, Up/Down only cycle through history entries that start with that
 /// prefix. An empty prefix matches everything (original behavior).
 class CommandHistoryNotifier extends Notifier<List<String>> {
-  static const int _maxHistory = 500;
+  static const int _maxHistory = CommandHistoryService.maxEntries;
   int _position = -1;
 
   /// The prefix used to filter history during the current navigation session.
@@ -558,10 +558,7 @@ class CommandHistoryNotifier extends Notifier<List<String>> {
   Future<void> _loadFromDisk() async {
     try {
       final storage = ref.read(storageServiceProvider);
-      final commands = await CommandHistoryService.loadHistory(
-        storage,
-        maxEntries: _maxHistory,
-      );
+      final commands = await CommandHistoryService.loadHistory(storage);
       if (commands.isNotEmpty) {
         state = commands;
       }

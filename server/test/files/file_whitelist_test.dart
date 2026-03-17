@@ -22,12 +22,12 @@ void main() {
         expect(FileWhitelist.validate('alts.json'), 'alts.json');
       });
 
-      test('accepts Chat History.md', () {
-        expect(FileWhitelist.validate('Chat History.md'), 'Chat History.md');
+      test('rejects old Chat History.md (now subfolder)', () {
+        expect(FileWhitelist.validate('Chat History.md'), isNull);
       });
 
-      test('accepts Tell History.md', () {
-        expect(FileWhitelist.validate('Tell History.md'), 'Tell History.md');
+      test('rejects old Tell History.md (now subfolder)', () {
+        expect(FileWhitelist.validate('Tell History.md'), isNull);
       });
 
       test('accepts Command History.md', () {
@@ -37,6 +37,32 @@ void main() {
 
       test('accepts settings.json', () {
         expect(FileWhitelist.validate('settings.json'), 'settings.json');
+      });
+    });
+
+    group('chat history subfolder', () {
+      test('accepts valid chat history date file', () {
+        expect(FileWhitelist.validate('Chat History/2026-03-17.md'),
+            'Chat History/2026-03-17.md');
+      });
+
+      test('rejects chat history with bad date', () {
+        expect(FileWhitelist.validate('Chat History/not-a-date.md'), isNull);
+      });
+
+      test('rejects chat history with path traversal', () {
+        expect(FileWhitelist.validate('Chat History/../evil.md'), isNull);
+      });
+    });
+
+    group('tell history subfolder', () {
+      test('accepts valid tell history date file', () {
+        expect(FileWhitelist.validate('Tell History/2026-03-17.md'),
+            'Tell History/2026-03-17.md');
+      });
+
+      test('rejects tell history with bad date', () {
+        expect(FileWhitelist.validate('Tell History/not-a-date.md'), isNull);
       });
     });
 

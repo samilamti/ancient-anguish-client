@@ -8,13 +8,13 @@ class FileWhitelist {
     'Aliases.md',
     'Area Configuration.md',
     'alts.json',
-    'Chat History.md',
-    'Tell History.md',
     'Command History.md',
     'settings.json',
   };
 
   static final _logFileRegex = RegExp(r'^logs/session_[a-zA-Z0-9_\-]+\.txt$');
+  static final _chatHistoryRegex = RegExp(r'^Chat History/\d{4}-\d{2}-\d{2}\.md$');
+  static final _tellHistoryRegex = RegExp(r'^Tell History/\d{4}-\d{2}-\d{2}\.md$');
 
   /// Returns the sanitized file name if allowed, or `null` if disallowed.
   ///
@@ -35,8 +35,10 @@ class FileWhitelist {
     // Check exact whitelist.
     if (_allowedNames.contains(name)) return name;
 
-    // Check logs/ prefix.
+    // Check pattern-based allowances.
     if (_logFileRegex.hasMatch(name)) return name;
+    if (_chatHistoryRegex.hasMatch(name)) return name;
+    if (_tellHistoryRegex.hasMatch(name)) return name;
 
     return null;
   }

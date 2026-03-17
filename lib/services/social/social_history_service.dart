@@ -7,10 +7,12 @@ import 'social_message_parser.dart';
 
 /// Persists social messages to human-readable Markdown files.
 ///
-/// File format:
-/// ```
-/// # 2026-03-14
+/// Files are stored in per-day files within subfolders:
+/// - `Chat History/2026-03-17.md`
+/// - `Tell History/2026-03-17.md`
 ///
+/// File format (no date headers — date is the file name):
+/// ```
 /// 09:15 Gandalf: Hello everyone!
 /// 09:16 Frodo: Pretty rough actually
 /// ```
@@ -20,8 +22,13 @@ class SocialHistoryService {
   static Future<void> _chatQueue = Future.value();
   static Future<void> _tellQueue = Future.value();
 
-  static const _chatFileName = 'Chat History.md';
-  static const _tellFileName = 'Tell History.md';
+  static const _chatFolder = 'Chat History';
+  static const _tellFolder = 'Tell History';
+
+  static String _filePath(bool isChat, DateTime dt) {
+    final folder = isChat ? _chatFolder : _tellFolder;
+    return '$folder/${_formatDate(dt)}.md';
+  }
 
   /// Queues a message append to the appropriate history file.
   static void appendMessage(
@@ -57,26 +64,14 @@ class SocialHistoryService {
     required bool isChat,
   }) async {
     try {
-      final fileName = isChat ? _chatFileName : _tellFileName;
-      final dateStr = _formatDate(msg.timestamp);
+      final fileName = _filePath(isChat, msg.timestamp);
       final timeStr = _formatTime(msg.timestamp);
-
-      // Check if we need a new date header.
-      final needsHeader = await _needsDateHeader(storage, fileName, dateStr);
-
-      final buffer = StringBuffer();
-      if (needsHeader) {
-        // Add blank line before header (unless file is empty).
-        final length = await storage.fileLength(fileName);
-        if (length > 0) buffer.write('\n');
-        buffer.writeln('# $dateStr');
-        buffer.writeln();
-      }
 
       // Format the message body.
       final body = isChat ? _stripChatPrefix(msg.body) : msg.body;
       // Handle multi-line bodies (continuations).
       final lines = body.split('\n');
+      final buffer = StringBuffer();
       buffer.writeln('$timeStr ${lines.first}');
       for (var i = 1; i < lines.length; i++) {
         buffer.writeln(lines[i]);
@@ -94,60 +89,51 @@ class SocialHistoryService {
     required bool isChat,
   }) async {
     try {
-      final fileName = isChat ? _chatFileName : _tellFileName;
-      final exists = await storage.fileExists(fileName);
-      if (!exists) return;
+      final fileName = _filePath(isChat, DateTime.now());
       await storage.appendToFile(fileName, '$plainText\n');
     } catch (e) {
       debugPrint('SocialHistoryService._doAppendContinuation: $e');
     }
   }
 
-  /// Loads chat messages from disk.
+  /// Loads chat messages from disk for today.
   static Future<List<SocialMessage>> loadChat(StorageService storage) async {
-    return _loadFile(storage, _chatFileName, isChat: true);
+    return _loadFile(storage, isChat: true, date: _formatDate(DateTime.now()));
   }
 
-  /// Loads tell messages from disk.
+  /// Loads tell messages from disk for today.
   static Future<List<SocialMessage>> loadTells(StorageService storage) async {
-    return _loadFile(storage, _tellFileName, isChat: false);
+    return _loadFile(storage, isChat: false, date: _formatDate(DateTime.now()));
   }
 
   static Future<List<SocialMessage>> _loadFile(
-    StorageService storage,
-    String fileName, {
+    StorageService storage, {
     required bool isChat,
+    required String date,
   }) async {
     try {
+      final folder = isChat ? _chatFolder : _tellFolder;
+      final fileName = '$folder/$date.md';
       final contents = await storage.readFile(fileName);
       if (contents.trim().isEmpty) return [];
-      return _parseHistory(contents, isChat: isChat);
+      return _parseHistory(contents, date: date, isChat: isChat);
     } catch (e) {
       debugPrint('SocialHistoryService._loadFile: $e');
       return [];
     }
   }
 
-  /// Parses a history Markdown file into SocialMessage objects.
+  /// Parses a per-day history file into SocialMessage objects.
   static List<SocialMessage> _parseHistory(
     String contents, {
+    required String date,
     required bool isChat,
   }) {
     final messages = <SocialMessage>[];
     final lines = contents.split('\n');
-    String? currentDate;
     SocialMessage? pending;
 
     for (final line in lines) {
-      // Date header: "# YYYY-MM-DD"
-      final dateMatch = _dateHeaderRegex.firstMatch(line);
-      if (dateMatch != null) {
-        if (pending != null) messages.add(pending);
-        pending = null;
-        currentDate = dateMatch.group(1);
-        continue;
-      }
-
       // Skip empty lines.
       if (line.trim().isEmpty) {
         if (pending != null) messages.add(pending);
@@ -157,12 +143,12 @@ class SocialHistoryService {
 
       // Timestamped entry: "HH:mm text"
       final entryMatch = _entryRegex.firstMatch(line);
-      if (entryMatch != null && currentDate != null) {
+      if (entryMatch != null) {
         if (pending != null) messages.add(pending);
 
         final timeStr = entryMatch.group(1)!;
         final text = entryMatch.group(2)!;
-        final timestamp = _parseDateTime(currentDate, timeStr);
+        final timestamp = _parseDateTime(date, timeStr);
 
         pending = _createMessage(text, timestamp, isChat: isChat);
         continue;
@@ -234,24 +220,5 @@ class SocialHistoryService {
     }
   }
 
-  static Future<bool> _needsDateHeader(
-    StorageService storage,
-    String fileName,
-    String dateStr,
-  ) async {
-    final exists = await storage.fileExists(fileName);
-    if (!exists) return true;
-    final length = await storage.fileLength(fileName);
-    if (length == 0) return true;
-
-    // Read the file to find the most recent date header.
-    final contents = await storage.readFile(fileName);
-    final matches = _dateHeaderRegex.allMatches(contents);
-    if (matches.isEmpty) return true;
-    return matches.last.group(1) != dateStr;
-  }
-
-  static final RegExp _dateHeaderRegex = RegExp(r'^# (\d{4}-\d{2}-\d{2})$',
-      multiLine: true);
   static final RegExp _entryRegex = RegExp(r'^(\d{2}:\d{2}) (.+)$');
 }

@@ -24,8 +24,6 @@ final appInitProvider = FutureProvider<void>((ref) async {
       _ensureAliases(storage),
       _ensureAreaConfig(storage),
       _ensureAlts(storage),
-      storage.ensureFile('Chat History.md'),
-      storage.ensureFile('Tell History.md'),
       storage.ensureFile('Command History.md'),
       _loadSettings(ref, storage),
     ]);

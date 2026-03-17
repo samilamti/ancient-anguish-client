@@ -43,10 +43,10 @@ void main() {
 
     test('removeRule removes from state', () {
       final initialCount = container.read(triggerRulesProvider).length;
-      notifier.removeRule('trig_tells');
+      notifier.removeRule('hl_01');
       expect(container.read(triggerRulesProvider), hasLength(initialCount - 1));
       expect(
-        container.read(triggerRulesProvider).any((r) => r.id == 'trig_tells'),
+        container.read(triggerRulesProvider).any((r) => r.id == 'hl_01'),
         isFalse,
       );
     });
@@ -54,14 +54,14 @@ void main() {
     test('updateRule modifies existing rule', () {
       final original = container
           .read(triggerRulesProvider)
-          .firstWhere((r) => r.id == 'trig_tells');
+          .firstWhere((r) => r.id == 'hl_01');
       notifier.updateRule(original.copyWith(
         name: 'Updated Tells',
         highlightForeground: const Color(0xFFFF0000),
       ));
       final updated = container
           .read(triggerRulesProvider)
-          .firstWhere((r) => r.id == 'trig_tells');
+          .firstWhere((r) => r.id == 'hl_01');
       expect(updated.name, 'Updated Tells');
       expect(updated.highlightForeground, const Color(0xFFFF0000));
     });
@@ -69,14 +69,14 @@ void main() {
     test('toggleRule flips enabled state', () {
       final before = container
           .read(triggerRulesProvider)
-          .firstWhere((r) => r.id == 'trig_tells');
+          .firstWhere((r) => r.id == 'hl_01');
       expect(before.enabled, isTrue);
 
-      notifier.toggleRule('trig_tells');
+      notifier.toggleRule('hl_01');
 
       final after = container
           .read(triggerRulesProvider)
-          .firstWhere((r) => r.id == 'trig_tells');
+          .firstWhere((r) => r.id == 'hl_01');
       expect(after.enabled, isFalse);
     });
 

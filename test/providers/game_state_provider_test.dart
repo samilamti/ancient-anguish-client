@@ -105,7 +105,7 @@ void main() {
       expect(container.read(gameStateProvider).currentArea, isNull);
     });
 
-    test('sets currentArea from unified config when found', () {
+    test('sets currentArea from unified config when found', () async {
       // Create a manager with a known area entry.
       final manager = UnifiedAreaConfigManager();
       manager.loadFromConfig(UnifiedAreaConfig(
@@ -121,8 +121,8 @@ void main() {
       container = createContainer(configManager: manager);
       notifier = container.read(gameStateProvider.notifier);
 
-      // Wait for the FutureProvider to resolve.
-      container.read(unifiedAreaConfigProvider);
+      // Let the FutureProvider resolve (Future.value completes in a microtask).
+      await container.read(unifiedAreaConfigProvider.future);
 
       notifier.updateVitalsAndCoordinates(100, 150, 80, 120, 0, 0);
       expect(container.read(gameStateProvider).currentArea, 'Tantallon');

@@ -8,10 +8,10 @@ class RecentWordsNotifier extends Notifier<List<String>> {
   @override
   List<String> build() => [];
 
-  /// Extracts capitalized words (3+ chars) from a line and adds them
-  /// to the front of the list as lowercase.
+  /// Extracts words (3+ chars) from a line and adds them
+  /// to the front of the list as lowercase, sorted by recency.
   void extractFromLine(String plainText) {
-    final matches = RegExp(r'\b[A-Z][a-zA-Z]{2,}\b').allMatches(plainText);
+    final matches = RegExp(r'\b[a-zA-Z]{3,}\b').allMatches(plainText);
     if (matches.isEmpty) return;
 
     var updated = [...state];

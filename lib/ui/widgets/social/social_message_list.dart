@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,7 +9,10 @@ import '../../../providers/social_message_provider.dart';
 /// Which buffer to display.
 enum SocialListType { chat, tells }
 
-/// Scrollable list of social messages with auto-scroll.
+/// Scrollable list of social messages with auto-scroll and lazy display.
+///
+/// Initially shows the most recent [_initialDisplay] messages. When the user
+/// scrolls to the top, older messages are loaded in batches of [_batchSize].
 class SocialMessageList extends ConsumerStatefulWidget {
   final SocialListType type;
 
@@ -18,8 +23,12 @@ class SocialMessageList extends ConsumerStatefulWidget {
 }
 
 class _SocialMessageListState extends ConsumerState<SocialMessageList> {
+  static const int _initialDisplay = 50;
+  static const int _batchSize = 50;
+
   final ScrollController _scrollController = ScrollController();
   bool _autoScroll = true;
+  int _displayCount = _initialDisplay;
 
   @override
   void initState() {
@@ -42,7 +51,35 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
     if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
     _autoScroll = pos.pixels >= pos.maxScrollExtent - 20;
+
+    // Load more messages when scrolled to the top.
+    if (pos.pixels <= 0) {
+      _loadMore();
+    }
   }
+
+  void _loadMore() {
+    final totalMessages = _currentMessages.length;
+    if (_displayCount >= totalMessages) return;
+
+    final prevMax = _scrollController.position.maxScrollExtent;
+    setState(() {
+      _displayCount = min(_displayCount + _batchSize, totalMessages);
+    });
+
+    // Preserve scroll position after inserting older messages above.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        final newMax = _scrollController.position.maxScrollExtent;
+        _scrollController.jumpTo(newMax - prevMax);
+      }
+    });
+  }
+
+  List<SocialMessage> get _currentMessages =>
+      widget.type == SocialListType.chat
+          ? ref.read(chatMessagesProvider)
+          : ref.read(tellMessagesProvider);
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
@@ -52,6 +89,7 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final messages = widget.type == SocialListType.chat
         ? ref.watch(chatMessagesProvider)
         : ref.watch(tellMessagesProvider);
@@ -63,6 +101,10 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
           : tellMessagesProvider,
       (previous, next) {
         if (_autoScroll && next.isNotEmpty) {
+          // Grow display count to include the new message.
+          if (_displayCount < next.length) {
+            _displayCount = min(_displayCount + 1, next.length);
+          }
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _scrollToBottom();
           });
@@ -79,18 +121,45 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
           style: TextStyle(
             fontFamily: 'JetBrainsMono',
             fontSize: 12,
-            color: Theme.of(context).colorScheme.onSurface.withAlpha(80),
+            color: theme.colorScheme.onSurface.withAlpha(80),
           ),
         ),
       );
     }
 
+    // Show only the most recent _displayCount messages.
+    final start = messages.length > _displayCount
+        ? messages.length - _displayCount
+        : 0;
+    final displayed = messages.sublist(start);
+    final hasMore = start > 0;
+
     return ListView.builder(
       controller: _scrollController,
-      itemCount: messages.length,
+      itemCount: displayed.length + (hasMore ? 1 : 0),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       itemBuilder: (context, index) {
-        return _MessageWidget(message: messages[index]);
+        // "Load more" indicator at the top.
+        if (hasMore && index == 0) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Center(
+              child: Text(
+                'Scroll up for older messages ($start more)',
+                style: TextStyle(
+                  fontFamily: 'JetBrainsMono',
+                  fontSize: 10,
+                  color: theme.colorScheme.onSurface.withAlpha(60),
+                ),
+              ),
+            ),
+          );
+        }
+        final msgIndex = hasMore ? index - 1 : index;
+        return _MessageWidget(
+          message: displayed[msgIndex],
+          isEven: msgIndex.isEven,
+        );
       },
     );
   }
@@ -98,8 +167,9 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
 
 class _MessageWidget extends StatelessWidget {
   final SocialMessage message;
+  final bool isEven;
 
-  const _MessageWidget({required this.message});
+  const _MessageWidget({required this.message, required this.isEven});
 
   @override
   Widget build(BuildContext context) {
@@ -119,8 +189,14 @@ class _MessageWidget extends StatelessWidget {
       ));
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 4),
+      decoration: isEven
+          ? BoxDecoration(
+              color: theme.colorScheme.primary.withAlpha(10),
+              borderRadius: BorderRadius.circular(2),
+            )
+          : null,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

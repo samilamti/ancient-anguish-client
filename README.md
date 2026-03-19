@@ -12,11 +12,15 @@ A cross-platform MUD client for [Ancient Anguish](http://ancient.anguish.org), b
 - **Game state display** — Parses HP, SP, XP, coins, coordinates, class, and player name from the prompt and CLIENT line into a live status bar with vitals gauges.
 - **Mobile controls** — D-Pad for directional movement and a quick-commands bar for common actions on touch devices.
 - **Themes** — Three built-in themes: RPG Dark (gold and parchment), Classic Dark (green-on-black terminal), and High Contrast (accessibility).
-- **Configurable scrollback** — Up to 100,000 lines of terminal history.
+- **Social windows** — Floating/dockable Chat and Tells panels with autocomplete recipient selection, lazy-loading message history, and alternating-row striping.
+- **Text selection** — Drag-to-select terminal text with auto-copy, Shift+click extend, and right-click context menu.
+- **Clickable links** — URLs in terminal output are detected and open in the system browser.
+- **Web support** — Companion server (`server/`) provides a WebSocket-to-TCP proxy, per-user file storage, and JWT authentication for browser-based play.
+- **Scrollback buffer** — 5,000-line terminal history.
 
 ## Supported Platforms
 
-Android, iOS, macOS, Windows, Linux — anywhere Flutter runs.
+Android, iOS, macOS, Windows, Linux, and Web — anywhere Flutter runs.
 
 ## Prerequisites
 

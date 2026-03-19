@@ -151,71 +151,117 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
           ),
           const SizedBox(width: 4),
 
-          // Recipient name field with recent-partners dropdown (tells only).
+          // Recipient name field with autocomplete (tells only).
           if (widget.type == SocialListType.tells) ...[
             SizedBox(
-              width: 100,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _nameController,
-                      focusNode: _nameFocusNode,
-                      style: TextStyle(
-                        fontFamily: 'JetBrainsMono',
-                        fontSize: 12,
-                        color: primary,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'name',
-                        hintStyle: TextStyle(
-                          fontSize: 11,
-                          color: primary.withAlpha(60),
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 6),
-                      ),
-                      onSubmitted: (_) => _focusNode.requestFocus(),
-                      textInputAction: TextInputAction.next,
+              width: 140,
+              child: RawAutocomplete<String>(
+                textEditingController: _nameController,
+                focusNode: _nameFocusNode,
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  final partners = ref.read(recentTellPartnersProvider);
+                  if (partners.isEmpty) return const Iterable<String>.empty();
+                  final text = textEditingValue.text.toLowerCase();
+                  if (text.isEmpty) return partners;
+                  return partners.where(
+                    (name) => name.toLowerCase().startsWith(text),
+                  );
+                },
+                onSelected: (String selection) {
+                  _nameController.text = selection;
+                  _nameController.selection = TextSelection.collapsed(
+                    offset: selection.length,
+                  );
+                  ref
+                      .read(tellMessagesProvider.notifier)
+                      .setLastRecipient(selection);
+                  _focusNode.requestFocus();
+                },
+                fieldViewBuilder:
+                    (context, controller, focusNode, onFieldSubmitted) {
+                  return TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    style: TextStyle(
+                      fontFamily: 'JetBrainsMono',
+                      fontSize: 12,
+                      color: primary,
                     ),
-                  ),
-                  // Dropdown arrow for recent tell partners.
-                  if (ref.watch(recentTellPartnersProvider).isNotEmpty)
-                    PopupMenuButton<String>(
-                      icon: Icon(Icons.arrow_drop_down,
-                          size: 18, color: primary.withAlpha(140)),
-                      padding: EdgeInsets.zero,
-                      constraints:
+                    decoration: InputDecoration(
+                      hintText: 'name',
+                      hintStyle: TextStyle(
+                        fontSize: 11,
+                        color: primary.withAlpha(60),
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 6),
+                      suffixIcon: GestureDetector(
+                        onTap: () {
+                          if (!focusNode.hasFocus) {
+                            focusNode.requestFocus();
+                          }
+                          // Trigger options rebuild.
+                          controller.selection = TextSelection.collapsed(
+                            offset: controller.text.length,
+                          );
+                        },
+                        child: Icon(
+                          Icons.arrow_drop_down,
+                          size: 18,
+                          color: primary.withAlpha(140),
+                        ),
+                      ),
+                      suffixIconConstraints:
                           const BoxConstraints(maxWidth: 20, maxHeight: 24),
-                      tooltip: 'Recent recipients',
-                      onSelected: (name) {
-                        _nameController.text = name;
-                        ref
-                            .read(tellMessagesProvider.notifier)
-                            .setLastRecipient(name);
-                        _focusNode.requestFocus();
-                      },
-                      itemBuilder: (_) => ref
-                          .read(recentTellPartnersProvider)
-                          .map((name) => PopupMenuItem<String>(
-                                value: name,
-                                height: 32,
+                    ),
+                    onSubmitted: (_) => _focusNode.requestFocus(),
+                    textInputAction: TextInputAction.next,
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(4),
+                      color: theme.colorScheme.surface,
+                      child: ConstrainedBox(
+                        constraints:
+                            const BoxConstraints(maxHeight: 200, maxWidth: 160),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (context, index) {
+                            final name = options.elementAt(index);
+                            return InkWell(
+                              onTap: () => onSelected(name),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
                                 child: Text(
                                   name,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontFamily: 'JetBrainsMono',
                                     fontSize: 12,
+                                    color: theme.colorScheme.onSurface,
                                   ),
                                 ),
-                              ))
-                          .toList(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                ],
+                  );
+                },
               ),
             ),
-            const SizedBox(width: 2),
+            const SizedBox(width: 4),
           ],
 
           // Message input.

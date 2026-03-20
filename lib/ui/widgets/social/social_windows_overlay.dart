@@ -20,7 +20,8 @@ class SocialWindowsOverlay extends ConsumerWidget {
 
     if (panelState.tabMode == PanelTabMode.tabbed &&
         panelState.chatPanel.visible &&
-        panelState.tellsPanel.visible) {
+        panelState.tellsPanel.visible &&
+        panelState.partyPanel.visible) {
       // Single tabbed panel — use chat panel's position/size.
       widgets.add(
         _positionPanel(
@@ -46,6 +47,15 @@ class SocialWindowsOverlay extends ConsumerWidget {
             panelState.tellsPanel,
             screenSize,
             const SocialPanel(panelType: SocialPanelType.tells),
+          ),
+        );
+      }
+      if (panelState.partyPanel.visible) {
+        widgets.add(
+          _positionPanel(
+            panelState.partyPanel,
+            screenSize,
+            const SocialPanel(panelType: SocialPanelType.party),
           ),
         );
       }

@@ -117,6 +117,56 @@ void main() {
       });
     });
 
+    group('matchPartyLine', () {
+      test('matches standard party message', () {
+        final result = SocialMessageParser.matchPartyLine(
+          '<womp womp> [Godsend] : I like ice cream',
+        );
+        expect(result, isNotNull);
+        expect(result!.partyName, 'womp womp');
+        expect(result.sender, 'Godsend');
+        expect(result.text, 'I like ice cream');
+      });
+
+      test('matches party with single-word name', () {
+        final result = SocialMessageParser.matchPartyLine(
+          '<Raiders> [Chosen] : lets go',
+        );
+        expect(result, isNotNull);
+        expect(result!.partyName, 'Raiders');
+        expect(result.sender, 'Chosen');
+        expect(result.text, 'lets go');
+      });
+
+      test('matches party with long message', () {
+        final result = SocialMessageParser.matchPartyLine(
+          '<The Fellowship> [Gandalf] : You shall not pass! This is a very long message.',
+        );
+        expect(result, isNotNull);
+        expect(result!.partyName, 'The Fellowship');
+        expect(result.sender, 'Gandalf');
+        expect(result.text, 'You shall not pass! This is a very long message.');
+      });
+
+      test('returns null for non-party lines', () {
+        expect(SocialMessageParser.matchPartyLine('Hello world'), isNull);
+        expect(SocialMessageParser.matchPartyLine('[Chat] Chosen: hi'), isNull);
+        expect(SocialMessageParser.matchPartyLine('Tuinn tells you: hi'), isNull);
+      });
+
+      test('returns null for empty string', () {
+        expect(SocialMessageParser.matchPartyLine(''), isNull);
+      });
+
+      test('returns null for malformed party line (missing brackets)', () {
+        expect(SocialMessageParser.matchPartyLine('<womp> Godsend : hi'), isNull);
+      });
+
+      test('returns null for missing colon separator', () {
+        expect(SocialMessageParser.matchPartyLine('<womp> [Godsend] hi'), isNull);
+      });
+    });
+
     group('isContinuation', () {
       test('detects chat continuation (7 spaces)', () {
         expect(

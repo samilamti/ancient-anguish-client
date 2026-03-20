@@ -117,6 +117,50 @@ class SettingsScreen extends ConsumerWidget {
 
           const Divider(height: 32),
 
+          // ── Accessibility section ──
+          _SectionHeader(title: 'Accessibility', icon: Icons.accessibility),
+          const SizedBox(height: 8),
+
+          _SettingsTile(
+            title: 'Input Line Wrap',
+            subtitle: settings.inputWrapWidth == 0
+                ? 'Disabled'
+                : '${settings.inputWrapWidth} characters',
+            child: Row(
+              children: [
+                Expanded(
+                  child: Slider(
+                    value: settings.inputWrapWidth.toDouble(),
+                    min: 0,
+                    max: 200,
+                    divisions: 200,
+                    label: settings.inputWrapWidth == 0
+                        ? 'Off'
+                        : '${settings.inputWrapWidth}',
+                    onChanged: (value) =>
+                        notifier.setInputWrapWidth(value.round()),
+                  ),
+                ),
+                SizedBox(
+                  width: 48,
+                  child: Text(
+                    settings.inputWrapWidth == 0
+                        ? 'Off'
+                        : '${settings.inputWrapWidth}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'JetBrainsMono',
+                      color: theme.colorScheme.onSurface.withAlpha(180),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(height: 32),
+
           // ── Game section ──
           _SectionHeader(title: 'Game', icon: Icons.gamepad),
           const SizedBox(height: 8),

@@ -361,6 +361,25 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   _SocialLineResult _processSocialLine(StyledLine line, String plainText) {
     final chatNotifier = ref.read(chatMessagesProvider.notifier);
     final tellNotifier = ref.read(tellMessagesProvider.notifier);
+    final partyNotifier = ref.read(partyMessagesProvider.notifier);
+
+    // Check for party line: "<Party Name> [Character] : message"
+    final partyMatch = SocialMessageParser.matchPartyLine(plainText);
+    if (partyMatch != null) {
+      _lastSocialType = SocialMessageType.party;
+      // Strip party prefix, display as "Character: message"
+      final displayBody = '${partyMatch.sender}: ${partyMatch.text}';
+      final displayLine = StyledLine([StyledSpan(text: displayBody)]);
+      partyNotifier.addMessage(SocialMessage(
+        type: SocialMessageType.party,
+        sender: partyMatch.sender,
+        body: displayBody,
+        styledLines: [displayLine],
+        timestamp: DateTime.now(),
+      ));
+      _markUnreadIfInactive(tabIndex: 2);
+      return _SocialLineResult.captured;
+    }
 
     // Check for chat line.
     final chatMatch = SocialMessageParser.matchChatLine(plainText);
@@ -377,7 +396,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         styledLines: [displayLine],
         timestamp: DateTime.now(),
       ));
-      _markUnreadIfInactive(isChat: true);
+      _markUnreadIfInactive(tabIndex: 0);
       return _SocialLineResult.captured;
     }
 
@@ -410,7 +429,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       ));
       if (!tellMatch.isOutgoing) {
         tellNotifier.setLastRecipient(tellMatch.sender);
-        _markUnreadIfInactive(isChat: false);
+        _markUnreadIfInactive(tabIndex: 1);
         WindowService.requestAttention();
       }
       return _SocialLineResult.captured;
@@ -421,6 +440,8 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         SocialMessageParser.isContinuation(plainText)) {
       if (_lastSocialType == SocialMessageType.chat) {
         chatNotifier.appendContinuation(line, plainText);
+      } else if (_lastSocialType == SocialMessageType.party) {
+        partyNotifier.appendContinuation(line, plainText);
       } else {
         tellNotifier.appendContinuation(line, plainText);
       }
@@ -437,35 +458,38 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   bool _isSocialPanelVisible() {
     final ps = ref.read(socialPanelProvider);
     if (ps.tabMode == PanelTabMode.tabbed) {
-      // Tabbed panel shows both — visible if both panels are visible.
-      return ps.chatPanel.visible && ps.tellsPanel.visible;
+      return ps.chatPanel.visible && ps.tellsPanel.visible && ps.partyPanel.visible;
     }
     // Separate mode — check the specific panel.
     if (_lastSocialType == SocialMessageType.chat) {
       return ps.chatPanel.visible;
     }
+    if (_lastSocialType == SocialMessageType.party) {
+      return ps.partyPanel.visible;
+    }
     return ps.tellsPanel.visible;
   }
 
-  /// Marks the chat or tells panel as having unread messages if the user
-  /// isn't currently viewing that panel.
-  void _markUnreadIfInactive({required bool isChat}) {
+  /// Marks a social tab as having unread messages if not active.
+  /// tabIndex: 0=chat, 1=tells, 2=party.
+  void _markUnreadIfInactive({required int tabIndex}) {
     final panelState = ref.read(socialPanelProvider);
     final panelNotifier = ref.read(socialPanelProvider.notifier);
 
     if (panelState.tabMode == PanelTabMode.tabbed) {
-      // In tabbed mode, mark unread if the other tab is active.
-      if (isChat && panelState.activeTab != 0) {
-        panelNotifier.markChatUnread();
-      } else if (!isChat && panelState.activeTab != 1) {
-        panelNotifier.markTellsUnread();
+      if (panelState.activeTab != tabIndex) {
+        if (tabIndex == 0) panelNotifier.markChatUnread();
+        if (tabIndex == 1) panelNotifier.markTellsUnread();
+        if (tabIndex == 2) panelNotifier.markPartyUnread();
       }
     } else {
       // In separate mode, mark unread if the panel isn't visible.
-      if (isChat && !panelState.chatPanel.visible) {
+      if (tabIndex == 0 && !panelState.chatPanel.visible) {
         panelNotifier.markChatUnread();
-      } else if (!isChat && !panelState.tellsPanel.visible) {
+      } else if (tabIndex == 1 && !panelState.tellsPanel.visible) {
         panelNotifier.markTellsUnread();
+      } else if (tabIndex == 2 && !panelState.partyPanel.visible) {
+        panelNotifier.markPartyUnread();
       }
     }
   }

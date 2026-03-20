@@ -8,7 +8,7 @@ import 'social_input_bar.dart';
 import 'social_message_list.dart';
 
 /// The type of panel to display.
-enum SocialPanelType { chat, tells, tabbed }
+enum SocialPanelType { chat, tells, party, tabbed }
 
 /// A floating or docked panel for displaying social messages.
 ///
@@ -23,7 +23,6 @@ class SocialPanel extends ConsumerStatefulWidget {
 }
 
 class _SocialPanelState extends ConsumerState<SocialPanel> {
-  static const double _dockSnapThreshold = 40.0;
   static const double _minWidth = 250;
   static const double _minHeight = 200;
 
@@ -31,18 +30,29 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
   Size? _resizeStartSize;
   Offset? _resizeStartPos;
 
+  SocialPanelState _getPanel(SocialWindowsState ps) {
+    return switch (widget.panelType) {
+      SocialPanelType.tells => ps.tellsPanel,
+      SocialPanelType.party => ps.partyPanel,
+      _ => ps.chatPanel, // chat + tabbed use chatPanel for position
+    };
+  }
+
   // ── Drag handling ──
 
   void _onPanStart(DragStartDetails details) {
     _dragStartLocal = details.localPosition;
-    // If docked, undock first.
     final panelState = ref.read(socialPanelProvider);
+    final notifier = ref.read(socialPanelProvider.notifier);
     if (widget.panelType == SocialPanelType.chat &&
         panelState.chatPanel.isDocked) {
-      ref.read(socialPanelProvider.notifier).undockChat();
+      notifier.undockChat();
     } else if (widget.panelType == SocialPanelType.tells &&
         panelState.tellsPanel.isDocked) {
-      ref.read(socialPanelProvider.notifier).undockTells();
+      notifier.undockTells();
+    } else if (widget.panelType == SocialPanelType.party &&
+        panelState.partyPanel.isDocked) {
+      notifier.undockParty();
     }
   }
 
@@ -62,52 +72,24 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
     final newY = parentLocal.dy - _dragStartLocal!.dy;
 
     final notifier = ref.read(socialPanelProvider.notifier);
-    if (widget.panelType == SocialPanelType.chat ||
-        widget.panelType == SocialPanelType.tabbed) {
-      notifier.updateChatPosition(newX.clamp(0, double.infinity), newY.clamp(0, double.infinity));
-    } else {
+    if (widget.panelType == SocialPanelType.tells) {
       notifier.updateTellsPosition(newX.clamp(0, double.infinity), newY.clamp(0, double.infinity));
+    } else if (widget.panelType == SocialPanelType.party) {
+      notifier.updatePartyPosition(newX.clamp(0, double.infinity), newY.clamp(0, double.infinity));
+    } else {
+      notifier.updateChatPosition(newX.clamp(0, double.infinity), newY.clamp(0, double.infinity));
     }
   }
 
   void _onPanEnd(DragEndDetails details) {
     _dragStartLocal = null;
-
-    final screenSize = MediaQuery.of(context).size;
-    final panelState = ref.read(socialPanelProvider);
-    final notifier = ref.read(socialPanelProvider.notifier);
-
-    final panel = widget.panelType == SocialPanelType.tells
-        ? panelState.tellsPanel
-        : panelState.chatPanel;
-
-    // Check left edge snap.
-    if (panel.x < _dockSnapThreshold) {
-      if (widget.panelType == SocialPanelType.tells) {
-        notifier.dockTells(DockSide.left);
-      } else {
-        notifier.dockChat(DockSide.left);
-      }
-      return;
-    }
-
-    // Check right edge snap.
-    if (panel.x + panel.width > screenSize.width - _dockSnapThreshold) {
-      if (widget.panelType == SocialPanelType.tells) {
-        notifier.dockTells(DockSide.right);
-      } else {
-        notifier.dockChat(DockSide.right);
-      }
-    }
   }
 
   // ── Resize handling ──
 
   void _onResizeStart(DragStartDetails details) {
     final panelState = ref.read(socialPanelProvider);
-    final panel = widget.panelType == SocialPanelType.tells
-        ? panelState.tellsPanel
-        : panelState.chatPanel;
+    final panel = _getPanel(panelState);
     _resizeStartSize = Size(panel.width, panel.height);
     _resizeStartPos = details.globalPosition;
   }
@@ -122,6 +104,8 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
     final notifier = ref.read(socialPanelProvider.notifier);
     if (widget.panelType == SocialPanelType.tells) {
       notifier.updateTellsSize(newWidth, newHeight);
+    } else if (widget.panelType == SocialPanelType.party) {
+      notifier.updatePartySize(newWidth, newHeight);
     } else {
       notifier.updateChatSize(newWidth, newHeight);
     }
@@ -140,10 +124,13 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
       notifier.separateFromTabs();
       notifier.toggleChatVisible();
       notifier.toggleTellsVisible();
+      notifier.togglePartyVisible();
     } else if (widget.panelType == SocialPanelType.chat) {
       notifier.toggleChatVisible();
-    } else {
+    } else if (widget.panelType == SocialPanelType.tells) {
       notifier.toggleTellsVisible();
+    } else {
+      notifier.togglePartyVisible();
     }
   }
 
@@ -151,6 +138,8 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
     final notifier = ref.read(socialPanelProvider.notifier);
     if (widget.panelType == SocialPanelType.tells) {
       notifier.dockTells(DockSide.right);
+    } else if (widget.panelType == SocialPanelType.party) {
+      notifier.dockParty(DockSide.right);
     } else {
       notifier.dockChat(DockSide.right);
     }
@@ -160,6 +149,8 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
     final notifier = ref.read(socialPanelProvider.notifier);
     if (widget.panelType == SocialPanelType.tells) {
       notifier.undockTells();
+    } else if (widget.panelType == SocialPanelType.party) {
+      notifier.undockParty();
     } else {
       notifier.undockChat();
     }
@@ -169,9 +160,7 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final panelState = ref.watch(socialPanelProvider);
-    final panel = widget.panelType == SocialPanelType.tells
-        ? panelState.tellsPanel
-        : panelState.chatPanel;
+    final panel = _getPanel(panelState);
 
     return Material(
       elevation: panel.isDocked ? 4 : 8,
@@ -196,14 +185,20 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
               _buildTabbedTitleBar(panelState)
             else
               PanelTitleBar(
-                title: widget.panelType == SocialPanelType.chat
-                    ? 'Chat'
-                    : 'Tells',
+                title: switch (widget.panelType) {
+                  SocialPanelType.chat => 'Chat',
+                  SocialPanelType.tells => 'Tells',
+                  SocialPanelType.party => 'Party',
+                  _ => '',
+                },
                 isDocked: panel.isDocked,
                 isTabbed: false,
-                hasUnread: widget.panelType == SocialPanelType.chat
-                    ? panelState.chatHasUnread
-                    : panelState.tellsHasUnread,
+                hasUnread: switch (widget.panelType) {
+                  SocialPanelType.chat => panelState.chatHasUnread,
+                  SocialPanelType.tells => panelState.tellsHasUnread,
+                  SocialPanelType.party => panelState.partyHasUnread,
+                  _ => false,
+                },
                 onClose: _close,
                 onDock: panel.isFloating ? _dockRight : null,
                 onUndock: panel.isDocked ? _undock : null,
@@ -238,12 +233,19 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
   }
 
   bool _canCombine(SocialWindowsState state) {
-    return state.chatPanel.visible && state.tellsPanel.visible;
+    // Can combine if at least 2 panels are visible.
+    final visibleCount = [
+      state.chatPanel.visible,
+      state.tellsPanel.visible,
+      state.partyPanel.visible,
+    ].where((v) => v).length;
+    return visibleCount >= 2;
   }
 
   Widget _buildTabbedTitleBar(SocialWindowsState panelState) {
+    final titles = ['Chat', 'Tells', 'Party'];
     return PanelTitleBar(
-      title: panelState.activeTab == 0 ? 'Chat' : 'Tells',
+      title: titles[panelState.activeTab.clamp(0, 2)],
       isDocked: panelState.chatPanel.isDocked,
       isTabbed: true,
       onClose: _close,
@@ -284,34 +286,51 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
             onTap: () =>
                 ref.read(socialPanelProvider.notifier).setActiveTab(1),
           ),
+          _TabButton(
+            label: 'Party',
+            active: panelState.activeTab == 2,
+            hasUnread: panelState.partyHasUnread,
+            onTap: () =>
+                ref.read(socialPanelProvider.notifier).setActiveTab(2),
+          ),
         ],
       ),
     );
   }
 
+  static const _tabListTypes = [
+    SocialListType.chat,
+    SocialListType.tells,
+    SocialListType.party,
+  ];
+
   Widget _buildMessageList(SocialWindowsState panelState) {
     if (widget.panelType == SocialPanelType.tabbed) {
-      return panelState.activeTab == 0
-          ? const SocialMessageList(type: SocialListType.chat)
-          : const SocialMessageList(type: SocialListType.tells);
+      final idx = panelState.activeTab.clamp(0, 2);
+      return SocialMessageList(type: _tabListTypes[idx]);
     }
     return SocialMessageList(
-      type: widget.panelType == SocialPanelType.chat
-          ? SocialListType.chat
-          : SocialListType.tells,
+      type: switch (widget.panelType) {
+        SocialPanelType.chat => SocialListType.chat,
+        SocialPanelType.tells => SocialListType.tells,
+        SocialPanelType.party => SocialListType.party,
+        _ => SocialListType.chat,
+      },
     );
   }
 
   Widget _buildInputBar(SocialWindowsState panelState) {
     if (widget.panelType == SocialPanelType.tabbed) {
-      return panelState.activeTab == 0
-          ? const SocialInputBar(type: SocialListType.chat)
-          : const SocialInputBar(type: SocialListType.tells);
+      final idx = panelState.activeTab.clamp(0, 2);
+      return SocialInputBar(type: _tabListTypes[idx]);
     }
     return SocialInputBar(
-      type: widget.panelType == SocialPanelType.chat
-          ? SocialListType.chat
-          : SocialListType.tells,
+      type: switch (widget.panelType) {
+        SocialPanelType.chat => SocialListType.chat,
+        SocialPanelType.tells => SocialListType.tells,
+        SocialPanelType.party => SocialListType.party,
+        _ => SocialListType.chat,
+      },
     );
   }
 

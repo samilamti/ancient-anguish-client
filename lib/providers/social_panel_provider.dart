@@ -44,6 +44,13 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
     );
   }
 
+  void togglePartyVisible() {
+    state = state.copyWith(
+      partyPanel:
+          state.partyPanel.copyWith(visible: !state.partyPanel.visible),
+    );
+  }
+
   void showChat() {
     state = state.copyWith(
       chatPanel: state.chatPanel.copyWith(visible: true),
@@ -53,6 +60,12 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
   void showTells() {
     state = state.copyWith(
       tellsPanel: state.tellsPanel.copyWith(visible: true),
+    );
+  }
+
+  void showParty() {
+    state = state.copyWith(
+      partyPanel: state.partyPanel.copyWith(visible: true),
     );
   }
 
@@ -70,6 +83,12 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
     );
   }
 
+  void updatePartyPosition(double x, double y) {
+    state = state.copyWith(
+      partyPanel: state.partyPanel.copyWith(x: x, y: y),
+    );
+  }
+
   void updateChatSize(double width, double height) {
     state = state.copyWith(
       chatPanel: state.chatPanel.copyWith(width: width, height: height),
@@ -79,6 +98,12 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
   void updateTellsSize(double width, double height) {
     state = state.copyWith(
       tellsPanel: state.tellsPanel.copyWith(width: width, height: height),
+    );
+  }
+
+  void updatePartySize(double width, double height) {
+    state = state.copyWith(
+      partyPanel: state.partyPanel.copyWith(width: width, height: height),
     );
   }
 
@@ -108,6 +133,18 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
     );
   }
 
+  void dockParty(DockSide side) {
+    state = state.copyWith(
+      partyPanel: state.partyPanel.copyWith(dockSide: () => side),
+    );
+  }
+
+  void undockParty() {
+    state = state.copyWith(
+      partyPanel: state.partyPanel.copyWith(dockSide: () => null),
+    );
+  }
+
   // ── Tab mode ──
 
   void combineIntoTabs() {
@@ -115,6 +152,7 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
       tabMode: PanelTabMode.tabbed,
       chatPanel: state.chatPanel.copyWith(visible: true),
       tellsPanel: state.tellsPanel.copyWith(visible: true),
+      partyPanel: state.partyPanel.copyWith(visible: true),
     );
   }
 
@@ -127,6 +165,7 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
       activeTab: index,
       chatHasUnread: index == 0 ? false : state.chatHasUnread,
       tellsHasUnread: index == 1 ? false : state.tellsHasUnread,
+      partyHasUnread: index == 2 ? false : state.partyHasUnread,
     );
   }
 
@@ -144,6 +183,12 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
     }
   }
 
+  void markPartyUnread() {
+    if (!state.partyHasUnread) {
+      state = state.copyWith(partyHasUnread: true);
+    }
+  }
+
   void clearChatUnread() {
     if (state.chatHasUnread) {
       state = state.copyWith(chatHasUnread: false);
@@ -153,6 +198,12 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
   void clearTellsUnread() {
     if (state.tellsHasUnread) {
       state = state.copyWith(tellsHasUnread: false);
+    }
+  }
+
+  void clearPartyUnread() {
+    if (state.partyHasUnread) {
+      state = state.copyWith(partyHasUnread: false);
     }
   }
 

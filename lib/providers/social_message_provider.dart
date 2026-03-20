@@ -61,6 +61,58 @@ class ChatMessagesNotifier extends Notifier<List<SocialMessage>> {
   void clear() => state = [];
 }
 
+/// Party message buffer.
+final partyMessagesProvider =
+    NotifierProvider<PartyMessagesNotifier, List<SocialMessage>>(
+        PartyMessagesNotifier.new);
+
+/// Manages the party message buffer with disk persistence.
+class PartyMessagesNotifier extends Notifier<List<SocialMessage>> {
+  static const int _maxMessages = 500;
+
+  StorageService get _storage => ref.read(storageServiceProvider);
+
+  @override
+  List<SocialMessage> build() {
+    _loadFromDisk();
+    return [];
+  }
+
+  Future<void> _loadFromDisk() async {
+    try {
+      final messages = await SocialHistoryService.loadParty(_storage);
+      if (messages.isNotEmpty) {
+        state = messages.length > _maxMessages
+            ? messages.sublist(messages.length - _maxMessages)
+            : messages;
+      }
+    } catch (e) {
+      debugPrint('PartyMessagesNotifier._loadFromDisk: $e');
+    }
+  }
+
+  void addMessage(SocialMessage message) {
+    final newState = [...state, message];
+    if (newState.length > _maxMessages) {
+      state = newState.sublist(newState.length - _maxMessages);
+    } else {
+      state = newState;
+    }
+    SocialHistoryService.appendPartyMessage(_storage, message);
+  }
+
+  void appendContinuation(StyledLine styledLine, String plainText) {
+    if (state.isEmpty) return;
+    final updated = List<SocialMessage>.from(state);
+    updated[updated.length - 1] =
+        updated.last.withContinuation(styledLine, plainText);
+    state = updated;
+    SocialHistoryService.appendPartyContinuation(_storage, plainText);
+  }
+
+  void clear() => state = [];
+}
+
 /// Tell message buffer.
 final tellMessagesProvider =
     NotifierProvider<TellMessagesNotifier, List<SocialMessage>>(

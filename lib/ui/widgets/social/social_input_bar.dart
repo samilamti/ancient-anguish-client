@@ -53,6 +53,9 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
     if (widget.type == SocialListType.chat) {
       service.sendCommand('chat $outText');
       ref.read(chatHistoryProvider.notifier).add(text);
+    } else if (widget.type == SocialListType.party) {
+      service.sendCommand('pt $outText');
+      ref.read(partyHistoryProvider.notifier).add(text);
     } else {
       final name = _nameController.text.trim();
       if (name.isEmpty) {
@@ -69,9 +72,11 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
   }
 
   void _historyUp() {
-    final history = widget.type == SocialListType.chat
-        ? ref.read(chatHistoryProvider.notifier)
-        : ref.read(tellHistoryProvider.notifier);
+    final history = switch (widget.type) {
+      SocialListType.chat => ref.read(chatHistoryProvider.notifier),
+      SocialListType.tells => ref.read(tellHistoryProvider.notifier),
+      SocialListType.party => ref.read(partyHistoryProvider.notifier),
+    };
     final previous = history.previous();
     if (previous != null) {
       _controller.text = previous;
@@ -81,9 +86,11 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
   }
 
   void _historyDown() {
-    final history = widget.type == SocialListType.chat
-        ? ref.read(chatHistoryProvider.notifier)
-        : ref.read(tellHistoryProvider.notifier);
+    final history = switch (widget.type) {
+      SocialListType.chat => ref.read(chatHistoryProvider.notifier),
+      SocialListType.tells => ref.read(tellHistoryProvider.notifier),
+      SocialListType.party => ref.read(partyHistoryProvider.notifier),
+    };
     final next = history.next();
     if (next != null) {
       _controller.text = next;
@@ -157,7 +164,11 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
         children: [
           // Prefix label.
           Text(
-            widget.type == SocialListType.chat ? '[Chat]' : '[Tell]',
+            switch (widget.type) {
+              SocialListType.chat => '[Chat]',
+              SocialListType.tells => '[Tell]',
+              SocialListType.party => '[Party]',
+            },
             style: TextStyle(
               fontFamily: 'JetBrainsMono',
               fontSize: fontSize - 3,
@@ -294,9 +305,11 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
                   fontSize: fontSize - 2,
                 ),
                 decoration: InputDecoration(
-                  hintText: widget.type == SocialListType.chat
-                      ? 'Chat message...'
-                      : 'Tell message...',
+                  hintText: switch (widget.type) {
+                    SocialListType.chat => 'Chat message...',
+                    SocialListType.tells => 'Tell message...',
+                    SocialListType.party => 'Party message...',
+                  },
                   hintStyle: TextStyle(
                     fontSize: fontSize - 3,
                     color: theme.colorScheme.onSurface.withAlpha(60),

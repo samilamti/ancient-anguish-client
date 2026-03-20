@@ -48,42 +48,51 @@ class SocialPanelState {
 class SocialWindowsState {
   final SocialPanelState chatPanel;
   final SocialPanelState tellsPanel;
+  final SocialPanelState partyPanel;
   final PanelTabMode tabMode;
-  final int activeTab; // 0=chat, 1=tells (when tabbed)
+  final int activeTab; // 0=chat, 1=tells, 2=party (when tabbed)
   final bool chatHasUnread;
   final bool tellsHasUnread;
+  final bool partyHasUnread;
 
   const SocialWindowsState({
     this.chatPanel = const SocialPanelState(
       visible: true,
-      dockSide: DockSide.right,
     ),
     this.tellsPanel = const SocialPanelState(
       visible: true,
-      dockSide: DockSide.right,
       x: 460,
+    ),
+    this.partyPanel = const SocialPanelState(
+      visible: true,
+      x: 820,
     ),
     this.tabMode = PanelTabMode.tabbed,
     this.activeTab = 0,
     this.chatHasUnread = false,
     this.tellsHasUnread = false,
+    this.partyHasUnread = false,
   });
 
   SocialWindowsState copyWith({
     SocialPanelState? chatPanel,
     SocialPanelState? tellsPanel,
+    SocialPanelState? partyPanel,
     PanelTabMode? tabMode,
     int? activeTab,
     bool? chatHasUnread,
     bool? tellsHasUnread,
+    bool? partyHasUnread,
   }) {
     return SocialWindowsState(
       chatPanel: chatPanel ?? this.chatPanel,
       tellsPanel: tellsPanel ?? this.tellsPanel,
+      partyPanel: partyPanel ?? this.partyPanel,
       tabMode: tabMode ?? this.tabMode,
       activeTab: activeTab ?? this.activeTab,
       chatHasUnread: chatHasUnread ?? this.chatHasUnread,
       tellsHasUnread: tellsHasUnread ?? this.tellsHasUnread,
+      partyHasUnread: partyHasUnread ?? this.partyHasUnread,
     );
   }
 }

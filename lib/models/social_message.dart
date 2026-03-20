@@ -1,7 +1,7 @@
 import '../protocol/ansi/styled_span.dart';
 
 /// The type of social message.
-enum SocialMessageType { chat, tellIncoming, tellOutgoing }
+enum SocialMessageType { chat, tellIncoming, tellOutgoing, party }
 
 /// A single social message parsed from MUD output.
 class SocialMessage {

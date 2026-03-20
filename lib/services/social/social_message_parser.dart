@@ -7,6 +7,10 @@ class SocialMessageParser {
   static final RegExp _chatEmoteRegex =
       RegExp(r'^\[Chat\]\s+(\w+)\s+(.+)$');
 
+  // Party pattern: "<Party Name> [Character] : message"
+  static final RegExp _partyRegex =
+      RegExp(r'^<([^>]+)>\s+\[(\w+)\]\s+:\s+(.+)$');
+
   // Tell patterns: "Name tells you: message" or "You tell Name: message"
   static final RegExp _tellIncomingRegex =
       RegExp(r'^(\w+) tells you:\s+(.+)$');
@@ -64,10 +68,36 @@ class SocialMessageParser {
     return null;
   }
 
+  /// Checks if a plain text line is a party message start.
+  static PartyMatchResult? matchPartyLine(String plainText) {
+    final match = _partyRegex.firstMatch(plainText);
+    if (match != null) {
+      return PartyMatchResult(
+        partyName: match.group(1)!,
+        sender: match.group(2)!,
+        text: match.group(3)!,
+      );
+    }
+    return null;
+  }
+
   /// Checks if a plain text line is a continuation (7+ leading spaces).
   static bool isContinuation(String plainText) {
     return _continuationRegex.hasMatch(plainText);
   }
+}
+
+/// Result from matching a party line.
+class PartyMatchResult {
+  final String partyName;
+  final String sender;
+  final String text;
+
+  const PartyMatchResult({
+    required this.partyName,
+    required this.sender,
+    required this.text,
+  });
 }
 
 /// Result from matching a chat line.

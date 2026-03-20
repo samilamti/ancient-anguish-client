@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/storage/storage_service.dart';
+import 'alias_provider.dart';
 import 'connection_provider.dart';
 import 'game_state_provider.dart';
 import 'storage_provider.dart';
@@ -133,6 +134,8 @@ class LoginNotifier extends Notifier<LoginState> {
     service.sendCommand(
       'prompt set @@|HP| |MAXHP| |SP| |MAXSP| |XCOORD| |YCOORD|@@',
     );
+    // Force alias loading from disk (provider is lazy, only loads on first access).
+    ref.read(aliasRulesProvider);
   }
 
   /// User dismissed the dialog to type manually.

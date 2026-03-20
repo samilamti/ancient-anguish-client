@@ -221,10 +221,64 @@ class _InputBarState extends ConsumerState<InputBar> {
     return KeyEventResult.ignored;
   }
 
+  Widget _buildTextField(double fontSize, int wrapWidth) {
+    final textField = Focus(
+      onKeyEvent: _handleKey,
+      child: TextField(
+        controller: _controller,
+        focusNode: _focusNode,
+        autofocus: true,
+        minLines: 1,
+        maxLines: 5,
+        style: TextStyle(
+          fontFamily: 'JetBrainsMono',
+          fontSize: fontSize,
+        ),
+        decoration: const InputDecoration(
+          hintText: 'Enter command...',
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(vertical: 8),
+          filled: false,
+        ),
+        onSubmitted: (_) => _send(),
+      ),
+    );
+
+    if (wrapWidth <= 0) return textField;
+
+    // Constrain width so Flutter's word-wrap breaks lines at ~N characters.
+    final charWidth = _measureCharWidth(fontSize);
+    // Add small padding to avoid premature wrapping.
+    final maxWidth = charWidth * wrapWidth + 8;
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: textField,
+      ),
+    );
+  }
+
+  /// Measures the width of a single monospace character at the given font size.
+  double _measureCharWidth(double fontSize) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: 'X',
+        style: TextStyle(fontFamily: 'JetBrainsMono', fontSize: fontSize),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return painter.size.width;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fontSize = ref.watch(settingsProvider).fontSize;
+    final settings = ref.watch(settingsProvider);
+    final fontSize = settings.fontSize;
+    final wrapWidth = settings.inputWrapWidth;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -252,28 +306,7 @@ class _InputBarState extends ConsumerState<InputBar> {
 
           // Text input field.
           Expanded(
-            child: Focus(
-              onKeyEvent: _handleKey,
-              child: TextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                autofocus: true,
-                minLines: 1,
-                maxLines: 5,
-                style: TextStyle(
-                  fontFamily: 'JetBrainsMono',
-                  fontSize: fontSize,
-                ),
-                decoration: const InputDecoration(
-                  hintText: 'Enter command...',
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 8),
-                  filled: false,
-                ),
-                onSubmitted: (_) => _send(),
-              ),
-            ),
+            child: _buildTextField(fontSize, wrapWidth),
           ),
 
           // Send button (mainly for mobile).

@@ -19,6 +19,7 @@ class AppSettings {
   final bool socialWindowsEnabled; // desktop-only floating chat/tell panels
   final bool gagSocialFromTerminal; // hide social messages from main terminal
   final bool emojiParsingEnabled; // replace text emoticons with emoji
+  final int inputWrapWidth; // 0 = disabled, otherwise wrap input at N chars
 
   static const Map<String, int> defaultCustomColors = {
     'primary': 0xFFD4A057,
@@ -40,6 +41,7 @@ class AppSettings {
     this.socialWindowsEnabled = true,
     this.gagSocialFromTerminal = true,
     this.emojiParsingEnabled = true,
+    this.inputWrapWidth = 0,
   });
 
   AppSettings copyWith({
@@ -54,6 +56,7 @@ class AppSettings {
     bool? socialWindowsEnabled,
     bool? gagSocialFromTerminal,
     bool? emojiParsingEnabled,
+    int? inputWrapWidth,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -70,6 +73,7 @@ class AppSettings {
           gagSocialFromTerminal ?? this.gagSocialFromTerminal,
       emojiParsingEnabled:
           emojiParsingEnabled ?? this.emojiParsingEnabled,
+      inputWrapWidth: inputWrapWidth ?? this.inputWrapWidth,
     );
   }
 
@@ -87,6 +91,7 @@ class AppSettings {
         'socialWindowsEnabled': socialWindowsEnabled,
         'gagSocialFromTerminal': gagSocialFromTerminal,
         'emojiParsingEnabled': emojiParsingEnabled,
+        'inputWrapWidth': inputWrapWidth,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -105,6 +110,7 @@ class AppSettings {
       socialWindowsEnabled: json['socialWindowsEnabled'] as bool? ?? true,
       gagSocialFromTerminal: json['gagSocialFromTerminal'] as bool? ?? true,
       emojiParsingEnabled: json['emojiParsingEnabled'] as bool? ?? true,
+      inputWrapWidth: json['inputWrapWidth'] as int? ?? 0,
     );
   }
 }
@@ -164,6 +170,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void toggleGagSocial() {
     state =
         state.copyWith(gagSocialFromTerminal: !state.gagSocialFromTerminal);
+    _saveSettings();
+  }
+
+  void setInputWrapWidth(int width) {
+    state = state.copyWith(inputWrapWidth: width.clamp(0, 200));
     _saveSettings();
   }
 

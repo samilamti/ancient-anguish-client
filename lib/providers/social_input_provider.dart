@@ -5,6 +5,11 @@ final chatHistoryProvider =
     NotifierProvider<SocialHistoryNotifier, List<String>>(
         SocialHistoryNotifier.new);
 
+/// Command history for the party input.
+final partyHistoryProvider =
+    NotifierProvider<SocialHistoryNotifier, List<String>>(
+        SocialHistoryNotifier.new);
+
 /// Command history for the tell input.
 final tellHistoryProvider =
     NotifierProvider<SocialHistoryNotifier, List<String>>(

@@ -8,7 +8,7 @@ import '../../../providers/settings_provider.dart';
 import '../../../providers/social_message_provider.dart';
 
 /// Which buffer to display.
-enum SocialListType { chat, tells }
+enum SocialListType { chat, tells, party }
 
 /// Scrollable list of social messages with auto-scroll and lazy display.
 ///
@@ -77,10 +77,11 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
     });
   }
 
-  List<SocialMessage> get _currentMessages =>
-      widget.type == SocialListType.chat
-          ? ref.read(chatMessagesProvider)
-          : ref.read(tellMessagesProvider);
+  List<SocialMessage> get _currentMessages => switch (widget.type) {
+        SocialListType.chat => ref.read(chatMessagesProvider),
+        SocialListType.tells => ref.read(tellMessagesProvider),
+        SocialListType.party => ref.read(partyMessagesProvider),
+      };
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
@@ -92,15 +93,16 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final fontSize = ref.watch(settingsProvider).fontSize - 1;
-    final messages = widget.type == SocialListType.chat
-        ? ref.watch(chatMessagesProvider)
-        : ref.watch(tellMessagesProvider);
+    final provider = switch (widget.type) {
+      SocialListType.chat => chatMessagesProvider,
+      SocialListType.tells => tellMessagesProvider,
+      SocialListType.party => partyMessagesProvider,
+    };
+    final messages = ref.watch(provider);
 
     // Auto-scroll when new messages arrive.
     ref.listen(
-      widget.type == SocialListType.chat
-          ? chatMessagesProvider
-          : tellMessagesProvider,
+      provider,
       (previous, next) {
         if (_autoScroll && next.isNotEmpty) {
           // Grow display count to include the new message.
@@ -117,9 +119,11 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
     if (messages.isEmpty) {
       return Center(
         child: Text(
-          widget.type == SocialListType.chat
-              ? 'No chat messages yet'
-              : 'No tells yet',
+          switch (widget.type) {
+            SocialListType.chat => 'No chat messages yet',
+            SocialListType.tells => 'No tells yet',
+            SocialListType.party => 'No party messages yet',
+          },
           style: TextStyle(
             fontFamily: 'JetBrainsMono',
             fontSize: fontSize,

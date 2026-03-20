@@ -21,9 +21,11 @@ class SocialHistoryService {
   // are always written after the initial message completes.
   static Future<void> _chatQueue = Future.value();
   static Future<void> _tellQueue = Future.value();
+  static Future<void> _partyQueue = Future.value();
 
   static const _chatFolder = 'Chat History';
   static const _tellFolder = 'Tell History';
+  static const _partyFolder = 'Party History';
 
   static String _filePath(bool isChat, DateTime dt) {
     final folder = isChat ? _chatFolder : _tellFolder;
@@ -96,6 +98,38 @@ class SocialHistoryService {
     }
   }
 
+  /// Queues a party message append.
+  static void appendPartyMessage(StorageService storage, SocialMessage msg) {
+    _partyQueue = _partyQueue.then((_) async {
+      try {
+        final fileName = '$_partyFolder/${_formatDate(msg.timestamp)}.md';
+        final timeStr = _formatTime(msg.timestamp);
+        final lines = msg.body.split('\n');
+        final buffer = StringBuffer();
+        buffer.writeln('$timeStr ${lines.first}');
+        for (var i = 1; i < lines.length; i++) {
+          buffer.writeln(lines[i]);
+        }
+        await storage.appendToFile(fileName, buffer.toString());
+      } catch (e) {
+        debugPrint('SocialHistoryService.appendPartyMessage: $e');
+      }
+    });
+  }
+
+  /// Queues a party continuation line append.
+  static void appendPartyContinuation(
+      StorageService storage, String plainText) {
+    _partyQueue = _partyQueue.then((_) async {
+      try {
+        final fileName = '$_partyFolder/${_formatDate(DateTime.now())}.md';
+        await storage.appendToFile(fileName, '$plainText\n');
+      } catch (e) {
+        debugPrint('SocialHistoryService.appendPartyContinuation: $e');
+      }
+    });
+  }
+
   /// Loads chat messages from disk for today.
   static Future<List<SocialMessage>> loadChat(StorageService storage) async {
     return _loadFile(storage, isChat: true, date: _formatDate(DateTime.now()));
@@ -104,6 +138,69 @@ class SocialHistoryService {
   /// Loads tell messages from disk for today.
   static Future<List<SocialMessage>> loadTells(StorageService storage) async {
     return _loadFile(storage, isChat: false, date: _formatDate(DateTime.now()));
+  }
+
+  /// Loads party messages from disk for today.
+  static Future<List<SocialMessage>> loadParty(
+      StorageService storage) async {
+    try {
+      final date = _formatDate(DateTime.now());
+      final fileName = '$_partyFolder/$date.md';
+      final contents = await storage.readFile(fileName);
+      if (contents.trim().isEmpty) return [];
+      return _parsePartyHistory(contents, date: date);
+    } catch (e) {
+      debugPrint('SocialHistoryService.loadParty: $e');
+      return [];
+    }
+  }
+
+  /// Parses a party history file.
+  static List<SocialMessage> _parsePartyHistory(
+    String contents, {
+    required String date,
+  }) {
+    final messages = <SocialMessage>[];
+    final lines = contents.split('\n');
+    SocialMessage? pending;
+
+    for (final line in lines) {
+      if (line.trim().isEmpty) {
+        if (pending != null) messages.add(pending);
+        pending = null;
+        continue;
+      }
+
+      final entryMatch = _entryRegex.firstMatch(line);
+      if (entryMatch != null) {
+        if (pending != null) messages.add(pending);
+
+        final timeStr = entryMatch.group(1)!;
+        final text = entryMatch.group(2)!;
+        final timestamp = _parseDateTime(date, timeStr);
+
+        // Party format: "Sender: message"
+        final colonIdx = text.indexOf(':');
+        final sender =
+            colonIdx > 0 ? text.substring(0, colonIdx) : 'unknown';
+        pending = SocialMessage(
+          type: SocialMessageType.party,
+          sender: sender,
+          body: text,
+          styledLines: [StyledLine([StyledSpan(text: text)])],
+          timestamp: timestamp,
+        );
+        continue;
+      }
+
+      if (pending != null) {
+        final styledLine = StyledLine([StyledSpan(text: line)]);
+        pending = pending.withContinuation(styledLine, line);
+      }
+    }
+
+    if (pending != null) messages.add(pending);
+    return messages;
   }
 
   static Future<List<SocialMessage>> _loadFile(

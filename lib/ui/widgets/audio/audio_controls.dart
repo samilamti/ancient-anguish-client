@@ -54,15 +54,6 @@ class AudioControls extends ConsumerWidget {
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (audioState.currentArea != null)
-                  Text(
-                    audioState.currentArea!,
-                    style: TextStyle(
-                      fontFamily: 'JetBrainsMono',
-                      fontSize: 10,
-                      color: theme.colorScheme.primary.withAlpha(140),
-                    ),
-                  ),
               ],
             ),
           ),

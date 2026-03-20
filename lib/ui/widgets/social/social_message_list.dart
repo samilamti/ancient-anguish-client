@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/social_message.dart';
+import '../../../providers/settings_provider.dart';
 import '../../../providers/social_message_provider.dart';
 
 /// Which buffer to display.
@@ -90,6 +91,7 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final fontSize = ref.watch(settingsProvider).fontSize - 1;
     final messages = widget.type == SocialListType.chat
         ? ref.watch(chatMessagesProvider)
         : ref.watch(tellMessagesProvider);
@@ -120,7 +122,7 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
               : 'No tells yet',
           style: TextStyle(
             fontFamily: 'JetBrainsMono',
-            fontSize: 12,
+            fontSize: fontSize,
             color: theme.colorScheme.onSurface.withAlpha(80),
           ),
         ),
@@ -148,7 +150,7 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
                 'Scroll up for older messages ($start more)',
                 style: TextStyle(
                   fontFamily: 'JetBrainsMono',
-                  fontSize: 10,
+                  fontSize: fontSize - 3,
                   color: theme.colorScheme.onSurface.withAlpha(60),
                 ),
               ),
@@ -159,6 +161,7 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
         return _MessageWidget(
           message: displayed[msgIndex],
           isEven: msgIndex.isEven,
+          fontSize: fontSize,
         );
       },
     );
@@ -168,8 +171,13 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
 class _MessageWidget extends StatelessWidget {
   final SocialMessage message;
   final bool isEven;
+  final double fontSize;
 
-  const _MessageWidget({required this.message, required this.isEven});
+  const _MessageWidget({
+    required this.message,
+    required this.isEven,
+    required this.fontSize,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +185,6 @@ class _MessageWidget extends StatelessWidget {
 
     // Build a list of TextSpans from all styled lines in this message.
     const fontFamily = 'JetBrainsMono';
-    const fontSize = 13.0;
     final children = <InlineSpan>[];
     for (var i = 0; i < message.styledLines.length; i++) {
       if (i > 0) {
@@ -206,7 +213,7 @@ class _MessageWidget extends StatelessWidget {
             '${message.timestamp.minute.toString().padLeft(2, '0')}',
             style: TextStyle(
               fontFamily: 'JetBrainsMono',
-              fontSize: 10,
+              fontSize: fontSize - 3,
               color: theme.colorScheme.onSurface.withAlpha(60),
             ),
           ),
@@ -215,9 +222,9 @@ class _MessageWidget extends StatelessWidget {
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'JetBrainsMono',
-                  fontSize: 13,
+                  fontSize: fontSize,
                 ),
                 children: children,
               ),

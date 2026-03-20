@@ -201,6 +201,20 @@ class _InputBarState extends ConsumerState<InputBar> {
       return KeyEventResult.handled;
     }
 
+    // Enter sends command; Shift+Enter inserts newline.
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      final shiftHeld = HardwareKeyboard.instance.logicalKeysPressed.any(
+        (k) =>
+            k == LogicalKeyboardKey.shiftLeft ||
+            k == LogicalKeyboardKey.shiftRight,
+      );
+      if (!shiftHeld) {
+        _send();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
     // Any other key resets history search — user is typing new input.
     _resetHistorySearch();
 
@@ -210,6 +224,7 @@ class _InputBarState extends ConsumerState<InputBar> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final fontSize = ref.watch(settingsProvider).fontSize;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -228,7 +243,7 @@ class _InputBarState extends ConsumerState<InputBar> {
             '>',
             style: TextStyle(
               fontFamily: 'JetBrainsMono',
-              fontSize: 16,
+              fontSize: fontSize + 2,
               color: theme.colorScheme.primary,
               fontWeight: FontWeight.bold,
             ),
@@ -243,9 +258,11 @@ class _InputBarState extends ConsumerState<InputBar> {
                 controller: _controller,
                 focusNode: _focusNode,
                 autofocus: true,
-                style: const TextStyle(
+                minLines: 1,
+                maxLines: 5,
+                style: TextStyle(
                   fontFamily: 'JetBrainsMono',
-                  fontSize: 14,
+                  fontSize: fontSize,
                 ),
                 decoration: const InputDecoration(
                   hintText: 'Enter command...',
@@ -255,7 +272,6 @@ class _InputBarState extends ConsumerState<InputBar> {
                   filled: false,
                 ),
                 onSubmitted: (_) => _send(),
-                textInputAction: TextInputAction.send,
               ),
             ),
           ),

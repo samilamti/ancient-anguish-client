@@ -10,6 +10,7 @@ import '../../../protocol/ansi/styled_span.dart';
 import '../../../providers/background_image_provider.dart';
 import '../../../providers/connection_provider.dart'
     show terminalBufferProvider, inputFocusProvider;
+import '../../../providers/settings_provider.dart';
 import '../../../services/platform/file_utils.dart';
 import 'terminal_selection.dart';
 import 'terminal_selection_controller.dart';
@@ -46,10 +47,11 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   static const double _tapSlopSquared = 18.0 * 18.0;
   static const Duration _doubleTapTimeout = Duration(milliseconds: 300);
 
-  // Monospace font measurements (computed once).
+  // Monospace font measurements (recomputed when font size changes).
   double _charWidth = 0;
   double _lineHeight = 0;
   bool _fontMeasured = false;
+  double _measuredFontSize = 0;
 
   @override
   void initState() {
@@ -67,14 +69,14 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     super.dispose();
   }
 
-  void _measureFont() {
-    if (_fontMeasured) return;
+  void _measureFont(double fontSize) {
+    if (_fontMeasured && fontSize == _measuredFontSize) return;
     final painter = TextPainter(
-      text: const TextSpan(
+      text: TextSpan(
         text: 'M',
         style: TextStyle(
           fontFamily: TerminalDefaults.fontFamily,
-          fontSize: TerminalDefaults.fontSize,
+          fontSize: fontSize,
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -84,6 +86,7 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     _lineHeight = painter.height + 1.0;
     painter.dispose();
     _fontMeasured = true;
+    _measuredFontSize = fontSize;
   }
 
   void _onScroll() {
@@ -410,7 +413,8 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
 
   @override
   Widget build(BuildContext context) {
-    _measureFont();
+    final fontSize = ref.watch(settingsProvider).fontSize;
+    _measureFont(fontSize);
     final lines = ref.watch(terminalBufferProvider);
     final selection = _selectionController.selection;
     final bgImagePath = ref.watch(backgroundImageProvider);
@@ -462,6 +466,7 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
                       line: lines[index],
                       lineIndex: index,
                       selection: selection,
+                      fontSize: fontSize,
                     );
                   },
                 ),
@@ -495,11 +500,13 @@ class _TerminalLine extends StatelessWidget {
   final StyledLine line;
   final int lineIndex;
   final TerminalSelection? selection;
+  final double fontSize;
 
   const _TerminalLine({
     required this.line,
     required this.lineIndex,
     this.selection,
+    required this.fontSize,
   });
 
   @override
@@ -509,11 +516,11 @@ class _TerminalLine extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 0.5),
         child: RichText(
-          text: const TextSpan(
+          text: TextSpan(
             text: ' ',
             style: TextStyle(
               fontFamily: TerminalDefaults.fontFamily,
-              fontSize: TerminalDefaults.fontSize,
+              fontSize: fontSize,
             ),
           ),
         ),
@@ -528,13 +535,13 @@ class _TerminalLine extends StatelessWidget {
     final textSpan = range != null
         ? line.toSelectedTextSpan(
             fontFamily: TerminalDefaults.fontFamily,
-            fontSize: TerminalDefaults.fontSize,
+            fontSize: fontSize,
             startCol: range.startCol,
             endCol: range.endCol,
           )
         : line.toTextSpan(
             fontFamily: TerminalDefaults.fontFamily,
-            fontSize: TerminalDefaults.fontSize,
+            fontSize: fontSize,
           );
 
     return Padding(

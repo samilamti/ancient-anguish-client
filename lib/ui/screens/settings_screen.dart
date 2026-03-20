@@ -87,6 +87,20 @@ class SettingsScreen extends ConsumerWidget {
             ),
 
 
+          // Font size slider.
+          _SettingsTile(
+            title: 'Font Size',
+            subtitle: '${settings.fontSize.round()}pt',
+            child: Slider(
+              value: settings.fontSize,
+              min: 8.0,
+              max: 32.0,
+              divisions: 24,
+              label: '${settings.fontSize.round()}pt',
+              onChanged: (value) => notifier.setFontSize(value),
+            ),
+          ),
+
           ListTile(
             leading: const Icon(Icons.landscape),
             title: const Text('Area Configuration'),

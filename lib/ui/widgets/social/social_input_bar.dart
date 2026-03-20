@@ -114,6 +114,20 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
       return KeyEventResult.handled;
     }
 
+    // Enter sends message; Shift+Enter inserts newline.
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      final shiftHeld = HardwareKeyboard.instance.logicalKeysPressed.any(
+        (k) =>
+            k == LogicalKeyboardKey.shiftLeft ||
+            k == LogicalKeyboardKey.shiftRight,
+      );
+      if (!shiftHeld) {
+        _send();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
     return KeyEventResult.ignored;
   }
 
@@ -130,6 +144,8 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
       }
     }
 
+    final fontSize = ref.watch(settingsProvider).fontSize;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
@@ -144,7 +160,7 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
             widget.type == SocialListType.chat ? '[Chat]' : '[Tell]',
             style: TextStyle(
               fontFamily: 'JetBrainsMono',
-              fontSize: 11,
+              fontSize: fontSize - 3,
               fontWeight: FontWeight.bold,
               color: primary.withAlpha(160),
             ),
@@ -184,13 +200,13 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
                     focusNode: focusNode,
                     style: TextStyle(
                       fontFamily: 'JetBrainsMono',
-                      fontSize: 12,
+                      fontSize: fontSize - 2,
                       color: primary,
                     ),
                     decoration: InputDecoration(
                       hintText: 'name',
                       hintStyle: TextStyle(
-                        fontSize: 11,
+                        fontSize: fontSize - 3,
                         color: primary.withAlpha(60),
                       ),
                       border: InputBorder.none,
@@ -247,7 +263,7 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
                                   name,
                                   style: TextStyle(
                                     fontFamily: 'JetBrainsMono',
-                                    fontSize: 12,
+                                    fontSize: fontSize - 2,
                                     color: theme.colorScheme.onSurface,
                                   ),
                                 ),
@@ -271,16 +287,18 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
               child: TextField(
                 controller: _controller,
                 focusNode: _focusNode,
-                style: const TextStyle(
+                minLines: 1,
+                maxLines: 3,
+                style: TextStyle(
                   fontFamily: 'JetBrainsMono',
-                  fontSize: 12,
+                  fontSize: fontSize - 2,
                 ),
                 decoration: InputDecoration(
                   hintText: widget.type == SocialListType.chat
                       ? 'Chat message...'
                       : 'Tell message...',
                   hintStyle: TextStyle(
-                    fontSize: 11,
+                    fontSize: fontSize - 3,
                     color: theme.colorScheme.onSurface.withAlpha(60),
                   ),
                   border: InputBorder.none,
@@ -288,7 +306,6 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
                   contentPadding: const EdgeInsets.symmetric(vertical: 6),
                 ),
                 onSubmitted: (_) => _send(),
-                textInputAction: TextInputAction.send,
               ),
             ),
           ),

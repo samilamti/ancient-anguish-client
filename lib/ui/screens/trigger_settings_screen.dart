@@ -112,7 +112,7 @@ class TriggerSettingsScreen extends ConsumerWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _TriggerEditScreen(existing: existing),
+        builder: (_) => TriggerEditScreen(existing: existing),
       ),
     );
   }
@@ -214,16 +214,19 @@ class _TriggerTile extends StatelessWidget {
 }
 
 /// Edit/create screen for a single trigger rule.
-class _TriggerEditScreen extends ConsumerStatefulWidget {
+///
+/// Pass [existing] to edit a rule, or leave null to create a new one.
+/// Can be navigated to directly for prefilled creation (e.g. from block actions).
+class TriggerEditScreen extends ConsumerStatefulWidget {
   final TriggerRule? existing;
 
-  const _TriggerEditScreen({this.existing});
+  const TriggerEditScreen({super.key, this.existing});
 
   @override
-  ConsumerState<_TriggerEditScreen> createState() => _TriggerEditScreenState();
+  ConsumerState<TriggerEditScreen> createState() => TriggerEditScreenState();
 }
 
-class _TriggerEditScreenState extends ConsumerState<_TriggerEditScreen> {
+class TriggerEditScreenState extends ConsumerState<TriggerEditScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _patternController;
   late TriggerAction _action;

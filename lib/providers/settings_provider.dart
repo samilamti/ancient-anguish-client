@@ -19,6 +19,7 @@ class AppSettings {
   final bool socialWindowsEnabled; // desktop-only floating chat/tell panels
   final bool gagSocialFromTerminal; // hide social messages from main terminal
   final bool emojiParsingEnabled; // replace text emoticons with emoji
+  final bool blockModeEnabled; // group output into interactive blocks
 
   static const Map<String, int> defaultCustomColors = {
     'primary': 0xFFD4A057,
@@ -40,6 +41,7 @@ class AppSettings {
     this.socialWindowsEnabled = true,
     this.gagSocialFromTerminal = true,
     this.emojiParsingEnabled = true,
+    this.blockModeEnabled = false,
   });
 
   AppSettings copyWith({
@@ -54,6 +56,7 @@ class AppSettings {
     bool? socialWindowsEnabled,
     bool? gagSocialFromTerminal,
     bool? emojiParsingEnabled,
+    bool? blockModeEnabled,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -70,6 +73,7 @@ class AppSettings {
           gagSocialFromTerminal ?? this.gagSocialFromTerminal,
       emojiParsingEnabled:
           emojiParsingEnabled ?? this.emojiParsingEnabled,
+      blockModeEnabled: blockModeEnabled ?? this.blockModeEnabled,
     );
   }
 
@@ -87,6 +91,7 @@ class AppSettings {
         'socialWindowsEnabled': socialWindowsEnabled,
         'gagSocialFromTerminal': gagSocialFromTerminal,
         'emojiParsingEnabled': emojiParsingEnabled,
+        'blockModeEnabled': blockModeEnabled,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -105,6 +110,7 @@ class AppSettings {
       socialWindowsEnabled: json['socialWindowsEnabled'] as bool? ?? true,
       gagSocialFromTerminal: json['gagSocialFromTerminal'] as bool? ?? true,
       emojiParsingEnabled: json['emojiParsingEnabled'] as bool? ?? true,
+      blockModeEnabled: json['blockModeEnabled'] as bool? ?? false,
     );
   }
 }
@@ -169,6 +175,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void toggleEmojiParsing() {
     state = state.copyWith(emojiParsingEnabled: !state.emojiParsingEnabled);
+    _saveSettings();
+  }
+
+  void toggleBlockMode() {
+    state = state.copyWith(blockModeEnabled: !state.blockModeEnabled);
     _saveSettings();
   }
 

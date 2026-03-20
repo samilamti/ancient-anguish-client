@@ -29,6 +29,7 @@ import 'settings_provider.dart';
 import 'social_message_provider.dart';
 import 'social_panel_provider.dart';
 import 'recent_words_provider.dart';
+import 'terminal_block_provider.dart';
 import 'trigger_provider.dart';
 
 /// Provides the singleton [MudConnectionService].
@@ -125,6 +126,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           final gameNotifier = ref.read(gameStateProvider.notifier);
           final battleNotifier = ref.read(battleStateProvider.notifier);
           final processedLines = <StyledLine>[];
+          var promptDetected = false;
 
           for (final line in newLines) {
             final plainText = line.plainText;
@@ -147,6 +149,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             if (_loginDetected) {
               final vitals = _extractPrompt(plainText);
               if (vitals != null) {
+                promptDetected = true;
                 gameNotifier.updateVitalsAndCoordinates(
                   vitals.hp, vitals.maxHp, vitals.sp,
                   vitals.maxSp, vitals.x, vitals.y,
@@ -235,6 +238,14 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           if (processedLines.isNotEmpty) {
             _addLines(processedLines);
           }
+
+          // Emit a prompt boundary for block mode when a prompt was detected.
+          if (promptDetected &&
+              ref.read(settingsProvider).blockModeEnabled) {
+            ref
+                .read(blockBoundaryProvider.notifier)
+                .markPromptBoundary(state.length);
+          }
         }
 
         // The MUD uses SGA (Suppress Go Ahead), so prompt lines arrive
@@ -253,6 +264,12 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                   vitals.hp, vitals.maxHp, vitals.sp,
                   vitals.maxSp, vitals.x, vitals.y,
                 );
+                // Prompt boundary for block mode.
+                if (ref.read(settingsProvider).blockModeEnabled) {
+                  ref
+                      .read(blockBoundaryProvider.notifier)
+                      .markPromptBoundary(state.length);
+                }
               }
             }
           }
@@ -354,6 +371,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         _loginDetected = false;
         _lastSocialType = null;
         _inTellHistory = false;
+        ref.read(blockBoundaryProvider.notifier).reset();
       }
     });
   }
@@ -474,7 +492,12 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     final newState = [...state, ...lines.map(LinkParser.processLine)];
     // Trim to max lines.
     if (newState.length > _maxLines) {
-      state = newState.sublist(newState.length - _maxLines);
+      final removedCount = newState.length - _maxLines;
+      state = newState.sublist(removedCount);
+      // Adjust block boundaries to account for trimmed lines.
+      if (ref.read(settingsProvider).blockModeEnabled) {
+        ref.read(blockBoundaryProvider.notifier).adjustForTrim(removedCount);
+      }
     } else {
       state = newState;
     }

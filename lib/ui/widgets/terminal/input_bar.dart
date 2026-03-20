@@ -201,18 +201,9 @@ class _InputBarState extends ConsumerState<InputBar> {
       return KeyEventResult.handled;
     }
 
-    // Enter sends command; Shift+Enter inserts newline.
     if (event.logicalKey == LogicalKeyboardKey.enter) {
-      final shiftHeld = HardwareKeyboard.instance.logicalKeysPressed.any(
-        (k) =>
-            k == LogicalKeyboardKey.shiftLeft ||
-            k == LogicalKeyboardKey.shiftRight,
-      );
-      if (!shiftHeld) {
-        _send();
-        return KeyEventResult.handled;
-      }
-      return KeyEventResult.ignored;
+      _send();
+      return KeyEventResult.handled;
     }
 
     // Any other key resets history search — user is typing new input.
@@ -228,8 +219,7 @@ class _InputBarState extends ConsumerState<InputBar> {
         controller: _controller,
         focusNode: _focusNode,
         autofocus: true,
-        minLines: 1,
-        maxLines: 5,
+        maxLines: 1,
         style: TextStyle(
           fontFamily: 'JetBrainsMono',
           fontSize: fontSize,

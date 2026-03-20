@@ -121,18 +121,9 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
       return KeyEventResult.handled;
     }
 
-    // Enter sends message; Shift+Enter inserts newline.
     if (event.logicalKey == LogicalKeyboardKey.enter) {
-      final shiftHeld = HardwareKeyboard.instance.logicalKeysPressed.any(
-        (k) =>
-            k == LogicalKeyboardKey.shiftLeft ||
-            k == LogicalKeyboardKey.shiftRight,
-      );
-      if (!shiftHeld) {
-        _send();
-        return KeyEventResult.handled;
-      }
-      return KeyEventResult.ignored;
+      _send();
+      return KeyEventResult.handled;
     }
 
     return KeyEventResult.ignored;
@@ -299,7 +290,7 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
                 controller: _controller,
                 focusNode: _focusNode,
                 minLines: 1,
-                maxLines: 3,
+                maxLines: 1,
                 style: TextStyle(
                   fontFamily: 'JetBrainsMono',
                   fontSize: fontSize - 2,

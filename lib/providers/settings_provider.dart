@@ -20,6 +20,7 @@ class AppSettings {
   final bool gagSocialFromTerminal; // hide social messages from main terminal
   final bool emojiParsingEnabled; // replace text emoticons with emoji
   final int inputWrapWidth; // 0 = disabled, otherwise wrap input at N chars
+  final bool blockModeEnabled; // group output into interactive blocks
 
   static const Map<String, int> defaultCustomColors = {
     'primary': 0xFFD4A057,
@@ -42,6 +43,7 @@ class AppSettings {
     this.gagSocialFromTerminal = true,
     this.emojiParsingEnabled = true,
     this.inputWrapWidth = 0,
+    this.blockModeEnabled = false,
   });
 
   AppSettings copyWith({
@@ -57,6 +59,7 @@ class AppSettings {
     bool? gagSocialFromTerminal,
     bool? emojiParsingEnabled,
     int? inputWrapWidth,
+    bool? blockModeEnabled,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -74,6 +77,7 @@ class AppSettings {
       emojiParsingEnabled:
           emojiParsingEnabled ?? this.emojiParsingEnabled,
       inputWrapWidth: inputWrapWidth ?? this.inputWrapWidth,
+      blockModeEnabled: blockModeEnabled ?? this.blockModeEnabled,
     );
   }
 
@@ -92,6 +96,7 @@ class AppSettings {
         'gagSocialFromTerminal': gagSocialFromTerminal,
         'emojiParsingEnabled': emojiParsingEnabled,
         'inputWrapWidth': inputWrapWidth,
+        'blockModeEnabled': blockModeEnabled,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -111,6 +116,7 @@ class AppSettings {
       gagSocialFromTerminal: json['gagSocialFromTerminal'] as bool? ?? true,
       emojiParsingEnabled: json['emojiParsingEnabled'] as bool? ?? true,
       inputWrapWidth: json['inputWrapWidth'] as int? ?? 0,
+      blockModeEnabled: json['blockModeEnabled'] as bool? ?? false,
     );
   }
 }
@@ -180,6 +186,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void toggleEmojiParsing() {
     state = state.copyWith(emojiParsingEnabled: !state.emojiParsingEnabled);
+    _saveSettings();
+  }
+
+  void toggleBlockMode() {
+    state = state.copyWith(blockModeEnabled: !state.blockModeEnabled);
     _saveSettings();
   }
 

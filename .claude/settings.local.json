@@ -120,7 +120,8 @@
       "Bash(find 'S:/Ancient Anguish Client' -type f -name *audio*test* -o -name *test*audio*)",
       "Bash(grep -E \"\\\\.\\(md|dart\\)$\")",
       "Bash(grep -r \"LogicalKeyboardKey.tab\\\\|TAB\\\\|\\\\t\" 'S:\\\\Ancient Anguish Client\\\\lib' --include=*.dart)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(dart test:*)"
     ]
   }
 }

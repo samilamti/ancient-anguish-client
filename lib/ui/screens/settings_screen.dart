@@ -198,6 +198,20 @@ class SettingsScreen extends ConsumerWidget {
             secondary: const Icon(Icons.emoji_emotions),
           ),
 
+          // Block mode (desktop only).
+          if (defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.macOS ||
+              defaultTargetPlatform == TargetPlatform.linux)
+            SwitchListTile(
+              title: const Text('Block Mode (Experimental)'),
+              subtitle: const Text(
+                'Group output into interactive blocks',
+              ),
+              value: settings.blockModeEnabled,
+              onChanged: (_) => notifier.toggleBlockMode(),
+              secondary: const Icon(Icons.view_agenda),
+            ),
+
           // Quick commands toggle (mobile only).
           if (defaultTargetPlatform != TargetPlatform.windows &&
               defaultTargetPlatform != TargetPlatform.macOS) ...[

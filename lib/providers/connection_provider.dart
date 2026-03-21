@@ -381,13 +381,16 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     final tellNotifier = ref.read(tellMessagesProvider.notifier);
     final partyNotifier = ref.read(partyMessagesProvider.notifier);
 
-    // Check for party line: "<Party Name> [Character] : message"
+    // Check for party line: "<Party Name> Character : message" or emote
     final partyMatch = SocialMessageParser.matchPartyLine(plainText);
-    if (partyMatch != null) {
+    if (partyMatch != null &&
+        !SocialMessageParser.isPartySystemMessage(partyMatch)) {
       _lastSocialType = SocialMessageType.party;
-      // Strip party prefix, display as "Character: message"
-      final displayBody = '${partyMatch.sender}: ${partyMatch.text}';
-      final displayLine = StyledLine([StyledSpan(text: displayBody)]);
+      // Say: "Character: message", Emote: "Character does something"
+      final displayBody = partyMatch.isEmote
+          ? '${partyMatch.sender} ${partyMatch.text}'
+          : '${partyMatch.sender}: ${partyMatch.text}';
+      final displayLine = StyledLine([StyledSpan(text: displayBody)]).collapseSpaces();
       partyNotifier.addMessage(SocialMessage(
         type: SocialMessageType.party,
         sender: partyMatch.sender,
@@ -396,17 +399,19 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         timestamp: DateTime.now(),
       ));
       _markUnreadIfInactive(tabIndex: 2);
+      _autoActivateTab(2);
       return _SocialLineResult.captured;
     }
 
     // Check for chat line.
     final chatMatch = SocialMessageParser.matchChatLine(plainText);
-    if (chatMatch != null) {
+    if (chatMatch != null &&
+        !SocialMessageParser.isChatSystemMessage(chatMatch)) {
       _lastSocialType = SocialMessageType.chat;
       // Strip "[Chat] " prefix for cleaner display in the social window.
       final prefixLen = plainText.indexOf(chatMatch.sender);
-      final displayLine = LinkParser.processLine(line).subLine(prefixLen);
-      final displayBody = plainText.substring(prefixLen);
+      final displayLine = LinkParser.processLine(line).subLine(prefixLen).collapseSpaces();
+      final displayBody = plainText.substring(prefixLen).replaceAll(RegExp(r' {2,}'), ' ');
       chatNotifier.addMessage(SocialMessage(
         type: SocialMessageType.chat,
         sender: chatMatch.sender,
@@ -415,6 +420,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         timestamp: DateTime.now(),
       ));
       _markUnreadIfInactive(tabIndex: 0);
+      _autoActivateTab(0);
       return _SocialLineResult.captured;
     }
 
@@ -429,14 +435,14 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       String displayBody;
       if (tellMatch.isOutgoing) {
         // "You tell Foo: hello" → "➡️ Foo: hello"
-        displayLine = processedLine.subLine(9).prepend('\u27A1\uFE0F ');
-        displayBody = '\u27A1\uFE0F ${plainText.substring(9)}';
+        displayLine = processedLine.subLine(9).collapseSpaces().prepend('\u27A1\uFE0F ');
+        displayBody = '\u27A1\uFE0F ${plainText.substring(9).replaceAll(RegExp(r' {2,}'), ' ')}';
       } else {
         // "Foo tells you: hello" → "Foo: hello"
         final removeStart = tellMatch.sender.length;
         displayLine = processedLine.removeRange(
-            removeStart, removeStart + ' tells you'.length);
-        displayBody = plainText.replaceFirst(' tells you:', ':');
+            removeStart, removeStart + ' tells you'.length).collapseSpaces();
+        displayBody = plainText.replaceFirst(' tells you:', ':').replaceAll(RegExp(r' {2,}'), ' ');
       }
       tellNotifier.addMessage(SocialMessage(
         type: _lastSocialType!,
@@ -448,6 +454,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       if (!tellMatch.isOutgoing) {
         tellNotifier.setLastRecipient(tellMatch.sender);
         _markUnreadIfInactive(tabIndex: 1);
+        _autoActivateTab(1);
         WindowService.requestAttention();
       }
       return _SocialLineResult.captured;
@@ -486,6 +493,16 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       return ps.partyPanel.visible;
     }
     return ps.tellsPanel.visible;
+  }
+
+  /// Auto-switches the social tab when the terminal input bar has focus.
+  /// Only applies in tabbed mode — separate panels are already visible.
+  void _autoActivateTab(int tabIndex) {
+    final panelState = ref.read(socialPanelProvider);
+    if (panelState.tabMode != PanelTabMode.tabbed) return;
+    if (panelState.activeTab == tabIndex) return;
+    if (!ref.read(inputFocusProvider).hasFocus) return;
+    ref.read(socialPanelProvider.notifier).setActiveTab(tabIndex);
   }
 
   /// Marks a social tab as having unread messages if not active.

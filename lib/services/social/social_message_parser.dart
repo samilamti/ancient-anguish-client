@@ -7,9 +7,11 @@ class SocialMessageParser {
   static final RegExp _chatEmoteRegex =
       RegExp(r'^\[Chat\]\s+(\w+)\s+(.+)$');
 
-  // Party pattern: "<Party Name> [Character] : message"
-  static final RegExp _partyRegex =
-      RegExp(r'^<([^>]+)>\s+\[(\w+)\]\s+:\s+(.+)$');
+  // Party patterns: "<Party Name> Character : message" or "<Party Name> Character emotes."
+  static final RegExp _partySayRegex =
+      RegExp(r'^<([^>]+)>\s+(\w+)\s+:\s+(.+)$');
+  static final RegExp _partyEmoteRegex =
+      RegExp(r'^<([^>]+)>\s+(\w+)\s+(.+)$');
 
   // Tell patterns: "Name tells you: message" or "You tell Name: message"
   static final RegExp _tellIncomingRegex =
@@ -70,15 +72,46 @@ class SocialMessageParser {
 
   /// Checks if a plain text line is a party message start.
   static PartyMatchResult? matchPartyLine(String plainText) {
-    final match = _partyRegex.firstMatch(plainText);
-    if (match != null) {
+    // Try "say" pattern first (has colon separator).
+    final sayMatch = _partySayRegex.firstMatch(plainText);
+    if (sayMatch != null) {
       return PartyMatchResult(
-        partyName: match.group(1)!,
-        sender: match.group(2)!,
-        text: match.group(3)!,
+        partyName: sayMatch.group(1)!,
+        sender: sayMatch.group(2)!,
+        text: sayMatch.group(3)!,
+        isEmote: false,
       );
     }
+
+    // Try emote pattern (no colon).
+    final emoteMatch = _partyEmoteRegex.firstMatch(plainText);
+    if (emoteMatch != null) {
+      return PartyMatchResult(
+        partyName: emoteMatch.group(1)!,
+        sender: emoteMatch.group(2)!,
+        text: emoteMatch.group(3)!,
+        isEmote: true,
+      );
+    }
+
     return null;
+  }
+
+  /// Returns true if a party match is a system message (not a player message).
+  /// e.g. "<PartyName> Your party just killed the giant troll."
+  static bool isPartySystemMessage(PartyMatchResult match) {
+    return match.sender == 'Your' &&
+        match.text.startsWith('party just killed');
+  }
+
+  /// Returns true if a chat match is a system/NPC message (not a player message).
+  /// e.g. "[Chat] The High Priest: blesses the faithful"
+  /// e.g. "[Chat] Foo begins exploring."
+  static bool isChatSystemMessage(ChatMatchResult match) {
+    if (match.sender == 'The') return true;
+    if (match.text == 'begins exploring.') return true;
+    if (match.text == 'leaves to explore elsewhere.') return true;
+    return false;
   }
 
   /// Checks if a plain text line is a continuation (7+ leading spaces).
@@ -92,11 +125,13 @@ class PartyMatchResult {
   final String partyName;
   final String sender;
   final String text;
+  final bool isEmote;
 
   const PartyMatchResult({
     required this.partyName,
     required this.sender,
     required this.text,
+    required this.isEmote,
   });
 }
 

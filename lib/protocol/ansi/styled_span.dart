@@ -257,6 +257,24 @@ class StyledLine {
     ]);
   }
 
+  /// Returns a new [StyledLine] with runs of multiple spaces collapsed to one.
+  static final RegExp _multiSpace = RegExp(r' {2,}');
+  StyledLine collapseSpaces() {
+    return StyledLine([
+      for (final span in spans)
+        StyledSpan(
+          text: span.text.replaceAll(_multiSpace, ' '),
+          foreground: span.foreground,
+          background: span.background,
+          bold: span.bold,
+          italic: span.italic,
+          underline: span.underline,
+          strikethrough: span.strikethrough,
+          link: span.link,
+        ),
+    ]);
+  }
+
   /// Creates an empty (blank) line.
   factory StyledLine.empty() => StyledLine(const []);
 

@@ -112,7 +112,6 @@ List<TerminalBlock> _buildBlocks(
   if (lines.isEmpty) return [];
 
   final blocks = <TerminalBlock>[];
-  var blockId = 0;
   var startIndex = 0;
 
   for (final boundary in boundaries) {
@@ -120,7 +119,7 @@ List<TerminalBlock> _buildBlocks(
     final endIndex = boundary.lineIndex.clamp(0, lines.length);
     if (endIndex > startIndex) {
       blocks.add(TerminalBlock(
-        id: blockId++,
+        id: startIndex,
         startLineIndex: startIndex,
         lines: lines.sublist(startIndex, endIndex),
         reason: boundary.reason,
@@ -132,7 +131,7 @@ List<TerminalBlock> _buildBlocks(
   // Remaining lines after the last boundary form the current (open) block.
   if (startIndex < lines.length) {
     blocks.add(TerminalBlock(
-      id: blockId,
+      id: startIndex,
       startLineIndex: startIndex,
       lines: lines.sublist(startIndex),
       reason: BlockBoundaryReason.initial,

@@ -143,6 +143,8 @@ class TellMessagesNotifier extends Notifier<List<SocialMessage>> {
         state = messages.length > _maxMessages
             ? messages.sublist(messages.length - _maxMessages)
             : messages;
+        // Populate last recipient from the most recent tell.
+        _lastRecipient = messages.last.sender;
       }
     } catch (e) {
       debugPrint('TellMessagesNotifier._loadFromDisk: $e');

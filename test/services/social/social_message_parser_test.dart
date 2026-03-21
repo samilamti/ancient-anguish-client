@@ -118,34 +118,48 @@ void main() {
     });
 
     group('matchPartyLine', () {
-      test('matches standard party message', () {
+      test('matches standard party say message', () {
         final result = SocialMessageParser.matchPartyLine(
-          '<womp womp> [Godsend] : I like ice cream',
+          '<womp womp> Godsend : I like ice cream',
         );
         expect(result, isNotNull);
         expect(result!.partyName, 'womp womp');
         expect(result.sender, 'Godsend');
         expect(result.text, 'I like ice cream');
+        expect(result.isEmote, isFalse);
       });
 
       test('matches party with single-word name', () {
         final result = SocialMessageParser.matchPartyLine(
-          '<Raiders> [Chosen] : lets go',
+          '<Raiders> Chosen : lets go',
         );
         expect(result, isNotNull);
         expect(result!.partyName, 'Raiders');
         expect(result.sender, 'Chosen');
         expect(result.text, 'lets go');
+        expect(result.isEmote, isFalse);
       });
 
       test('matches party with long message', () {
         final result = SocialMessageParser.matchPartyLine(
-          '<The Fellowship> [Gandalf] : You shall not pass! This is a very long message.',
+          '<The Fellowship> Gandalf : You shall not pass! This is a very long message.',
         );
         expect(result, isNotNull);
         expect(result!.partyName, 'The Fellowship');
         expect(result.sender, 'Gandalf');
         expect(result.text, 'You shall not pass! This is a very long message.');
+        expect(result.isEmote, isFalse);
+      });
+
+      test('matches party emote message', () {
+        final result = SocialMessageParser.matchPartyLine(
+          '<womp womp> Godsend nods solemnly.',
+        );
+        expect(result, isNotNull);
+        expect(result!.partyName, 'womp womp');
+        expect(result.sender, 'Godsend');
+        expect(result.text, 'nods solemnly.');
+        expect(result.isEmote, isTrue);
       });
 
       test('returns null for non-party lines', () {
@@ -158,12 +172,74 @@ void main() {
         expect(SocialMessageParser.matchPartyLine(''), isNull);
       });
 
-      test('returns null for malformed party line (missing brackets)', () {
-        expect(SocialMessageParser.matchPartyLine('<womp> Godsend : hi'), isNull);
+      test('matches party kill system message as emote', () {
+        final result = SocialMessageParser.matchPartyLine(
+          '<womp womp> Your party just killed the giant troll.',
+        );
+        expect(result, isNotNull);
+        expect(result!.sender, 'Your');
+        expect(result.text, 'party just killed the giant troll.');
+        expect(result.isEmote, isTrue);
+      });
+    });
+
+    group('isPartySystemMessage', () {
+      test('returns true for party kill message', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<womp womp> Your party just killed the giant troll.',
+        )!;
+        expect(SocialMessageParser.isPartySystemMessage(match), isTrue);
       });
 
-      test('returns null for missing colon separator', () {
-        expect(SocialMessageParser.matchPartyLine('<womp> [Godsend] hi'), isNull);
+      test('returns false for normal party say', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<womp womp> Godsend : I like ice cream',
+        )!;
+        expect(SocialMessageParser.isPartySystemMessage(match), isFalse);
+      });
+
+      test('returns false for normal party emote', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<womp womp> Godsend nods solemnly.',
+        )!;
+        expect(SocialMessageParser.isPartySystemMessage(match), isFalse);
+      });
+    });
+
+    group('isChatSystemMessage', () {
+      test('returns true for The High Priest message', () {
+        final match = SocialMessageParser.matchChatLine(
+          '[Chat] The High Priest: blesses the faithful.',
+        )!;
+        expect(SocialMessageParser.isChatSystemMessage(match), isTrue);
+      });
+
+      test('returns true for begins exploring', () {
+        final match = SocialMessageParser.matchChatLine(
+          '[Chat] Roric begins exploring.',
+        )!;
+        expect(SocialMessageParser.isChatSystemMessage(match), isTrue);
+      });
+
+      test('returns true for leaves to explore elsewhere', () {
+        final match = SocialMessageParser.matchChatLine(
+          '[Chat] Roric leaves to explore elsewhere.',
+        )!;
+        expect(SocialMessageParser.isChatSystemMessage(match), isTrue);
+      });
+
+      test('returns false for normal chat say', () {
+        final match = SocialMessageParser.matchChatLine(
+          '[Chat] Chosen: hello everyone!',
+        )!;
+        expect(SocialMessageParser.isChatSystemMessage(match), isFalse);
+      });
+
+      test('returns false for normal chat emote', () {
+        final match = SocialMessageParser.matchChatLine(
+          '[Chat] Chosen nods solemnly.',
+        )!;
+        expect(SocialMessageParser.isChatSystemMessage(match), isFalse);
       });
     });
 

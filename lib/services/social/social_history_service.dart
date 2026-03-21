@@ -277,8 +277,8 @@ class SocialHistoryService {
       return SocialMessage(
         type: SocialMessageType.chat,
         sender: sender,
-        body: '[Chat] $text',
-        styledLines: [StyledLine([StyledSpan(text: '[Chat] $text')])],
+        body: text,
+        styledLines: [StyledLine([StyledSpan(text: text)])],
         timestamp: timestamp,
       );
     } else {

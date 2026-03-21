@@ -172,7 +172,7 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
   }
 }
 
-class _MessageWidget extends StatelessWidget {
+class _MessageWidget extends StatefulWidget {
   final SocialMessage message;
   final bool isEven;
   final double fontSize;
@@ -184,58 +184,117 @@ class _MessageWidget extends StatelessWidget {
   });
 
   @override
+  State<_MessageWidget> createState() => _MessageWidgetState();
+}
+
+class _MessageWidgetState extends State<_MessageWidget>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _highlightController;
+
+  @override
+  void initState() {
+    super.initState();
+    // Only highlight fresh incoming messages (not history, not outgoing tells).
+    final age = DateTime.now().difference(widget.message.timestamp);
+    if (age.inMilliseconds < 2000 &&
+        widget.message.type != SocialMessageType.tellOutgoing) {
+      _highlightController = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1500),
+      )..forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _highlightController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    // Build a list of TextSpans from all styled lines in this message.
-    const fontFamily = 'JetBrainsMono';
-    final children = <InlineSpan>[];
-    for (var i = 0; i < message.styledLines.length; i++) {
-      if (i > 0) {
-        children.add(const TextSpan(text: '\n'));
-      }
-      children.add(message.styledLines[i].toTextSpan(
-        fontFamily: fontFamily,
-        fontSize: fontSize,
-      ));
+    final controller = _highlightController;
+    if (controller != null) {
+      return AnimatedBuilder(
+        animation: controller,
+        builder: (context, child) {
+          final highlightAlpha =
+              (40 * (1 - controller.value)).round();
+          final stripeAlpha = widget.isEven ? 10 : 0;
+          return Container(
+            padding:
+                const EdgeInsets.symmetric(vertical: 1, horizontal: 4),
+            decoration: BoxDecoration(
+              color: highlightAlpha > 0
+                  ? Color.alphaBlend(
+                      Colors.amber.withAlpha(highlightAlpha),
+                      theme.colorScheme.primary.withAlpha(stripeAlpha),
+                    )
+                  : widget.isEven
+                      ? theme.colorScheme.primary.withAlpha(10)
+                      : null,
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: child,
+          );
+        },
+        child: _buildContent(theme),
+      );
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 4),
-      decoration: isEven
+      decoration: widget.isEven
           ? BoxDecoration(
               color: theme.colorScheme.primary.withAlpha(10),
               borderRadius: BorderRadius.circular(2),
             )
           : null,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Timestamp.
-          Text(
-            '${message.timestamp.hour.toString().padLeft(2, '0')}:'
-            '${message.timestamp.minute.toString().padLeft(2, '0')}',
-            style: TextStyle(
-              fontFamily: 'JetBrainsMono',
-              fontSize: fontSize - 3,
-              color: theme.colorScheme.onSurface.withAlpha(60),
-            ),
+      child: _buildContent(theme),
+    );
+  }
+
+  Widget _buildContent(ThemeData theme) {
+    const fontFamily = 'JetBrainsMono';
+    final children = <InlineSpan>[];
+    for (var i = 0; i < widget.message.styledLines.length; i++) {
+      if (i > 0) {
+        children.add(const TextSpan(text: '\n'));
+      }
+      children.add(widget.message.styledLines[i].toTextSpan(
+        fontFamily: fontFamily,
+        fontSize: widget.fontSize,
+      ));
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Timestamp.
+        Text(
+          '${widget.message.timestamp.hour.toString().padLeft(2, '0')}:'
+          '${widget.message.timestamp.minute.toString().padLeft(2, '0')}',
+          style: TextStyle(
+            fontFamily: 'JetBrainsMono',
+            fontSize: widget.fontSize - 3,
+            color: theme.colorScheme.onSurface.withAlpha(60),
           ),
-          const SizedBox(width: 4),
-          // Message content.
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: TextStyle(
-                  fontFamily: 'JetBrainsMono',
-                  fontSize: fontSize,
-                ),
-                children: children,
+        ),
+        const SizedBox(width: 4),
+        // Message content.
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: TextStyle(
+                fontFamily: 'JetBrainsMono',
+                fontSize: widget.fontSize,
               ),
+              children: children,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -6,6 +6,53 @@ import '../../../providers/game_state_provider.dart';
 import '../../../providers/unified_area_config_provider.dart';
 import 'vitals_gauge.dart';
 
+/// Shows a dialog to rename the current area. Shared by status bar and D-pad.
+Future<void> showRenameAreaDialog(BuildContext context, WidgetRef ref) async {
+  final gameState = ref.read(gameStateProvider);
+  final currentName = gameState.currentArea;
+  if (currentName == null || !gameState.hasCoordinates) return;
+
+  final controller = TextEditingController(text: currentName);
+  final newName = await showDialog<String>(
+    context: context,
+    useRootNavigator: true,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Rename area'),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        decoration: const InputDecoration(
+          hintText: 'Enter new name...',
+          border: OutlineInputBorder(),
+        ),
+        onSubmitted: (v) {
+          if (v.trim().isNotEmpty) Navigator.of(ctx).pop(v.trim());
+        },
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            final n = controller.text.trim();
+            if (n.isNotEmpty) Navigator.of(ctx).pop(n);
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+  controller.dispose();
+  if (newName == null || newName.isEmpty || newName == currentName) return;
+
+  final config = ref.read(unifiedAreaConfigProvider).value;
+  if (config == null) return;
+  config.renameArea(currentName, newName);
+  ref.read(gameStateProvider.notifier).setCurrentArea(newName);
+}
+
 /// HP and SP bars displayed side by side at the top of the screen.
 class VitalsRow extends ConsumerWidget {
   const VitalsRow({super.key});
@@ -230,16 +277,30 @@ class _StatusBarState extends ConsumerState<StatusBar>
                 const SizedBox(width: 12),
               ],
               if (gameState.currentArea != null) ...[
-                Icon(Icons.map, size: 14,
-                    color: theme.colorScheme.primary.withAlpha(180)),
-                const SizedBox(width: 4),
                 Flexible(
-                  child: Text(
-                    gameState.currentArea!,
-                    style: _infoTextStyle(theme).copyWith(
-                      color: theme.colorScheme.primary,
+                  child: Tooltip(
+                    message: 'Click to rename',
+                    child: InkWell(
+                      onTap: () => showRenameAreaDialog(context, ref),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.map, size: 14,
+                              color: theme.colorScheme.primary.withAlpha(180)),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              gameState.currentArea!,
+                              style: _infoTextStyle(theme).copyWith(
+                                color: theme.colorScheme.primary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ] else if (canNameArea) ...[

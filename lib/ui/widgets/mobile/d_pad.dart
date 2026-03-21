@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/connection_provider.dart';
 import '../../../providers/game_state_provider.dart';
+import '../status/status_bar.dart' show showRenameAreaDialog;
 
 /// A compass-rose directional pad for mobile navigation.
 ///
@@ -182,19 +183,25 @@ class _CompassCenter extends ConsumerWidget {
             ),
           ),
           child: areaName != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(2),
-                    child: Text(
-                      areaName,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'JetBrainsMono',
-                        fontSize: 7,
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.primary,
+              ? Tooltip(
+                  message: 'Click to rename',
+                  child: GestureDetector(
+                    onTap: () => showRenameAreaDialog(context, ref),
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(2),
+                        child: Text(
+                          areaName,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'JetBrainsMono',
+                            fontSize: 7,
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
                       ),
                     ),
                   ),

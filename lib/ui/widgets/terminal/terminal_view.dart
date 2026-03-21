@@ -512,6 +512,7 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
                         itemCount: blocks.length,
                         itemBuilder: (context, blockIndex) {
                           return _TerminalBlockWidget(
+                            key: ValueKey(blocks[blockIndex].id),
                             block: blocks[blockIndex],
                             selection: selection,
                             fontSize: fontSize,
@@ -567,6 +568,7 @@ class _TerminalBlockWidget extends StatefulWidget {
   final double separatorHeight;
 
   const _TerminalBlockWidget({
+    super.key,
     required this.block,
     required this.selection,
     required this.fontSize,

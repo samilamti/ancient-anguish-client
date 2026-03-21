@@ -115,6 +115,27 @@ class UnifiedAreaConfigManager {
 
   // ── Mutations ──
 
+  /// Renames an area, transferring all coordinates, backgrounds, and music.
+  void renameArea(String oldName, String newName) {
+    final entry = _config.areas[oldName];
+    if (entry == null || newName.isEmpty || oldName == newName) return;
+    final areas = Map<String, AreaConfigEntry>.from(_config.areas);
+    areas.remove(oldName);
+    areas[newName] = entry.copyWith(name: newName);
+    _config = UnifiedAreaConfig(
+      areas: areas,
+      battleThemes: _config.battleThemes,
+    );
+    // Transfer cycle indices.
+    if (_backgroundCycleIndex.containsKey(oldName)) {
+      _backgroundCycleIndex[newName] = _backgroundCycleIndex.remove(oldName)!;
+    }
+    if (_musicCycleIndex.containsKey(oldName)) {
+      _musicCycleIndex[newName] = _musicCycleIndex.remove(oldName)!;
+    }
+    _saveToDisk();
+  }
+
   /// Creates or updates an area entry with the given coordinate.
   void addCoordinateToArea(String areaName, int x, int y) {
     final coordStr = '$x,$y';

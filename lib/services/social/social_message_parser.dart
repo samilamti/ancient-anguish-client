@@ -98,7 +98,7 @@ class SocialMessageParser {
   }
 
   /// Returns true if a party match is a system message (not a player message).
-  /// e.g. "<PartyName> Your party just killed the giant troll."
+  /// e.g. `<PartyName> Your party just killed the giant troll.`
   static bool isPartySystemMessage(PartyMatchResult match) {
     return match.sender == 'Your' &&
         match.text.startsWith('party just killed');

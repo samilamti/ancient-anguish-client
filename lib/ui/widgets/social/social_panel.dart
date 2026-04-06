@@ -307,7 +307,10 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
   Widget _buildMessageList(SocialWindowsState panelState) {
     if (widget.panelType == SocialPanelType.tabbed) {
       final idx = panelState.activeTab.clamp(0, 2);
-      return SocialMessageList(type: _tabListTypes[idx]);
+      return SocialMessageList(
+        key: ValueKey(_tabListTypes[idx]),
+        type: _tabListTypes[idx],
+      );
     }
     return SocialMessageList(
       type: switch (widget.panelType) {
@@ -357,7 +360,7 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
   }
 }
 
-class _TabButton extends StatelessWidget {
+class _TabButton extends StatefulWidget {
   final String label;
   final bool active;
   final bool hasUnread;
@@ -371,25 +374,71 @@ class _TabButton extends StatelessWidget {
   });
 
   @override
+  State<_TabButton> createState() => _TabButtonState();
+}
+
+class _TabButtonState extends State<_TabButton>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncPulse();
+  }
+
+  @override
+  void didUpdateWidget(_TabButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.hasUnread != oldWidget.hasUnread ||
+        widget.active != oldWidget.active) {
+      _syncPulse();
+    }
+  }
+
+  void _syncPulse() {
+    final shouldPulse = widget.hasUnread && !widget.active;
+    if (shouldPulse && _pulseController == null) {
+      _pulseController = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1200),
+      )..repeat(reverse: true);
+    } else if (!shouldPulse && _pulseController != null) {
+      _pulseController!.dispose();
+      _pulseController = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    final showUnread = hasUnread && !active;
+    final showUnread = widget.hasUnread && !widget.active;
 
     return Expanded(
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: Container(
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: showUnread ? Colors.amber.withAlpha(30) : null,
+            color: widget.active
+                ? primary.withAlpha(25)
+                : showUnread
+                    ? Colors.amber.withAlpha(50)
+                    : null,
             border: Border(
               bottom: BorderSide(
-                color: active
+                color: widget.active
                     ? primary
                     : showUnread
                         ? Colors.amber
                         : Colors.transparent,
-                width: 2,
+                width: widget.active ? 3 : 2,
               ),
             ),
           ),
@@ -397,26 +446,35 @@ class _TabButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                label,
+                widget.label,
                 style: TextStyle(
                   fontFamily: 'JetBrainsMono',
-                  fontSize: 11,
-                  fontWeight: active ? FontWeight.bold : FontWeight.normal,
-                  color: active
+                  fontSize: widget.active ? 12 : 11,
+                  fontWeight: widget.active ? FontWeight.bold : FontWeight.normal,
+                  color: widget.active
                       ? primary
                       : showUnread
                           ? Colors.amber
                           : primary.withAlpha(100),
                 ),
               ),
-              if (showUnread) ...[
+              if (showUnread && _pulseController != null) ...[
                 const SizedBox(width: 4),
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    color: Colors.amber,
-                    shape: BoxShape.circle,
+                AnimatedBuilder(
+                  animation: _pulseController!,
+                  builder: (context, child) {
+                    return Opacity(
+                      opacity: 0.4 + 0.6 * _pulseController!.value,
+                      child: child,
+                    );
+                  },
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.amber,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
               ],

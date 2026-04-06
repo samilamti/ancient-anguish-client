@@ -9,6 +9,8 @@ import '../../../providers/connection_provider.dart'
 import '../../../providers/game_state_provider.dart';
 import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../providers/social_panel_provider.dart';
+import '../../../models/social_panel_state.dart';
 import '../../../providers/terminal_block_provider.dart';
 import '../../../services/parser/emoji_parser.dart';
 
@@ -185,6 +187,26 @@ class _InputBarState extends ConsumerState<InputBar> {
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
+    }
+
+    // Ctrl/Cmd+1/2/3 to switch social tabs.
+    final ctrlOrCmd = HardwareKeyboard.instance.logicalKeysPressed.any((k) =>
+        k == LogicalKeyboardKey.controlLeft ||
+        k == LogicalKeyboardKey.controlRight ||
+        k == LogicalKeyboardKey.metaLeft ||
+        k == LogicalKeyboardKey.metaRight);
+    if (ctrlOrCmd) {
+      int? tabIndex;
+      if (event.logicalKey == LogicalKeyboardKey.digit1) tabIndex = 0;
+      if (event.logicalKey == LogicalKeyboardKey.digit2) tabIndex = 1;
+      if (event.logicalKey == LogicalKeyboardKey.digit3) tabIndex = 2;
+      if (tabIndex != null) {
+        final panelState = ref.read(socialPanelProvider);
+        if (panelState.tabMode == PanelTabMode.tabbed) {
+          ref.read(socialPanelProvider.notifier).setActiveTab(tabIndex);
+        }
+        return KeyEventResult.handled;
+      }
     }
 
     if (event.logicalKey == LogicalKeyboardKey.tab) {

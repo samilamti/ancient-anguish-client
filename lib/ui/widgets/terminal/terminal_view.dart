@@ -12,6 +12,8 @@ import '../../../providers/background_image_provider.dart';
 import '../../../providers/connection_provider.dart'
     show terminalBufferProvider, inputFocusProvider;
 import '../../../providers/settings_provider.dart';
+import '../../../providers/social_panel_provider.dart';
+import '../../../models/social_panel_state.dart';
 import '../../../providers/terminal_block_provider.dart';
 import '../../../services/platform/file_utils.dart';
 import 'block_action_bar.dart';
@@ -395,6 +397,25 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
         setState(() {});
       }
       return KeyEventResult.handled;
+    }
+
+    // Ctrl/Cmd+1/2/3 to switch social tabs.
+    final ctrlOrCmd = ctrl ||
+        HardwareKeyboard.instance.logicalKeysPressed.any((k) =>
+            k == LogicalKeyboardKey.metaLeft ||
+            k == LogicalKeyboardKey.metaRight);
+    if (ctrlOrCmd) {
+      int? tabIndex;
+      if (event.logicalKey == LogicalKeyboardKey.digit1) tabIndex = 0;
+      if (event.logicalKey == LogicalKeyboardKey.digit2) tabIndex = 1;
+      if (event.logicalKey == LogicalKeyboardKey.digit3) tabIndex = 2;
+      if (tabIndex != null) {
+        final panelState = ref.read(socialPanelProvider);
+        if (panelState.tabMode == PanelTabMode.tabbed) {
+          ref.read(socialPanelProvider.notifier).setActiveTab(tabIndex);
+        }
+        return KeyEventResult.handled;
+      }
     }
 
     return KeyEventResult.ignored;

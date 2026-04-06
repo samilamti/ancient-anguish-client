@@ -121,7 +121,18 @@
       "Bash(grep -E \"\\\\.\\(md|dart\\)$\")",
       "Bash(grep -r \"LogicalKeyboardKey.tab\\\\|TAB\\\\|\\\\t\" 'S:\\\\Ancient Anguish Client\\\\lib' --include=*.dart)",
       "mcp__Claude_Preview__preview_start",
-      "Bash(dart test:*)"
+      "Bash(dart test:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(find '/s/Ancient Anguish Client' -type f -name *social*)",
+      "Bash(find 'S:/Ancient Anguish Client' -path */services/trigger* -type f -name *.dart)",
+      "Bash(find 'S:/Ancient Anguish Client' -name *.md -path *Area* -o -name *Immersions.md)",
+      "Bash(grep -E \"\\\\.\\(dart|md\\)$\")",
+      "Bash(grep \"\\\\.dart$\")",
+      "Bash(dart run:*)",
+      "Bash(python3 -c \":*)",
+      "Bash(rm -f lib/models/world_map.dart lib/services/mapping/room_parser.dart lib/services/mapping/auto_explorer.dart lib/services/mapping/world_map_service.dart lib/providers/world_map_provider.dart lib/providers/auto_explorer_provider.dart)",
+      "Bash(rm -rf lib/services/mapping test/services/mapping test/integration)",
+      "Bash(brew install:*)"
     ]
   }
 }

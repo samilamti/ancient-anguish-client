@@ -114,6 +114,15 @@ class SocialMessageParser {
     return false;
   }
 
+  /// NPC senders whose tells should stay in the main terminal window.
+  static const _npcTellSenders = {'Priest'};
+
+  /// Returns true if a tell match is from an NPC (not a player).
+  /// e.g. "Priest tells you: The High Priest blesses you."
+  static bool isTellNpc(TellMatchResult match) {
+    return _npcTellSenders.contains(match.sender);
+  }
+
   /// Checks if a plain text line is a continuation (7+ leading spaces).
   static bool isContinuation(String plainText) {
     return _continuationRegex.hasMatch(plainText);

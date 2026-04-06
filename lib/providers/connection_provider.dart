@@ -424,9 +424,10 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       return _SocialLineResult.captured;
     }
 
-    // Check for tell line.
+    // Check for tell line (skip NPC tells — keep them in main terminal).
     final tellMatch = SocialMessageParser.matchTellLine(plainText);
-    if (tellMatch != null) {
+    if (tellMatch != null &&
+        !(!tellMatch.isOutgoing && SocialMessageParser.isTellNpc(tellMatch))) {
       _lastSocialType = tellMatch.isOutgoing
           ? SocialMessageType.tellOutgoing
           : SocialMessageType.tellIncoming;
@@ -497,11 +498,22 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
   /// Auto-switches the social tab when the terminal input bar has focus.
   /// Only applies in tabbed mode — separate panels are already visible.
+  /// Throttled to at most once every 2 seconds to avoid rapid tab flipping.
+  DateTime? _lastAutoSwitchTime;
+
   void _autoActivateTab(int tabIndex) {
     final panelState = ref.read(socialPanelProvider);
     if (panelState.tabMode != PanelTabMode.tabbed) return;
     if (panelState.activeTab == tabIndex) return;
     if (!ref.read(inputFocusProvider).hasFocus) return;
+
+    final now = DateTime.now();
+    if (_lastAutoSwitchTime != null &&
+        now.difference(_lastAutoSwitchTime!).inMilliseconds < 2000) {
+      return;
+    }
+
+    _lastAutoSwitchTime = now;
     ref.read(socialPanelProvider.notifier).setActiveTab(tabIndex);
   }
 

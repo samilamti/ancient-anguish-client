@@ -31,7 +31,7 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'v0.4.0 — Phase 4',
+                    'v6.5',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurface.withAlpha(160),
                     ),
@@ -74,6 +74,16 @@ class AboutScreen extends StatelessWidget {
                   _CreditTile(
                     name: 'Tuinn',
                     role: 'Testing & feedback on Windows',
+                  ),
+                  const SizedBox(height: 8),
+                  _CreditTile(
+                    name: 'Bytre',
+                    role: 'Advanced Customization concept & design',
+                  ),
+                  const SizedBox(height: 8),
+                  _CreditTile(
+                    name: 'Jerusulum',
+                    role: 'Accessibility contributions',
                   ),
                 ],
               ),

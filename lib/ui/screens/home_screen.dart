@@ -16,6 +16,7 @@ import '../widgets/social/social_windows_overlay.dart';
 import '../widgets/status/status_bar.dart';
 import '../widgets/terminal/input_bar.dart';
 import '../widgets/terminal/terminal_view.dart';
+import 'about_screen.dart';
 import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
 import 'settings_screen.dart';
@@ -134,6 +135,19 @@ class HomeScreen extends ConsumerWidget {
             tooltip: 'Clear terminal',
             onPressed: () {
               ref.read(terminalBufferProvider.notifier).clear();
+            },
+          ),
+
+          // About.
+          IconButton(
+            icon: const Icon(Icons.info_outline, size: 20),
+            tooltip: 'About',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AboutScreen(),
+                ),
+              );
             },
           ),
 

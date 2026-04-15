@@ -179,15 +179,28 @@ jobs:
       - name: Codesign app for Developer ID
         run: |
           APP_PATH="build/macos/Build/Products/Release/ancient_anguish_client.app"
-          IDENTITY="Developer ID Application: (${{ secrets.APPLE_TEAM_ID }})"
+          # Resolve the Developer ID Application identity from the keychain.
+          # The full CN is "Developer ID Application: <Team Name> (<TEAM_ID>)"
+          # which we don't know upfront, so match by SHA-1 hash.
+          IDENTITY_HASH=$(security find-identity -v -p codesigning \
+            | grep "Developer ID Application" \
+            | head -1 \
+            | awk '{print $2}')
+          if [ -z "$IDENTITY_HASH" ]; then
+            echo "ERROR: No Developer ID Application identity found in keychain"
+            security find-identity -v -p codesigning
+            exit 1
+          fi
+          echo "Using signing identity: $IDENTITY_HASH"
           # Sign all nested frameworks and the main app with hardened runtime
           codesign --deep --force --options runtime \
-            --sign "$IDENTITY" \
+            --sign "$IDENTITY_HASH" \
             --entitlements macos/Runner/Release.entitlements \
             "$APP_PATH"
-          # Verify signature
           codesign --verify --deep --strict "$APP_PATH"
           echo "App signed and verified for Developer ID distribution"
+          # Export for later steps
+          echo "DEVELOPERID_IDENTITY_HASH=$IDENTITY_HASH" >> "$GITHUB_ENV"
 
       - name: Install create-dmg
         run: brew install create-dmg
@@ -195,9 +208,9 @@ jobs:
       - name: Create signed DMG
         run: |
           chmod +x installers/macos/build-dmg.sh
-          IDENTITY="Developer ID Application: (${{ secrets.APPLE_TEAM_ID }})"
+          # Reuse the hash resolved during the codesign step
           ./installers/macos/build-dmg.sh "${{ steps.version.outputs.VERSION }}" \
-            --codesign-identity "$IDENTITY"
+            --codesign-identity "$DEVELOPERID_IDENTITY_HASH"
 
       - name: Notarize DMG
         run: |

@@ -75,14 +75,49 @@ import_cert() {
   cert_path="$(mktemp /tmp/cert-XXXXXX.p12)"
 
   echo "  Importing $name certificate..."
-  echo "${!base64_var}" | base64 --decode > "$cert_path"
-  security import "$cert_path" \
+
+  # Decode base64. Use printf (not echo) to avoid backslash interpretation.
+  # Strip any surrounding whitespace/newlines from the secret first.
+  local b64_value="${!base64_var}"
+  b64_value="${b64_value//$'\r'/}"
+  b64_value="${b64_value//$'\n'/}"
+  printf '%s' "$b64_value" | base64 --decode > "$cert_path"
+
+  # Verify the .p12 decoded to a reasonable size
+  local cert_size
+  cert_size=$(stat -f%z "$cert_path" 2>/dev/null || stat -c%s "$cert_path")
+  if [ "$cert_size" -lt 500 ]; then
+    echo "    ERROR: decoded .p12 is only ${cert_size} bytes — base64 secret looks wrong or truncated"
+    rm -f "$cert_path"
+    exit 1
+  fi
+  echo "    .p12 size: ${cert_size} bytes"
+
+  # Strip only trailing CR/LF from password (preserves leading/trailing spaces
+  # in case the real password has them, but kills the common \n paste artifact)
+  local pw="${!password_var}"
+  pw="${pw%$'\r'}"
+  pw="${pw%$'\n'}"
+  pw="${pw%$'\r'}"
+
+  if ! security import "$cert_path" \
     -k "$KEYCHAIN_NAME" \
-    -P "${!password_var}" \
+    -P "$pw" \
     -T /usr/bin/codesign \
     -T /usr/bin/security \
     -T /usr/bin/productbuild \
-    -T /usr/bin/productsign
+    -T /usr/bin/productsign 2>&1; then
+    echo ""
+    echo "    ERROR: $name import failed."
+    echo "    Common causes:"
+    echo "      1. Trailing whitespace/newline in the ${password_var} secret."
+    echo "      2. Curly quotes (' ' \" \") from a password manager — retype the password."
+    echo "      3. .p12 was exported from openssl 3.x — re-export from Keychain Access"
+    echo "         (File > Export Items) or add '-legacy' to openssl pkcs12 command."
+    echo "      4. Wrong password."
+    rm -f "$cert_path"
+    exit 1
+  fi
   rm -f "$cert_path"
 }
 

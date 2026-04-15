@@ -232,6 +232,16 @@ jobs:
           path: ancient-anguish-client-macos-*.dmg
 
       # ── Mac App Store path (.pkg via xcodebuild archive) ───────────
+      - name: Configure Runner target signing (macOS App Store)
+        run: |
+          ruby scripts/ci/configure-xcode-signing.rb \
+            macos/Runner.xcodeproj \
+            Runner \
+            Release \
+            "${{ secrets.APPLE_TEAM_ID }}" \
+            "Apple Distribution" \
+            "macOS App Store Distribution"
+
       - name: Archive for Mac App Store
         run: |
           xcodebuild archive \
@@ -240,10 +250,6 @@ jobs:
             -configuration Release \
             -archivePath build/macos/Runner.xcarchive \
             -destination 'generic/platform=macOS' \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
-            PROVISIONING_PROFILE_SPECIFIER="macOS App Store Distribution" \
             OTHER_CODE_SIGN_FLAGS="--options=runtime"
 
       - name: Export Mac App Store .pkg
@@ -483,6 +489,16 @@ jobs:
       - name: Build iOS (Flutter)
         run: flutter build ios --release --no-codesign
 
+      - name: Configure Runner target signing (iOS App Store)
+        run: |
+          ruby scripts/ci/configure-xcode-signing.rb \
+            ios/Runner.xcodeproj \
+            Runner \
+            Release \
+            "${{ secrets.APPLE_TEAM_ID }}" \
+            "Apple Distribution" \
+            "iOS App Store Distribution"
+
       - name: Archive for App Store
         run: |
           xcodebuild archive \
@@ -490,11 +506,7 @@ jobs:
             -scheme Runner \
             -configuration Release \
             -archivePath build/ios/Runner.xcarchive \
-            -destination 'generic/platform=iOS' \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
-            PROVISIONING_PROFILE_SPECIFIER="iOS App Store Distribution"
+            -destination 'generic/platform=iOS'
 
       - name: Export IPA
         run: |

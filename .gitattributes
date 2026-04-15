@@ -1,0 +1,10 @@
+# Apple's codesign / AMFIUnserializeXML parser rejects CRLF line endings.
+# Force LF on all plist-shaped files regardless of the client OS.
+*.plist        text eol=lf
+*.entitlements text eol=lf
+
+# Shell scripts must have LF endings to execute on Unix runners.
+*.sh           text eol=lf
+
+# Ruby scripts likewise.
+*.rb           text eol=lf

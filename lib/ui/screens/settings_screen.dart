@@ -339,7 +339,7 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('Ancient Anguish Client'),
-            subtitle: const Text('v6.5\nA cross-platform MUD client for Ancient Anguish'),
+            subtitle: const Text('v6.6\nA cross-platform MUD client for Ancient Anguish'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.of(context).push(

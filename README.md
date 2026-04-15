@@ -10,6 +10,7 @@ A cross-platform MUD client for [Ancient Anguish](http://ancient.anguish.org), b
 - **Aliases** — Short keywords that expand into longer commands with variable substitution (`$0`, `$1`, `$2`, ...) and semicolon command chaining. Ships with useful defaults (`k` for kill, `ga` for get all, etc.).
 - **Area detection & audio** — Determines the player's current area by coordinates or room description text patterns, then crossfades to area-specific background music.
 - **Game state display** — Parses HP, SP, XP, coins, coordinates, class, and player name from the prompt and CLIENT line into a live status bar with vitals gauges.
+- **Advanced Customization** — Choose from 30+ MUD prompt values (combat stats, XP tracking, survival needs, world info, etc.) to build a personalized HUD with dynamic panels that appear based on your selections.
 - **Mobile controls** — D-Pad for directional movement and a quick-commands bar for common actions on touch devices.
 - **Themes** — Three built-in themes: RPG Dark (gold and parchment), Classic Dark (green-on-black terminal), and High Contrast (accessibility).
 - **Social windows** — Floating/dockable Chat and Tells panels with autocomplete recipient selection, lazy-loading message history, and alternating-row striping.
@@ -62,7 +63,8 @@ lib/
 │   ├── alias_rule.dart                # Alias definition with variable substitution
 │   ├── area_config.dart               # Area bounds, area audio configuration
 │   ├── connection_info.dart           # Host/port and ConnectionStatus enum
-│   ├── game_state.dart                # HP, SP, XP, coords, player info
+│   ├── game_state.dart                # HP, SP, XP, coords, combat, survival, world info
+│   ├── prompt_element.dart            # Prompt element definitions and metadata
 │   └── trigger_rule.dart              # Trigger patterns, actions, highlight options
 ├── protocol/
 │   ├── telnet/
@@ -78,6 +80,8 @@ lib/
 │   ├── parser/
 │   │   ├── output_parser.dart         # UTF-8 decode → line split → ANSI parse
 │   │   └── prompt_parser.dart         # Prompt and CLIENT line extraction
+│   ├── prompt/
+│   │   └── prompt_command_builder.dart # Dynamic prompt command and regex builder
 │   ├── trigger/
 │   │   └── trigger_engine.dart        # Trigger matching, highlighting, gagging
 │   ├── alias/
@@ -92,6 +96,7 @@ lib/
 ├── providers/                         # Riverpod state management
 │   ├── connection_provider.dart
 │   ├── game_state_provider.dart
+│   ├── prompt_config_provider.dart    # Dynamic prompt command/regex from user selections
 │   ├── trigger_provider.dart
 │   ├── alias_provider.dart
 │   ├── audio_provider.dart
@@ -100,16 +105,24 @@ lib/
     ├── screens/
     │   ├── home_screen.dart           # Main game screen
     │   ├── settings_screen.dart       # General settings
+    │   ├── advanced_customization_screen.dart  # Prompt element selection UI
     │   ├── trigger_settings_screen.dart
     │   ├── alias_settings_screen.dart
-    │   └── audio_settings_screen.dart
+    │   └── about_screen.dart
     └── widgets/
         ├── terminal/
         │   ├── terminal_view.dart     # Scrollable styled-line renderer
         │   └── input_bar.dart         # Command input with history
         ├── status/
-        │   ├── status_bar.dart        # HP/SP/XP display
-        │   └── vitals_gauge.dart      # Animated health/mana bars
+        │   ├── status_bar.dart        # HP/SP/XP display + dynamic panels
+        │   ├── vitals_gauge.dart      # Animated health/mana bars
+        │   ├── combat_stats_panel.dart # Aim/attack/defend display
+        │   ├── xp_tracker_panel.dart  # XP rates and session tracking
+        │   ├── character_card_panel.dart # Level/race/class/age card
+        │   ├── wimpy_indicator.dart   # Wimpy HP threshold badge
+        │   ├── wealth_display.dart    # Coins and bank balance
+        │   ├── world_clock_panel.dart # Game time and reboot countdown
+        │   └── survival_panel.dart    # Hunger/thirst/poison indicators
         ├── audio/
         │   └── audio_controls.dart    # Volume and track controls
         ├── mobile/
@@ -195,19 +208,20 @@ Aliases expand a short keyword into a longer command before it is sent to the se
 
 ### Prompt Setup
 
-The client parses game state from two prompt formats:
+The client automatically configures your in-game prompt on login. By default it requests HP, Max HP, SP, Max SP, and coordinates — the minimum needed for the status bar and area detection.
 
-**Basic prompt** (default): `HP/MaxHP:SP/MaxSP>`
-```
-set prompt |HP|/|MAXHP|:|SP|/|MAXSP|>
-```
+**Advanced Customization** (Settings > Advanced Customization) lets you add more prompt elements. The client dynamically builds and sends the `prompt set` command based on your selections, and new HUD panels appear for each category:
 
-**Extended CLIENT line** (enables coordinates, XP, coins, area detection):
-```
-set prompt |HP|/|MAXHP|:|SP|/|MAXSP|>\n CLIENT:X:|XCOORD|:Y:|YCOORD|:|NAME|:|CLASS|:|COINS|:|XP|
-```
+| Category   | Elements                                      | HUD Panel              |
+|------------|-----------------------------------------------|------------------------|
+| Combat     | Aim, Attack, Defend, Wimpy, Wimpy Dir         | Combat readiness       |
+| Experience | XP/min, Session XP, Session XP/min            | XP tracker with trends |
+| Character  | Level, Race, Class, Age                       | Character card         |
+| Wealth     | Coins, Banks                                  | Wealth display         |
+| World      | Game Time, Reboot                             | World clock            |
+| Survival   | Hunger, Thirst, Drunk, Poison, etc. (donator) | Color-coded conditions |
 
-Run the `set prompt` command in-game to configure your prompt for full client features.
+The prompt command is resent automatically if you change your selections while connected.
 
 ### Themes
 

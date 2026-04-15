@@ -4,12 +4,44 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag (e.g. v1.0.0) — used for artifact naming when triggered manually'
+        required: false
+        default: 'v0.0.0-dev'
 
 permissions:
   contents: write
 
 env:
   FLUTTER_VERSION: '3.38.5'
+
+# ──────────────────────────────────────────────────────────────────────
+# SETUP CHECKLIST — before this workflow can sign and publish:
+#
+# 1. Apple Developer Portal (developer.apple.com):
+#    a. Certificates: create "Developer ID Application", "Apple Distribution",
+#       and "Mac Installer Distribution" certificates.
+#    b. Identifiers: register App ID org.ancientanguish.ancientAnguishClient
+#       for both iOS and macOS.
+#    c. Profiles: create "iOS App Store" and "macOS App Store" distribution
+#       provisioning profiles for the bundle ID above.
+#
+# 2. App Store Connect (appstoreconnect.apple.com):
+#    a. Create app records for iOS and macOS.
+#    b. Users & Access > Integrations > App Store Connect API: create an
+#       API key with "App Manager" role. Download the .p8 key file.
+#
+# 3. GitHub Secrets (Settings > Secrets and variables > Actions):
+#    APPLE_TEAM_ID, DEVELOPERID_CERT_BASE64, DEVELOPERID_CERT_PASSWORD,
+#    APPLE_DISTRIBUTION_CERT_BASE64, APPLE_DISTRIBUTION_CERT_PASSWORD,
+#    MAC_INSTALLER_CERT_BASE64, MAC_INSTALLER_CERT_PASSWORD,
+#    IOS_PROFILE_BASE64, MACOS_APPSTORE_PROFILE_BASE64,
+#    ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_BASE64
+#
+#    To encode files: base64 -i <file> | pbcopy  (macOS)
+# ──────────────────────────────────────────────────────────────────────
 
 jobs:
   build-windows:
@@ -41,10 +73,16 @@ jobs:
       - name: Build Windows release
         run: flutter build windows --release
 
+      - name: Set version
+        id: version
+        run: |
+          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "${{ inputs.tag }}" }
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
       - name: Archive Windows build
         run: |
-          $version = "${{ github.ref_name }}"
-          Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "ancient-anguish-client-windows-x64-$version.zip" -Force
+          Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "ancient-anguish-client-windows-x64-${{ steps.version.outputs.VERSION }}.zip" -Force
         shell: pwsh
 
       - name: Upload Windows artifact
@@ -63,7 +101,7 @@ jobs:
 
       - name: Build Windows Installer
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
+          $version = "${{ steps.version.outputs.VERSION }}".TrimStart("v")
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion="$version" "installers\windows\installer.iss"
         shell: pwsh
 
@@ -75,9 +113,30 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      DEVELOPERID_CERT_BASE64: ${{ secrets.DEVELOPERID_CERT_BASE64 }}
+      DEVELOPERID_CERT_PASSWORD: ${{ secrets.DEVELOPERID_CERT_PASSWORD }}
+      APPLE_DISTRIBUTION_CERT_BASE64: ${{ secrets.APPLE_DISTRIBUTION_CERT_BASE64 }}
+      APPLE_DISTRIBUTION_CERT_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERT_PASSWORD }}
+      MAC_INSTALLER_CERT_BASE64: ${{ secrets.MAC_INSTALLER_CERT_BASE64 }}
+      MAC_INSTALLER_CERT_PASSWORD: ${{ secrets.MAC_INSTALLER_CERT_PASSWORD }}
+      MACOS_APPSTORE_PROFILE_BASE64: ${{ secrets.MACOS_APPSTORE_PROFILE_BASE64 }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "VERSION=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -107,34 +166,105 @@ jobs:
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs
 
+      # ── Signing setup ──────────────────────────────────────────────
+      - name: Setup Apple signing
+        run: |
+          chmod +x scripts/ci/setup-apple-signing.sh
+          bash scripts/ci/setup-apple-signing.sh --macos-devid --macos-appstore
+
+      # ── Developer ID path (signed + notarized DMG) ─────────────────
       - name: Build macOS release
         run: flutter build macos --release
 
-      - name: Archive .app bundle
+      - name: Codesign app for Developer ID
         run: |
-          cd build/macos/Build/Products/Release
-          zip -r -y "ancient-anguish-client-macos-${{ github.ref_name }}.zip" ancient_anguish_client.app
+          APP_PATH="build/macos/Build/Products/Release/ancient_anguish_client.app"
+          IDENTITY="Developer ID Application: (${{ secrets.APPLE_TEAM_ID }})"
+          # Sign all nested frameworks and the main app with hardened runtime
+          codesign --deep --force --options runtime \
+            --sign "$IDENTITY" \
+            --entitlements macos/Runner/Release.entitlements \
+            "$APP_PATH"
+          # Verify signature
+          codesign --verify --deep --strict "$APP_PATH"
+          echo "App signed and verified for Developer ID distribution"
 
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-release
-          path: build/macos/Build/Products/Release/ancient-anguish-client-macos-*.zip
+      - name: Install create-dmg
+        run: brew install create-dmg
 
-      - name: Create DMG
+      - name: Create signed DMG
         run: |
-          mkdir -p dmg-staging
-          cp -R "build/macos/Build/Products/Release/ancient_anguish_client.app" dmg-staging/
-          ln -s /Applications dmg-staging/Applications
-          hdiutil create -volname "Ancient Anguish Client" \
-            -srcfolder dmg-staging -ov -format UDZO \
-            "ancient-anguish-client-macos-${{ github.ref_name }}.dmg"
+          chmod +x installers/macos/build-dmg.sh
+          IDENTITY="Developer ID Application: (${{ secrets.APPLE_TEAM_ID }})"
+          ./installers/macos/build-dmg.sh "${{ steps.version.outputs.VERSION }}" \
+            --codesign-identity "$IDENTITY"
+
+      - name: Notarize DMG
+        run: |
+          DMG_NAME="ancient-anguish-client-macos-$(echo '${{ steps.version.outputs.VERSION }}' | sed 's/^v//').dmg"
+          echo "Submitting $DMG_NAME for notarization..."
+          xcrun notarytool submit "$DMG_NAME" \
+            --key "$ASC_KEY_PATH" \
+            --key-id "${{ secrets.ASC_KEY_ID }}" \
+            --issuer "${{ secrets.ASC_ISSUER_ID }}" \
+            --wait
+          echo "Stapling notarization ticket..."
+          xcrun stapler staple "$DMG_NAME"
+          echo "Notarization complete"
 
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg-release
           path: ancient-anguish-client-macos-*.dmg
+
+      # ── Mac App Store path (.pkg via xcodebuild archive) ───────────
+      - name: Archive for Mac App Store
+        run: |
+          xcodebuild archive \
+            -workspace macos/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath build/macos/Runner.xcarchive \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            PROVISIONING_PROFILE_SPECIFIER="macOS App Store Distribution" \
+            OTHER_CODE_SIGN_FLAGS="--options=runtime"
+
+      - name: Export Mac App Store .pkg
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/macos/Runner.xcarchive \
+            -exportOptionsPlist macos/ExportOptions-appstore.plist \
+            -exportPath build/macos/appstore
+          echo "Exported Mac App Store package:"
+          ls -la build/macos/appstore/
+
+      - name: Upload .pkg to Mac App Store
+        run: |
+          PKG_PATH=$(find build/macos/appstore -name "*.pkg" | head -1)
+          echo "Uploading $PKG_PATH to App Store Connect..."
+          xcrun altool --upload-app \
+            --type osx \
+            --file "$PKG_PATH" \
+            --apiKey "${{ secrets.ASC_KEY_ID }}" \
+            --apiIssuer "${{ secrets.ASC_ISSUER_ID }}"
+          echo "Upload complete — check App Store Connect for build status"
+
+      - name: Upload Mac App Store .pkg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-appstore-release
+          path: build/macos/appstore/*.pkg
+
+      # ── Cleanup ────────────────────────────────────────────────────
+      - name: Cleanup signing
+        if: always()
+        run: |
+          chmod +x scripts/ci/cleanup-apple-signing.sh
+          bash scripts/ci/cleanup-apple-signing.sh
 
   build-android:
     runs-on: ubuntu-latest
@@ -183,6 +313,15 @@ jobs:
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs
 
+      - name: Set version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "VERSION=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build APK
         run: flutter build apk --release
 
@@ -191,7 +330,7 @@ jobs:
 
       - name: Rename artifacts with version
         run: |
-          VERSION="${{ github.ref_name }}"
+          VERSION="${{ steps.version.outputs.VERSION }}"
           cp build/app/outputs/flutter-apk/app-release.apk "ancient-anguish-client-android-${VERSION}.apk"
           cp build/app/outputs/bundle/release/app-release.aab "ancient-anguish-client-android-${VERSION}.aab"
 
@@ -238,11 +377,20 @@ jobs:
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs
 
+      - name: Set version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "VERSION=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build Linux release
         run: flutter build linux --release
 
       - name: Archive Linux build
-        run: tar -czf "ancient-anguish-client-linux-x64-${{ github.ref_name }}.tar.gz" -C build/linux/x64/release bundle
+        run: tar -czf "ancient-anguish-client-linux-x64-${{ steps.version.outputs.VERSION }}.tar.gz" -C build/linux/x64/release bundle
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
@@ -253,7 +401,7 @@ jobs:
       - name: Build .deb package
         run: |
           chmod +x installers/linux/build-deb.sh
-          ./installers/linux/build-deb.sh "${{ github.ref_name }}"
+          ./installers/linux/build-deb.sh "${{ steps.version.outputs.VERSION }}"
 
       - name: Upload Linux .deb
         uses: actions/upload-artifact@v4
@@ -263,9 +411,26 @@ jobs:
 
   build-ios:
     runs-on: macos-latest
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_DISTRIBUTION_CERT_BASE64: ${{ secrets.APPLE_DISTRIBUTION_CERT_BASE64 }}
+      APPLE_DISTRIBUTION_CERT_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERT_PASSWORD }}
+      IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "VERSION=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -295,12 +460,71 @@ jobs:
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs
 
-      - name: Build iOS release (unsigned)
+      # ── Signing setup ──────────────────────────────────────────────
+      - name: Setup Apple signing
+        run: |
+          chmod +x scripts/ci/setup-apple-signing.sh
+          bash scripts/ci/setup-apple-signing.sh --ios
+
+      # ── Build, archive, export, upload ─────────────────────────────
+      - name: Build iOS (Flutter)
         run: flutter build ios --release --no-codesign
+
+      - name: Archive for App Store
+        run: |
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath build/ios/Runner.xcarchive \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            PROVISIONING_PROFILE_SPECIFIER="iOS App Store Distribution"
+
+      - name: Export IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/ios/Runner.xcarchive \
+            -exportOptionsPlist ios/ExportOptions-appstore.plist \
+            -exportPath build/ios/ipa
+          echo "Exported IPA:"
+          ls -la build/ios/ipa/
+
+      - name: Upload to TestFlight
+        run: |
+          IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -1)
+          echo "Uploading $IPA_PATH to TestFlight..."
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "${{ secrets.ASC_KEY_ID }}" \
+            --apiIssuer "${{ secrets.ASC_ISSUER_ID }}"
+          echo "Upload complete — check App Store Connect for build status"
+
+      - name: Rename and upload IPA artifact
+        run: |
+          IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -1)
+          cp "$IPA_PATH" "ancient-anguish-client-ios-${{ steps.version.outputs.VERSION }}.ipa"
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release
+          path: ancient-anguish-client-ios-*.ipa
+
+      # ── Cleanup ────────────────────────────────────────────────────
+      - name: Cleanup signing
+        if: always()
+        run: |
+          chmod +x scripts/ci/cleanup-apple-signing.sh
+          bash scripts/ci/cleanup-apple-signing.sh
 
   create-release:
     needs: [build-windows, build-macos, build-android, build-linux, build-ios]
     runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4

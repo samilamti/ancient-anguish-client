@@ -4,7 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/battle_provider.dart';
 import '../../../providers/game_state_provider.dart';
 import '../../../providers/unified_area_config_provider.dart';
+import 'character_card_panel.dart';
+import 'combat_stats_panel.dart';
+import 'survival_panel.dart';
 import 'vitals_gauge.dart';
+import 'wealth_display.dart';
+import 'wimpy_indicator.dart';
+import 'world_clock_panel.dart';
+import 'xp_tracker_panel.dart';
 
 /// Shows a dialog to rename the current area. Shared by status bar and D-pad.
 Future<void> showRenameAreaDialog(BuildContext context, WidgetRef ref) async {
@@ -366,6 +373,16 @@ class _StatusBarState extends ConsumerState<StatusBar>
                 ],
               ),
             ),
+
+          // ── Dynamic panels from Advanced Customization ──
+          if (gameState.hasCombatStats) const CombatStatsPanel(),
+          if (gameState.hasXpTracking) const XpTrackerPanel(),
+          if (gameState.level != null || gameState.race != null)
+            const CharacterCardPanel(),
+          if (gameState.wimpy != null) const WimpyIndicator(),
+          if (gameState.banks != null) const WealthDisplay(),
+          if (gameState.hasWorldInfo) const WorldClockPanel(),
+          if (gameState.hasSurvivalStats) const SurvivalPanel(),
         ],
       ),
     );

@@ -66,17 +66,17 @@ class PanelTitleBar extends StatelessWidget {
               ),
             ),
 
-            // Combine/separate tabs button.
+            // Combine/separate tabs – prominent pill button.
             if (isTabbed && onSeparateTabs != null)
-              _TitleButton(
-                icon: Icons.tab_unselected,
-                tooltip: 'Separate windows',
+              _TabModePill(
+                icon: Icons.splitscreen,
+                label: 'Separate',
                 onPressed: onSeparateTabs!,
               )
             else if (!isTabbed && onCombineTabs != null)
-              _TitleButton(
-                icon: Icons.tab,
-                tooltip: 'Combine into tabs',
+              _TabModePill(
+                icon: Icons.join_full,
+                label: 'Combine',
                 onPressed: onCombineTabs!,
               ),
 
@@ -101,6 +101,59 @@ class PanelTitleBar extends StatelessWidget {
               onPressed: onClose,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A visually prominent pill-shaped button for the combine/separate toggle.
+///
+/// Stands out from the other title bar icon buttons by using a contrasting
+/// background, a text label, and slightly larger touch target.
+class _TabModePill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _TabModePill({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: Material(
+        color: primary.withAlpha(35),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 13, color: primary),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'JetBrainsMono',
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

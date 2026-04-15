@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/settings_provider.dart';
 import 'about_screen.dart';
+import 'advanced_customization_screen.dart';
 import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
 import 'trigger_settings_screen.dart';
@@ -19,7 +20,20 @@ class SettingsScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'About',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AboutScreen()),
+              );
+            },
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -238,6 +252,20 @@ class SettingsScreen extends ConsumerWidget {
               ),
           ],
 
+          ListTile(
+            leading: const Icon(Icons.tune),
+            title: const Text('Advanced Customization'),
+            subtitle: const Text('Choose which stats appear in the HUD'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AdvancedCustomizationScreen(),
+                ),
+              );
+            },
+          ),
+
           const Divider(height: 32),
 
           // ── Automation section ──
@@ -311,7 +339,7 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('Ancient Anguish Client'),
-            subtitle: const Text('v0.4.0 — Phase 4\nA cross-platform MUD client for Ancient Anguish'),
+            subtitle: const Text('v6.5\nA cross-platform MUD client for Ancient Anguish'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.of(context).push(

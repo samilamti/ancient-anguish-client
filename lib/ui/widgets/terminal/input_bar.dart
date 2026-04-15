@@ -72,6 +72,10 @@ class _InputBarState extends ConsumerState<InputBar> {
     final expanded = aliasEngine.expand(command);
     final settings = ref.read(settingsProvider);
     for (final cmd in expanded) {
+      // Suppress emoji parsing for map output so ASCII art renders cleanly.
+      if (cmd.trim().toLowerCase() == 'read map') {
+        ref.read(terminalBufferProvider.notifier).suppressEmojiUntilPrompt();
+      }
       final outgoing = settings.emojiParsingEnabled
           ? EmojiParser.reverseEmojis(cmd)
           : cmd;

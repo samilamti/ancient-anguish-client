@@ -114,6 +114,8 @@ jobs:
   build-macos:
     runs-on: macos-latest
     env:
+      # Apple requires builds with the iOS/macOS 26 SDK starting 2026-04-28.
+      # latest-stable picks the newest Xcode installed on the runner.
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       DEVELOPERID_CERT_BASE64: ${{ secrets.DEVELOPERID_CERT_BASE64 }}
       DEVELOPERID_CERT_PASSWORD: ${{ secrets.DEVELOPERID_CERT_PASSWORD }}
@@ -137,6 +139,14 @@ jobs:
           else
             echo "VERSION=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Print Xcode version
+        run: xcodebuild -version
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -450,6 +460,14 @@ jobs:
           else
             echo "VERSION=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Print Xcode version
+        run: xcodebuild -version
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2

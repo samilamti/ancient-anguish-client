@@ -45,5 +45,20 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!--
+	  Privacy purpose strings. Required because file_picker links
+	  DKImagePickerController / DKPhotoGallery, which reference photo
+	  library, camera, and microphone APIs. The app itself never invokes
+	  these features, but Apple's static analysis flags any linked
+	  privacy-gated symbol and rejects the build without a purpose string.
+	-->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app does not access your photos. This permission is required by a bundled file-picker library.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>This app does not save photos. This permission is required by a bundled file-picker library.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app does not use the camera. This permission is required by a bundled file-picker library.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app does not use the microphone. This permission is required by a bundled file-picker library.</string>
 </dict>
 </plist>

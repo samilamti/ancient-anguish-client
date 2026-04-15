@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart' show FocusNode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/web_config.dart';
+import '../models/prompt_element.dart';
 import '../models/auth_state.dart';
 import '../models/connection_info.dart';
 import '../models/social_panel_state.dart';
@@ -25,6 +26,7 @@ import '../services/social/social_message_parser.dart';
 import 'battle_provider.dart';
 import 'game_state_provider.dart';
 import 'login_provider.dart';
+import 'prompt_config_provider.dart';
 import 'settings_provider.dart';
 import 'social_message_provider.dart';
 import 'social_panel_provider.dart';
@@ -88,10 +90,6 @@ final terminalBufferProvider =
 /// parsing them into styled lines.
 class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   static const int _maxLines = 5000;
-  static const String _promptCommand =
-      'prompt set @@|HP| |MAXHP| |SP| |MAXSP| |XCOORD| |YCOORD|@@';
-  static final RegExp _promptLineRegex = RegExp(
-      r'@@\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+(-?\d+)@@');
   static final RegExp _ansiEscapeRegex = RegExp(r'\x1B\[[0-9;]*[a-zA-Z]');
 
   StreamSubscription<TelnetEvent>? _eventSub;
@@ -99,6 +97,26 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   bool _loginDetected = false;
   SocialMessageType? _lastSocialType;
   bool _inTellHistory = false;
+
+  /// When true, emoji parsing is suppressed to preserve ASCII-art maps.
+  ///
+  /// Set by [suppressEmojiUntilPrompt] (user sent `read map`) or by
+  /// detecting the map border `+---...---+`. Cleared when the next prompt
+  /// arrives or the closing border is seen.
+  bool _emojiSuppressed = false;
+
+  /// Tracks whether we've already seen the opening map border and are
+  /// waiting for the closing one.
+  bool _insideMapBorder = false;
+
+  static final RegExp _mapBorderRegex =
+      RegExp(r'^\+\-{20,}\+$');
+
+  /// Called when the user sends a command that should suppress emoji
+  /// parsing until the next prompt (e.g. `read map`).
+  void suppressEmojiUntilPrompt() {
+    _emojiSuppressed = true;
+  }
 
   @override
   List<StyledLine> build() {
@@ -117,6 +135,13 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
     final service = ref.read(connectionServiceProvider);
     final parser = ref.read(outputParserProvider);
+
+    // Resend prompt command when user changes Advanced Customization settings.
+    ref.listen(promptConfigProvider, (previous, next) {
+      if (_loginDetected && previous?.promptCommand != next.promptCommand) {
+        service.sendCommand(next.promptCommand);
+      }
+    });
 
     _eventSub = service.events.listen((event) {
       if (event is TelnetDataEvent) {
@@ -140,7 +165,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             if (!_loginDetected &&
                 plainText.contains('A player usage graph.')) {
               _loginDetected = true;
-              service.sendCommand(_promptCommand);
+              service.sendCommand(ref.read(promptConfigProvider).promptCommand);
             }
 
             // Prompt line detection: gag and capture HP/SP/coordinates.
@@ -150,17 +175,18 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
               final vitals = _extractPrompt(plainText);
               if (vitals != null) {
                 promptDetected = true;
-                gameNotifier.updateVitalsAndCoordinates(
-                  vitals.hp, vitals.maxHp, vitals.sp,
-                  vitals.maxSp, vitals.x, vitals.y,
-                );
+                // A prompt signals end-of-output — lift emoji suppression
+                // that was triggered by `read map`.
+                _emojiSuppressed = false;
+                _insideMapBorder = false;
+                gameNotifier.updateFromPrompt(vitals.values);
                 // If the entire line was the prompt, gag it.
                 if (vitals.remainder.isEmpty) continue;
                 // Otherwise, re-parse the remainder as a new line.
                 var remainderLine =
                     StyledLine([StyledSpan(text: vitals.remainder)]);
                 final settings = ref.read(settingsProvider);
-                if (settings.emojiParsingEnabled) {
+                if (settings.emojiParsingEnabled && !_emojiSuppressed) {
                   remainderLine = EmojiParser.processLine(remainderLine);
                 }
                 final result = triggerEngine.processLine(remainderLine);
@@ -173,11 +199,33 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
               }
             }
 
+            // Map border detection: suppress emoji inside ASCII-art maps
+            // delimited by +---...---+ borders.
+            if (_mapBorderRegex.hasMatch(plainText.trim())) {
+              if (!_insideMapBorder) {
+                // Opening border — begin suppression.
+                _insideMapBorder = true;
+                _emojiSuppressed = true;
+              } else {
+                // Closing border — will lift suppression after this line.
+                _insideMapBorder = false;
+                // Keep suppressed for this line (the border itself), clear
+                // after processing below.
+              }
+            }
+
             // Apply emoji parsing: replace text emoticons with emoji.
             final settings = ref.read(settingsProvider);
-            final emojiLine = settings.emojiParsingEnabled
-                ? EmojiParser.processLine(line)
-                : line;
+            final emojiLine =
+                settings.emojiParsingEnabled && !_emojiSuppressed
+                    ? EmojiParser.processLine(line)
+                    : line;
+
+            // Lift suppression after the closing border line is processed.
+            if (!_insideMapBorder && _emojiSuppressed &&
+                _mapBorderRegex.hasMatch(plainText.trim())) {
+              _emojiSuppressed = false;
+            }
 
             // Tell history block: "thistory" / "tell $" output should not
             // be captured into the social tells window.
@@ -255,14 +303,13 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         if (_loginDetected && parser.hasPendingData) {
           final pendingPlain = parser.pendingText
               .replaceAll(_ansiEscapeRegex, '');
-          if (_promptLineRegex.hasMatch(pendingPlain)) {
+          if (ref.read(promptConfigProvider).promptRegex.hasMatch(pendingPlain)) {
             final flushed = parser.flush();
             if (flushed != null) {
               final vitals = _extractPrompt(flushed.plainText);
               if (vitals != null) {
-                ref.read(gameStateProvider.notifier).updateVitalsAndCoordinates(
-                  vitals.hp, vitals.maxHp, vitals.sp,
-                  vitals.maxSp, vitals.x, vitals.y,
+                ref.read(gameStateProvider.notifier).updateFromPrompt(
+                  vitals.values,
                 );
                 // Prompt boundary for block mode.
                 if (ref.read(settingsProvider).blockModeEnabled) {
@@ -295,16 +342,15 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           if (!_loginDetected &&
               plainText.contains('A player usage graph.')) {
             _loginDetected = true;
-            service.sendCommand(_promptCommand);
+            service.sendCommand(ref.read(promptConfigProvider).promptCommand);
           }
 
           // Prompt line detection: gag and capture HP/SP/coordinates.
           if (_loginDetected) {
             final vitals = _extractPrompt(plainText);
             if (vitals != null) {
-              ref.read(gameStateProvider.notifier).updateVitalsAndCoordinates(
-                vitals.hp, vitals.maxHp, vitals.sp,
-                vitals.maxSp, vitals.x, vitals.y,
+              ref.read(gameStateProvider.notifier).updateFromPrompt(
+                vitals.values,
               );
               return; // Gagged.
             }
@@ -371,6 +417,8 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         _loginDetected = false;
         _lastSocialType = null;
         _inTellHistory = false;
+        _emojiSuppressed = false;
+        _insideMapBorder = false;
         ref.read(blockBoundaryProvider.notifier).reset();
       }
     });
@@ -556,23 +604,29 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     }
   }
 
-  /// Extracts vitals from text containing `@@HP MAXHP SP MAXSP X Y@@`.
+  /// Extracts prompt values from text containing `@@...@@` markers.
   ///
-  /// Returns the parsed values plus any text after the closing `@@` marker
-  /// (in case the prompt was prepended to the next output line).
-  static _PromptMatch? _extractPrompt(String text) {
-    final match = _promptLineRegex.firstMatch(text);
+  /// Uses the dynamic regex and element list from [promptConfigProvider]
+  /// so the parser adapts to the user's selected prompt elements.
+  /// Returns the parsed values plus any text after the closing `@@` marker.
+  _PromptMatch? _extractPrompt(String text) {
+    final config = ref.read(promptConfigProvider);
+    final match = config.promptRegex.firstMatch(text);
     if (match == null) return null;
     final remainder = text.substring(match.end).trim();
-    return _PromptMatch(
-      hp: int.parse(match.group(1)!),
-      maxHp: int.parse(match.group(2)!),
-      sp: int.parse(match.group(3)!),
-      maxSp: int.parse(match.group(4)!),
-      x: int.parse(match.group(5)!),
-      y: int.parse(match.group(6)!),
-      remainder: remainder,
-    );
+    final values = <PromptElementId, dynamic>{};
+    for (var i = 0; i < config.activeElements.length; i++) {
+      final element = config.activeElements[i];
+      final raw = match.group(i + 1);
+      if (raw == null) continue;
+      values[element.id] = switch (element.dataType) {
+        PromptDataType.integer => int.tryParse(raw) ?? 0,
+        PromptDataType.signedInteger => int.tryParse(raw) ?? 0,
+        PromptDataType.percentage => int.tryParse(raw) ?? 0,
+        PromptDataType.string => raw,
+      };
+    }
+    return _PromptMatch(values: values, remainder: remainder);
   }
 
   /// Marks login as complete (called by [LoginNotifier] after credentials are
@@ -585,17 +639,9 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
 /// Parsed prompt values plus any trailing text that followed the prompt.
 class _PromptMatch {
-  final int hp, maxHp, sp, maxSp, x, y;
+  final Map<PromptElementId, dynamic> values;
   final String remainder;
-  const _PromptMatch({
-    required this.hp,
-    required this.maxHp,
-    required this.sp,
-    required this.maxSp,
-    required this.x,
-    required this.y,
-    required this.remainder,
-  });
+  const _PromptMatch({required this.values, required this.remainder});
 }
 
 /// Result of checking a line for social message content.

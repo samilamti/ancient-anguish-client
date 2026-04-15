@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/game_state.dart';
+import '../models/prompt_element.dart';
 import '../services/area/area_detector.dart';
 import '../services/parser/prompt_parser.dart';
 import 'unified_area_config_provider.dart';
@@ -53,19 +54,22 @@ class GameStateNotifier extends Notifier<GameState> {
 
   /// Called when prompt lines are parsed from the MUD output.
   ///
-  /// Updates HP, MaxHP, SP, MaxSP, and coordinates in a single state update.
+  /// Updates all fields present in the parsed prompt values map.
   /// Uses the exact coordinate config for area name lookup.
-  /// Constructs state directly (not via copyWith) so that currentArea can be
-  /// cleared to null when no config entry matches.
-  void updateVitalsAndCoordinates(
-    int hp, int maxHp, int sp, int maxSp, int x, int y,
-  ) {
+  /// Preserves existing values for fields not included in the current prompt.
+  void updateFromPrompt(Map<PromptElementId, dynamic> values) {
+    final hp = values[PromptElementId.hp] as int? ?? state.hp;
+    final maxHp = values[PromptElementId.maxHp] as int? ?? state.maxHp;
+    final sp = values[PromptElementId.sp] as int? ?? state.sp;
+    final maxSp = values[PromptElementId.maxSp] as int? ?? state.maxSp;
+    final x = values[PromptElementId.xCoord] as int? ?? state.x;
+    final y = values[PromptElementId.yCoord] as int? ?? state.y;
+
     final coordsChanged = x != state.x || y != state.y;
 
     // Only re-resolve area from coordinates when position actually changed.
-    // This preserves text-based overrides (e.g., "Inns" inside Tantallon).
     String? area;
-    if (coordsChanged) {
+    if (coordsChanged && x != null && y != null) {
       final unifiedConfig = ref.read(unifiedAreaConfigProvider).value;
       final configEntry = unifiedConfig?.lookupByCoord(x, y);
       area = configEntry?.name;
@@ -80,14 +84,59 @@ class GameStateNotifier extends Notifier<GameState> {
       maxSp: maxSp,
       x: x,
       y: y,
-      playerName: state.playerName,
-      playerClass: state.playerClass,
-      coins: state.coins,
-      xp: state.xp,
+      playerName: (values[PromptElementId.name] as String?) ?? state.playerName,
+      playerClass:
+          (values[PromptElementId.playerClass] as String?) ?? state.playerClass,
+      race: (values[PromptElementId.race] as String?) ?? state.race,
+      level: (values[PromptElementId.level] as int?) ?? state.level,
+      age: (values[PromptElementId.age] as int?) ?? state.age,
+      xp: (values[PromptElementId.xp] as int?) ?? state.xp,
+      xpPerMin: (values[PromptElementId.xpPerMin] as int?) ?? state.xpPerMin,
+      sessionXp: (values[PromptElementId.sessionXp] as int?) ?? state.sessionXp,
+      sessionXpPerMin: (values[PromptElementId.sessionXpPerMin] as int?) ??
+          state.sessionXpPerMin,
+      aim: (values[PromptElementId.aim] as String?) ?? state.aim,
+      attack: (values[PromptElementId.attack] as String?) ?? state.attack,
+      defend: (values[PromptElementId.defend] as String?) ?? state.defend,
+      wimpy: (values[PromptElementId.wimpy] as int?) ?? state.wimpy,
+      wimpyDir: (values[PromptElementId.wimpyDir] as String?) ?? state.wimpyDir,
+      coins: (values[PromptElementId.coins] as int?) ?? state.coins,
+      banks: (values[PromptElementId.banks] as int?) ?? state.banks,
+      gametime: (values[PromptElementId.gametime] as String?) ?? state.gametime,
+      reboot: (values[PromptElementId.reboot] as String?) ?? state.reboot,
+      port: (values[PromptElementId.port] as int?) ?? state.port,
+      stuffed: (values[PromptElementId.stuffed] as int?) ?? state.stuffed,
+      thirst: (values[PromptElementId.thirst] as int?) ?? state.thirst,
+      drunk: (values[PromptElementId.drunk] as int?) ?? state.drunk,
+      smoke: (values[PromptElementId.smoke] as int?) ?? state.smoke,
+      med: (values[PromptElementId.med] as int?) ?? state.med,
+      encumbered:
+          (values[PromptElementId.encumbered] as int?) ?? state.encumbered,
+      poison: (values[PromptElementId.poison] as int?) ?? state.poison,
+      alignment: (values[PromptElementId.alignment] as int?) ?? state.alignment,
+      hpPercent: (values[PromptElementId.hpPercent] as int?) ?? state.hpPercent,
+      spPercent: (values[PromptElementId.spPercent] as int?) ?? state.spPercent,
+      followers: (values[PromptElementId.followers] as int?) ?? state.followers,
+      following:
+          (values[PromptElementId.following] as String?) ?? state.following,
       currentArea: area,
       directionalMovesAtSameCoords:
           coordsChanged ? 0 : state.directionalMovesAtSameCoords,
     );
+  }
+
+  /// Backward-compatible wrapper for code that only has core vitals.
+  void updateVitalsAndCoordinates(
+    int hp, int maxHp, int sp, int maxSp, int x, int y,
+  ) {
+    updateFromPrompt({
+      PromptElementId.hp: hp,
+      PromptElementId.maxHp: maxHp,
+      PromptElementId.sp: sp,
+      PromptElementId.maxSp: maxSp,
+      PromptElementId.xCoord: x,
+      PromptElementId.yCoord: y,
+    });
   }
 
   /// Called with room description text for text-based area detection fallback.

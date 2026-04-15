@@ -7,6 +7,7 @@ import '../services/storage/storage_service.dart';
 import 'alias_provider.dart';
 import 'connection_provider.dart';
 import 'game_state_provider.dart';
+import 'prompt_config_provider.dart';
 import 'storage_provider.dart';
 
 // ── Login state ──
@@ -131,9 +132,7 @@ class LoginNotifier extends Notifier<LoginState> {
     final bufferNotifier = ref.read(terminalBufferProvider.notifier);
     bufferNotifier.setLoginDetected();
     final service = ref.read(connectionServiceProvider);
-    service.sendCommand(
-      'prompt set @@|HP| |MAXHP| |SP| |MAXSP| |XCOORD| |YCOORD|@@',
-    );
+    service.sendCommand(ref.read(promptConfigProvider).promptCommand);
     // Force alias loading from disk (provider is lazy, only loads on first access).
     ref.read(aliasRulesProvider);
   }

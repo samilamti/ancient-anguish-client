@@ -21,6 +21,12 @@ class AppSettings {
   final bool emojiParsingEnabled; // replace text emoticons with emoji
   final int inputWrapWidth; // 0 = disabled, otherwise wrap input at N chars
   final bool blockModeEnabled; // group output into interactive blocks
+  final Set<String> enabledPromptElements; // active prompt tokens
+  final bool isDonator; // gates donator-only prompt elements in UI
+
+  static const Set<String> defaultPromptElements = {
+    'HP', 'MAXHP', 'SP', 'MAXSP', 'XCOORD', 'YCOORD',
+  };
 
   static const Map<String, int> defaultCustomColors = {
     'primary': 0xFFD4A057,
@@ -44,6 +50,8 @@ class AppSettings {
     this.emojiParsingEnabled = true,
     this.inputWrapWidth = 0,
     this.blockModeEnabled = false,
+    this.enabledPromptElements = defaultPromptElements,
+    this.isDonator = false,
   });
 
   AppSettings copyWith({
@@ -60,6 +68,8 @@ class AppSettings {
     bool? emojiParsingEnabled,
     int? inputWrapWidth,
     bool? blockModeEnabled,
+    Set<String>? enabledPromptElements,
+    bool? isDonator,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -78,6 +88,9 @@ class AppSettings {
           emojiParsingEnabled ?? this.emojiParsingEnabled,
       inputWrapWidth: inputWrapWidth ?? this.inputWrapWidth,
       blockModeEnabled: blockModeEnabled ?? this.blockModeEnabled,
+      enabledPromptElements:
+          enabledPromptElements ?? this.enabledPromptElements,
+      isDonator: isDonator ?? this.isDonator,
     );
   }
 
@@ -97,6 +110,8 @@ class AppSettings {
         'emojiParsingEnabled': emojiParsingEnabled,
         'inputWrapWidth': inputWrapWidth,
         'blockModeEnabled': blockModeEnabled,
+        'enabledPromptElements': enabledPromptElements.toList(),
+        'isDonator': isDonator,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -117,6 +132,10 @@ class AppSettings {
       emojiParsingEnabled: json['emojiParsingEnabled'] as bool? ?? true,
       inputWrapWidth: json['inputWrapWidth'] as int? ?? 0,
       blockModeEnabled: json['blockModeEnabled'] as bool? ?? false,
+      enabledPromptElements: json['enabledPromptElements'] != null
+          ? Set<String>.from(json['enabledPromptElements'] as List)
+          : defaultPromptElements,
+      isDonator: json['isDonator'] as bool? ?? false,
     );
   }
 }
@@ -191,6 +210,21 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void toggleBlockMode() {
     state = state.copyWith(blockModeEnabled: !state.blockModeEnabled);
+    _saveSettings();
+  }
+
+  void setEnabledPromptElements(Set<String> elements) {
+    // Ensure core elements are always present.
+    final withCore = {
+      ...elements,
+      ...AppSettings.defaultPromptElements,
+    };
+    state = state.copyWith(enabledPromptElements: withCore);
+    _saveSettings();
+  }
+
+  void toggleDonator() {
+    state = state.copyWith(isDonator: !state.isDonator);
     _saveSettings();
   }
 

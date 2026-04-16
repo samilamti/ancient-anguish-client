@@ -34,8 +34,15 @@ phase.shell_script = <<~'SCRIPT'
   # Fix versioned macOS framework bundle symlinks for App Store validation.
   # ITMS-90291 requires Resources (and other dirs) to be symlinks into
   # Versions/Current, not real directories.
+  echo "=== Fix Framework Symlinks build phase running ==="
   FW_DIR="${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}"
-  [ -d "$FW_DIR" ] || exit 0
+  echo "FW_DIR=$FW_DIR"
+  if [ -d "$FW_DIR" ]; then
+    echo "Frameworks found: $(ls "$FW_DIR"/ 2>/dev/null)"
+  else
+    echo "FW_DIR does not exist — skipping"
+    exit 0
+  fi
 
   for framework in "$FW_DIR"/*.framework; do
     [ -d "$framework" ] || continue

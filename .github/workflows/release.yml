@@ -316,31 +316,59 @@ jobs:
             -destination 'generic/platform=macOS' \
             OTHER_CODE_SIGN_FLAGS="--options=runtime"
 
-      - name: Verify framework symlinks in archive
+      - name: Fix framework symlinks in archive
         run: |
           APP="build/macos/Runner.xcarchive/Products/Applications/ancient_anguish_client.app"
           FW_DIR="$APP/Contents/Frameworks"
-          echo "=== objective_c.framework structure in archive ==="
+
+          echo "=== BEFORE FIX: objective_c.framework structure ==="
           if [ -d "$FW_DIR/objective_c.framework" ]; then
-            find "$FW_DIR/objective_c.framework" -maxdepth 3 -ls 2>/dev/null || \
-              ls -laR "$FW_DIR/objective_c.framework"
+            ls -laR "$FW_DIR/objective_c.framework"
           else
             echo "objective_c.framework NOT FOUND in archive"
           fi
+
+          # Always run the comprehensive fix on all frameworks
+          chmod +x scripts/ci/fix-framework-symlinks.sh
+          ./scripts/ci/fix-framework-symlinks.sh "$APP"
+
           echo ""
-          # If the build phase didn't fix it, run the external script as fallback
-          if [ -d "$FW_DIR/objective_c.framework" ] && \
-             [ ! -L "$FW_DIR/objective_c.framework/Resources" ]; then
-            echo "=== Build phase fix didn't stick — running external repair ==="
-            chmod +x scripts/ci/fix-framework-symlinks.sh
-            ./scripts/ci/fix-framework-symlinks.sh "$APP"
-            echo ""
-            echo "=== After external repair ==="
-            find "$FW_DIR/objective_c.framework" -maxdepth 3 -ls 2>/dev/null || \
-              ls -laR "$FW_DIR/objective_c.framework"
-          else
-            echo "Resources is a symlink — framework structure looks correct"
+          echo "=== AFTER FIX: objective_c.framework structure ==="
+          if [ -d "$FW_DIR/objective_c.framework" ]; then
+            ls -laR "$FW_DIR/objective_c.framework"
           fi
+
+      - name: Re-sign fixed frameworks in archive
+        run: |
+          APP="build/macos/Runner.xcarchive/Products/Applications/ancient_anguish_client.app"
+          FW_DIR="$APP/Contents/Frameworks"
+
+          # Find the Apple Distribution signing identity (SHA-1 hash)
+          IDENTITY=$(security find-identity -v -p codesigning \
+            | grep "Apple Distribution" \
+            | head -1 \
+            | awk '{print $2}')
+          if [ -z "$IDENTITY" ]; then
+            echo "ERROR: No Apple Distribution identity found"
+            security find-identity -v -p codesigning
+            exit 1
+          fi
+          echo "Re-signing with identity: $IDENTITY"
+
+          # Re-sign each framework individually (inside-out signing)
+          for fw in "$FW_DIR"/*.framework; do
+            [ -d "$fw" ] || continue
+            echo "  Re-signing $(basename "$fw")"
+            codesign --force --sign "$IDENTITY" --timestamp "$fw"
+          done
+
+          # Re-sign the main app bundle
+          codesign --force --sign "$IDENTITY" --timestamp \
+            --entitlements macos/Runner/Release.entitlements \
+            "$APP"
+
+          codesign --verify --deep --strict "$APP"
+          echo "Archive re-signed successfully"
 
       - name: Export Mac App Store .pkg
         run: |
@@ -350,6 +378,39 @@ jobs:
             -exportPath build/macos/appstore
           echo "Exported Mac App Store package:"
           ls -la build/macos/appstore/
+
+      - name: Verify frameworks after export
+        run: |
+          # Check if -exportArchive left an .app alongside the .pkg
+          EXPORT_APP=$(find build/macos/appstore -name "*.app" -maxdepth 1 2>/dev/null | head -1)
+          if [ -n "$EXPORT_APP" ]; then
+            echo "=== Framework in exported app ==="
+            ls -laR "$EXPORT_APP/Contents/Frameworks/objective_c.framework" 2>/dev/null || echo "Not found in exported app"
+          fi
+
+          # Try to inspect .pkg contents
+          PKG_PATH=$(find build/macos/appstore -name "*.pkg" | head -1)
+          if [ -n "$PKG_PATH" ]; then
+            echo "=== Inspecting .pkg contents ==="
+            mkdir -p /tmp/pkg-inspect
+            # Extract the outer .pkg (xar archive)
+            xar -xf "$PKG_PATH" -C /tmp/pkg-inspect 2>/dev/null || true
+            # Find any Payload files and extract them
+            PAYLOAD=$(find /tmp/pkg-inspect -name "Payload" | head -1)
+            if [ -n "$PAYLOAD" ]; then
+              mkdir -p /tmp/pkg-payload
+              cd /tmp/pkg-payload
+              cpio -i < "$PAYLOAD" 2>/dev/null || gzip -dc "$PAYLOAD" | cpio -i 2>/dev/null || true
+              echo "=== Framework structure inside .pkg ==="
+              find . -path "*/objective_c.framework" -maxdepth 5 | while read fw; do
+                ls -laR "$fw"
+              done
+              cd -
+            else
+              echo "No Payload found in .pkg — listing contents:"
+              find /tmp/pkg-inspect -type f | head -20
+            fi
+          fi
 
       - name: Upload .pkg to Mac App Store
         run: |

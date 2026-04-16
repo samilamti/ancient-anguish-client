@@ -223,6 +223,12 @@ jobs:
             --build-name="${{ needs.version.outputs.version }}" \
             --build-number="${{ needs.version.outputs.build_number }}"
 
+      - name: Repair framework symlinks
+        run: |
+          chmod +x scripts/ci/fix-framework-symlinks.sh
+          ./scripts/ci/fix-framework-symlinks.sh \
+            build/macos/Build/Products/Release/ancient_anguish_client.app
+
       - name: Codesign app for Developer ID
         run: |
           APP_PATH="build/macos/Build/Products/Release/ancient_anguish_client.app"
@@ -298,6 +304,16 @@ jobs:
             -archivePath build/macos/Runner.xcarchive \
             -destination 'generic/platform=macOS' \
             OTHER_CODE_SIGN_FLAGS="--options=runtime"
+
+      - name: Repair framework symlinks in archive
+        run: |
+          APP="build/macos/Runner.xcarchive/Products/Applications/ancient_anguish_client.app"
+          ./scripts/ci/fix-framework-symlinks.sh "$APP"
+          # Verify signatures still pass after symlink repair. Top-level
+          # bundle symlinks aren't part of the signed content for versioned
+          # frameworks, so this should succeed — fail loudly if it doesn't.
+          codesign --verify --deep --strict "$APP"
+          echo "Archive signatures still valid after symlink repair"
 
       - name: Export Mac App Store .pkg
         run: |

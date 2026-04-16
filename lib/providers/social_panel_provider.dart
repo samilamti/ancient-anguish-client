@@ -13,10 +13,11 @@ bool isDesktopPlatform() {
       defaultTargetPlatform == TargetPlatform.linux;
 }
 
-/// Whether social windows are enabled (desktop only + settings toggle).
+/// Whether social windows are enabled (settings toggle only; the width-based
+/// `!isMobile` guard in [HomeScreen] already prevents them on small screens).
 final socialWindowsEnabledProvider = Provider<bool>((ref) {
   final settings = ref.watch(settingsProvider);
-  return settings.socialWindowsEnabled && isDesktopPlatform();
+  return settings.socialWindowsEnabled;
 });
 
 /// Panel layout state.

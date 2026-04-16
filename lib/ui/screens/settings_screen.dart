@@ -179,10 +179,8 @@ class SettingsScreen extends ConsumerWidget {
           _SectionHeader(title: 'Game', icon: Icons.gamepad),
           const SizedBox(height: 8),
 
-          // Social windows (desktop only).
-          if (defaultTargetPlatform == TargetPlatform.windows ||
-              defaultTargetPlatform == TargetPlatform.macOS ||
-              defaultTargetPlatform == TargetPlatform.linux) ...[
+          // Social windows (wide screens only — hidden via !isMobile in drawer).
+          ...[
             SwitchListTile(
               title: const Text('Social Windows'),
               subtitle: const Text('Floating Chat and Tell panels'),

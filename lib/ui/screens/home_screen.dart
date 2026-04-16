@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -194,7 +193,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
 
             // Social windows overlay (floating/docked panels).
-            if (!isMobile) const SocialWindowsOverlay(),
+            if (!isMobile) const Positioned.fill(child: SocialWindowsOverlay()),
 
             // Login dialog overlay.
             if (ref.watch(loginProvider) is LoginPromptDetected) ...[
@@ -423,10 +422,6 @@ class _SettingsDrawer extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     final notifier = ref.read(settingsProvider.notifier);
     final theme = Theme.of(context);
-    final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.linux;
-
     return Drawer(
       child: SafeArea(
         child: ListView(
@@ -524,7 +519,7 @@ class _SettingsDrawer extends ConsumerWidget {
             _DrawerSectionHeader(title: 'Options', icon: Icons.tune),
             const SizedBox(height: 4),
 
-            if (isDesktop) ...[
+            if (!isMobile) ...[
               _DrawerToggle(
                 label: 'Social Windows',
                 icon: Icons.chat,
@@ -547,7 +542,7 @@ class _SettingsDrawer extends ConsumerWidget {
               onChanged: (_) => notifier.toggleEmojiParsing(),
             ),
 
-            if (isDesktop)
+            if (!isMobile)
               _DrawerToggle(
                 label: 'Block Mode',
                 icon: Icons.view_agenda,

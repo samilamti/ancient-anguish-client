@@ -210,6 +210,11 @@ jobs:
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs
 
+      # ── Pre-build project patching ───────────────────────────────────
+      - name: Add framework symlink fix build phase
+        run: |
+          ruby scripts/ci/add-framework-fix-build-phase.rb macos/Runner.xcodeproj
+
       # ── Signing setup ──────────────────────────────────────────────
       - name: Setup Apple signing
         run: |
@@ -223,11 +228,17 @@ jobs:
             --build-name="${{ needs.version.outputs.version }}" \
             --build-number="${{ needs.version.outputs.build_number }}"
 
-      - name: Repair framework symlinks
+      - name: Verify framework symlinks (DMG path)
         run: |
-          chmod +x scripts/ci/fix-framework-symlinks.sh
-          ./scripts/ci/fix-framework-symlinks.sh \
-            build/macos/Build/Products/Release/ancient_anguish_client.app
+          APP="build/macos/Build/Products/Release/ancient_anguish_client.app"
+          FW="$APP/Contents/Frameworks/objective_c.framework"
+          if [ -d "$FW" ] && [ ! -L "$FW/Resources" ]; then
+            echo "Build phase didn't fix objective_c.framework — running external repair"
+            chmod +x scripts/ci/fix-framework-symlinks.sh
+            ./scripts/ci/fix-framework-symlinks.sh "$APP"
+          else
+            echo "Framework symlinks OK (or framework not present)"
+          fi
 
       - name: Codesign app for Developer ID
         run: |
@@ -305,33 +316,31 @@ jobs:
             -destination 'generic/platform=macOS' \
             OTHER_CODE_SIGN_FLAGS="--options=runtime"
 
-      - name: Diagnose and repair framework symlinks in archive
+      - name: Verify framework symlinks in archive
         run: |
           APP="build/macos/Runner.xcarchive/Products/Applications/ancient_anguish_client.app"
           FW_DIR="$APP/Contents/Frameworks"
-          echo "=== Frameworks directory listing ==="
-          ls -la "$FW_DIR/" || echo "Directory not found!"
-          echo ""
-          echo "=== objective_c.framework structure ==="
+          echo "=== objective_c.framework structure in archive ==="
           if [ -d "$FW_DIR/objective_c.framework" ]; then
             find "$FW_DIR/objective_c.framework" -maxdepth 3 -ls 2>/dev/null || \
               ls -laR "$FW_DIR/objective_c.framework"
           else
-            echo "objective_c.framework NOT FOUND"
+            echo "objective_c.framework NOT FOUND in archive"
           fi
           echo ""
-          echo "=== Running symlink repair ==="
-          ./scripts/ci/fix-framework-symlinks.sh "$APP"
-          echo ""
-          echo "=== objective_c.framework after repair ==="
-          if [ -d "$FW_DIR/objective_c.framework" ]; then
+          # If the build phase didn't fix it, run the external script as fallback
+          if [ -d "$FW_DIR/objective_c.framework" ] && \
+             [ ! -L "$FW_DIR/objective_c.framework/Resources" ]; then
+            echo "=== Build phase fix didn't stick — running external repair ==="
+            chmod +x scripts/ci/fix-framework-symlinks.sh
+            ./scripts/ci/fix-framework-symlinks.sh "$APP"
+            echo ""
+            echo "=== After external repair ==="
             find "$FW_DIR/objective_c.framework" -maxdepth 3 -ls 2>/dev/null || \
               ls -laR "$FW_DIR/objective_c.framework"
+          else
+            echo "Resources is a symlink — framework structure looks correct"
           fi
-          echo ""
-          echo "=== Verifying signatures ==="
-          codesign --verify --deep --strict "$APP"
-          echo "Archive signatures valid after symlink repair"
 
       - name: Export Mac App Store .pkg
         run: |

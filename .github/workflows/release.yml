@@ -305,15 +305,33 @@ jobs:
             -destination 'generic/platform=macOS' \
             OTHER_CODE_SIGN_FLAGS="--options=runtime"
 
-      - name: Repair framework symlinks in archive
+      - name: Diagnose and repair framework symlinks in archive
         run: |
           APP="build/macos/Runner.xcarchive/Products/Applications/ancient_anguish_client.app"
+          FW_DIR="$APP/Contents/Frameworks"
+          echo "=== Frameworks directory listing ==="
+          ls -la "$FW_DIR/" || echo "Directory not found!"
+          echo ""
+          echo "=== objective_c.framework structure ==="
+          if [ -d "$FW_DIR/objective_c.framework" ]; then
+            find "$FW_DIR/objective_c.framework" -maxdepth 3 -ls 2>/dev/null || \
+              ls -laR "$FW_DIR/objective_c.framework"
+          else
+            echo "objective_c.framework NOT FOUND"
+          fi
+          echo ""
+          echo "=== Running symlink repair ==="
           ./scripts/ci/fix-framework-symlinks.sh "$APP"
-          # Verify signatures still pass after symlink repair. Top-level
-          # bundle symlinks aren't part of the signed content for versioned
-          # frameworks, so this should succeed — fail loudly if it doesn't.
+          echo ""
+          echo "=== objective_c.framework after repair ==="
+          if [ -d "$FW_DIR/objective_c.framework" ]; then
+            find "$FW_DIR/objective_c.framework" -maxdepth 3 -ls 2>/dev/null || \
+              ls -laR "$FW_DIR/objective_c.framework"
+          fi
+          echo ""
+          echo "=== Verifying signatures ==="
           codesign --verify --deep --strict "$APP"
-          echo "Archive signatures still valid after symlink repair"
+          echo "Archive signatures valid after symlink repair"
 
       - name: Export Mac App Store .pkg
         run: |

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:ancient_anguish_client/models/quick_command.dart';
 import 'package:ancient_anguish_client/providers/settings_provider.dart';
 import 'package:ancient_anguish_client/services/logging/log_service.dart';
 
@@ -33,6 +34,59 @@ void main() {
       expect(settings.quickCommandsVisible, isTrue);
       expect(settings.useDPad, isTrue);
       expect(settings.customThemeColors, isNotEmpty);
+      expect(settings.hideKeyboardOnMobile, isTrue);
+      expect(settings.quickCommands, QuickCommand.defaults);
+    });
+  });
+
+  group('AppSettings - JSON migration', () {
+    test('fromJson populates quick-command defaults when key is missing', () {
+      final settings = AppSettings.fromJson(const {});
+      expect(settings.quickCommands, QuickCommand.defaults);
+      expect(settings.hideKeyboardOnMobile, isTrue);
+    });
+
+    test('fromJson preserves stored quickCommands list', () {
+      final json = {
+        'quickCommands': [
+          {
+            'id': 'q1',
+            'label': 'Heal',
+            'iconName': 'heart',
+            'command': 'heal',
+            'selectTarget': false,
+            'enabled': true,
+          }
+        ],
+        'hideKeyboardOnMobile': false,
+      };
+      final settings = AppSettings.fromJson(json);
+      expect(settings.quickCommands.length, 1);
+      expect(settings.quickCommands.first.label, 'Heal');
+      expect(settings.hideKeyboardOnMobile, isFalse);
+    });
+  });
+
+  group('SettingsNotifier - quick command mutations', () {
+    test('setQuickCommands replaces the list', () {
+      const replacement = [
+        QuickCommand(
+          id: 'q1',
+          label: 'Heal',
+          iconName: 'heart',
+          command: 'heal',
+        ),
+      ];
+      notifier.setQuickCommands(replacement);
+      final stored = container.read(settingsProvider).quickCommands;
+      expect(stored.length, 1);
+      expect(stored.first.label, 'Heal');
+    });
+
+    test('toggleHideKeyboardOnMobile flips the flag', () {
+      expect(container.read(settingsProvider).hideKeyboardOnMobile, isTrue);
+      notifier.toggleHideKeyboardOnMobile();
+      expect(container.read(settingsProvider).hideKeyboardOnMobile, isFalse);
     });
   });
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/quick_command.dart';
 import '../services/logging/log_service.dart';
 import 'storage_provider.dart';
 
@@ -23,6 +24,8 @@ class AppSettings {
   final bool blockModeEnabled; // group output into interactive blocks
   final Set<String> enabledPromptElements; // active prompt tokens
   final bool isDonator; // gates donator-only prompt elements in UI
+  final List<QuickCommand> quickCommands; // user-configurable mobile shortcuts
+  final bool hideKeyboardOnMobile; // suppress autofocus + dismiss after send
 
   static const Set<String> defaultPromptElements = {
     'HP', 'MAXHP', 'SP', 'MAXSP', 'XCOORD', 'YCOORD',
@@ -52,6 +55,8 @@ class AppSettings {
     this.blockModeEnabled = false,
     this.enabledPromptElements = defaultPromptElements,
     this.isDonator = false,
+    this.quickCommands = QuickCommand.defaults,
+    this.hideKeyboardOnMobile = true,
   });
 
   AppSettings copyWith({
@@ -70,6 +75,8 @@ class AppSettings {
     bool? blockModeEnabled,
     Set<String>? enabledPromptElements,
     bool? isDonator,
+    List<QuickCommand>? quickCommands,
+    bool? hideKeyboardOnMobile,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -91,6 +98,9 @@ class AppSettings {
       enabledPromptElements:
           enabledPromptElements ?? this.enabledPromptElements,
       isDonator: isDonator ?? this.isDonator,
+      quickCommands: quickCommands ?? this.quickCommands,
+      hideKeyboardOnMobile:
+          hideKeyboardOnMobile ?? this.hideKeyboardOnMobile,
     );
   }
 
@@ -112,6 +122,9 @@ class AppSettings {
         'blockModeEnabled': blockModeEnabled,
         'enabledPromptElements': enabledPromptElements.toList(),
         'isDonator': isDonator,
+        'quickCommands':
+            quickCommands.map((c) => c.toJson()).toList(growable: false),
+        'hideKeyboardOnMobile': hideKeyboardOnMobile,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -136,6 +149,12 @@ class AppSettings {
           ? Set<String>.from(json['enabledPromptElements'] as List)
           : defaultPromptElements,
       isDonator: json['isDonator'] as bool? ?? false,
+      quickCommands: json['quickCommands'] != null
+          ? (json['quickCommands'] as List)
+              .map((e) => QuickCommand.fromJson(e as Map<String, dynamic>))
+              .toList()
+          : QuickCommand.defaults,
+      hideKeyboardOnMobile: json['hideKeyboardOnMobile'] as bool? ?? true,
     );
   }
 }
@@ -225,6 +244,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void toggleDonator() {
     state = state.copyWith(isDonator: !state.isDonator);
+    _saveSettings();
+  }
+
+  void setQuickCommands(List<QuickCommand> commands) {
+    state = state.copyWith(quickCommands: List.unmodifiable(commands));
+    _saveSettings();
+  }
+
+  void toggleHideKeyboardOnMobile() {
+    state = state.copyWith(hideKeyboardOnMobile: !state.hideKeyboardOnMobile);
     _saveSettings();
   }
 

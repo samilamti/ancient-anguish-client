@@ -7,6 +7,7 @@ import 'about_screen.dart';
 import 'advanced_customization_screen.dart';
 import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
+import 'quick_commands_settings_screen.dart';
 import 'trigger_settings_screen.dart';
 
 /// Settings screen for configuring the client.
@@ -228,6 +229,16 @@ class SettingsScreen extends ConsumerWidget {
           if (defaultTargetPlatform != TargetPlatform.windows &&
               defaultTargetPlatform != TargetPlatform.macOS) ...[
             SwitchListTile(
+              title: const Text('Hide Keyboard by Default'),
+              subtitle: const Text(
+                'Dismiss the soft keyboard between commands on mobile',
+              ),
+              value: settings.hideKeyboardOnMobile,
+              onChanged: (_) => notifier.toggleHideKeyboardOnMobile(),
+              secondary: const Icon(Icons.keyboard_hide),
+            ),
+
+            SwitchListTile(
               title: const Text('Quick Command Buttons'),
               subtitle: const Text('Show shortcut buttons on mobile'),
               value: settings.quickCommandsVisible,
@@ -238,16 +249,32 @@ class SettingsScreen extends ConsumerWidget {
             // D-Pad vs Quick Commands.
             if (settings.quickCommandsVisible)
               SwitchListTile(
-                title: const Text('Use D-Pad'),
+                title: const Text('Show D-Pad'),
                 subtitle: Text(
                   settings.useDPad
                       ? 'Compass rose with 8 directions'
-                      : 'Simple quick command buttons',
+                      : 'D-Pad hidden',
                 ),
                 value: settings.useDPad,
                 onChanged: (_) => notifier.toggleDPad(),
                 secondary: const Icon(Icons.explore),
               ),
+
+            ListTile(
+              leading: const Icon(Icons.grid_view),
+              title: const Text('Customize Quick Commands'),
+              subtitle: const Text(
+                'Add, reorder, or change the mobile shortcut buttons',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const QuickCommandsSettingsScreen(),
+                  ),
+                );
+              },
+            ),
           ],
 
           ListTile(

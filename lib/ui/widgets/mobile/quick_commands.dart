@@ -1,34 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../models/quick_command.dart';
 import '../../../providers/connection_provider.dart';
+import '../../../providers/recent_words_provider.dart';
+import '../../../providers/settings_provider.dart';
+import '../../../utils/quick_command_icons.dart';
+import 'target_picker_sheet.dart';
 
-/// A configurable grid of quick-command buttons for mobile users.
+/// A configurable row of quick-command buttons for mobile users.
 ///
-/// Provides fast access to common MUD commands (movement, look, inventory, etc.)
-/// without needing to type them. Displayed above the keyboard on mobile layouts.
+/// Provides fast access to common MUD commands without needing to type them.
+/// The first button is always a keyboard toggle; the rest come from
+/// [AppSettings.quickCommands]. A `selectTarget` command opens a bottom
+/// sheet of recent words and sends the command plus the chosen target.
 class QuickCommands extends ConsumerWidget {
   const QuickCommands({super.key});
-
-  // Default command sets – user will be able to customize these in Phase 4.
-  static const List<_QuickCmd> _defaultCommands = [
-    _QuickCmd('N', 'north'),
-    _QuickCmd('S', 'south'),
-    _QuickCmd('E', 'east'),
-    _QuickCmd('W', 'west'),
-    _QuickCmd('U', 'up'),
-    _QuickCmd('D', 'down'),
-    _QuickCmd('Look', 'look'),
-    _QuickCmd('Inv', 'inventory'),
-    _QuickCmd('Score', 'score'),
-    _QuickCmd('Who', 'who'),
-    _QuickCmd('Flee', 'flee'),
-    _QuickCmd('Map', 'map'),
-  ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final commands = ref.watch(settingsProvider
+        .select((s) => s.quickCommands.where((c) => c.enabled).toList()));
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -43,31 +36,65 @@ class QuickCommands extends ConsumerWidget {
       child: Wrap(
         spacing: 4,
         runSpacing: 4,
-        children: _defaultCommands.map((cmd) {
-          return _QuickCommandButton(
-            label: cmd.label,
+        children: [
+          _QuickCommandButton(
+            tooltip: 'Show keyboard',
+            icon: Icons.keyboard,
             onPressed: () {
-              ref.read(connectionServiceProvider).sendCommand(cmd.command);
+              ref.read(inputFocusProvider).requestFocus();
             },
-          );
-        }).toList(),
+          ),
+          for (final cmd in commands)
+            _QuickCommandButton(
+              tooltip: cmd.label,
+              icon: iconFromName(cmd.iconName),
+              onPressed: () => _handleCommand(context, ref, cmd),
+            ),
+        ],
       ),
     );
   }
-}
 
-class _QuickCmd {
-  final String label;
-  final String command;
-  const _QuickCmd(this.label, this.command);
+  Future<void> _handleCommand(
+    BuildContext context,
+    WidgetRef ref,
+    QuickCommand cmd,
+  ) async {
+    final service = ref.read(connectionServiceProvider);
+
+    if (!cmd.selectTarget) {
+      service.sendCommand(cmd.command);
+      return;
+    }
+
+    final words = ref.read(recentWordsProvider);
+    if (words.isEmpty) {
+      // No targets to pick from — pre-fill the input and open the keyboard.
+      final controller = ref.read(inputControllerProvider);
+      final prefix = '${cmd.command} ';
+      controller.text = prefix;
+      controller.selection = TextSelection.collapsed(offset: prefix.length);
+      ref.read(inputFocusProvider).requestFocus();
+      return;
+    }
+
+    final chosen = await TargetPickerSheet.show(
+      context,
+      commandLabel: cmd.label,
+    );
+    if (chosen == null || chosen.isEmpty) return;
+    service.sendCommand('${cmd.command} $chosen');
+  }
 }
 
 class _QuickCommandButton extends StatelessWidget {
-  final String label;
+  final String tooltip;
+  final IconData icon;
   final VoidCallback onPressed;
 
   const _QuickCommandButton({
-    required this.label,
+    required this.tooltip,
+    required this.icon,
     required this.onPressed,
   });
 
@@ -75,29 +102,25 @@ class _QuickCommandButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return SizedBox(
-      height: 36,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: theme.colorScheme.surface,
-          foregroundColor: theme.colorScheme.primary,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6),
-            side: BorderSide(
-              color: theme.colorScheme.primary.withAlpha(80),
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        height: 36,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: theme.colorScheme.surface,
+            foregroundColor: theme.colorScheme.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+              side: BorderSide(
+                color: theme.colorScheme.primary.withAlpha(80),
+              ),
             ),
+            minimumSize: const Size(44, 36),
           ),
-          minimumSize: const Size(44, 36),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'JetBrainsMono',
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
+          child: Icon(icon, size: 20),
         ),
       ),
     );

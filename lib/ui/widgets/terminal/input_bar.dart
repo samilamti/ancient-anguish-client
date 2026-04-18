@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/alias_provider.dart';
 import '../../../providers/connection_provider.dart'
     show connectionServiceProvider, commandHistoryProvider, inputFocusProvider,
-    terminalBufferProvider;
+    inputControllerProvider, terminalBufferProvider;
 import '../../../providers/game_state_provider.dart';
 import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
@@ -28,7 +28,8 @@ class InputBar extends ConsumerStatefulWidget {
 }
 
 class _InputBarState extends ConsumerState<InputBar> {
-  final TextEditingController _controller = TextEditingController();
+  late final TextEditingController _controller =
+      ref.read(inputControllerProvider);
   late final FocusNode _focusNode = ref.read(inputFocusProvider);
 
   // TAB completion state.
@@ -46,7 +47,8 @@ class _InputBarState extends ConsumerState<InputBar> {
   @override
   void dispose() {
     _focusNode.removeListener(_onFocusChange);
-    _controller.dispose();
+    // Both _controller and _focusNode are owned by Riverpod providers and
+    // disposed via ref.onDispose — don't dispose them here.
     super.dispose();
   }
 
@@ -96,8 +98,21 @@ class _InputBarState extends ConsumerState<InputBar> {
       extentOffset: _controller.text.length,
     );
 
-    // Keep focus on input after sending.
-    _focusNode.requestFocus();
+    // On mobile with keyboard-hiding enabled, dismiss the keyboard after
+    // sending so the user can see more of the output. Otherwise keep focus.
+    if (_shouldHideKeyboard(settings)) {
+      _focusNode.unfocus();
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
+    } else {
+      _focusNode.requestFocus();
+    }
+  }
+
+  /// Whether mobile keyboard-hiding is active for the current layout.
+  bool _shouldHideKeyboard(AppSettings settings) {
+    if (!settings.hideKeyboardOnMobile) return false;
+    final width = MediaQuery.of(context).size.width;
+    return width < 768;
   }
 
   /// The text in the input bar when the user first pressed Up.
@@ -157,9 +172,7 @@ class _InputBarState extends ConsumerState<InputBar> {
       final prefix = text.substring(wordStart, cursor).toLowerCase();
 
       // Filter matches.
-      _tabMatches = prefix.isEmpty
-          ? words
-          : words.where((w) => w.startsWith(prefix)).toList();
+      _tabMatches = completionsFor(words, prefix);
       if (_tabMatches.isEmpty) return;
 
       _tabPrefix = prefix;
@@ -246,13 +259,13 @@ class _InputBarState extends ConsumerState<InputBar> {
     return KeyEventResult.ignored;
   }
 
-  Widget _buildTextField(double fontSize, int wrapWidth) {
+  Widget _buildTextField(double fontSize, int wrapWidth, bool autofocus) {
     final textField = Focus(
       onKeyEvent: _handleKey,
       child: TextField(
         controller: _controller,
         focusNode: _focusNode,
-        autofocus: true,
+        autofocus: autofocus,
         maxLines: 1,
         style: TextStyle(
           fontFamily: 'JetBrainsMono',
@@ -303,6 +316,7 @@ class _InputBarState extends ConsumerState<InputBar> {
     final settings = ref.watch(settingsProvider);
     final fontSize = settings.fontSize;
     final wrapWidth = settings.inputWrapWidth;
+    final autofocus = !_shouldHideKeyboard(settings);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -330,7 +344,7 @@ class _InputBarState extends ConsumerState<InputBar> {
 
           // Text input field.
           Expanded(
-            child: _buildTextField(fontSize, wrapWidth),
+            child: _buildTextField(fontSize, wrapWidth, autofocus),
           ),
 
           // Send button (mainly for mobile).

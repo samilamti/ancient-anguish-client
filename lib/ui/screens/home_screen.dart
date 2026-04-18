@@ -183,9 +183,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 if (isConnected && audioState.audioEnabled)
                   const AudioControls(),
 
-                // Mobile controls (D-Pad or Quick Commands, toggleable).
-                if (isMobile && settings.quickCommandsVisible)
-                  settings.useDPad ? const DPad() : const QuickCommands(),
+                // Mobile controls: DPad (if enabled) plus the quick-command row.
+                // The quick-command row is always rendered when the keyboard is
+                // being hidden so its keyboard-toggle button stays reachable.
+                if (isMobile) ...[
+                  if (settings.useDPad && settings.quickCommandsVisible)
+                    const DPad(),
+                  if (settings.hideKeyboardOnMobile ||
+                      settings.quickCommandsVisible)
+                    const QuickCommands(),
+                ],
 
                 // Command input bar.
                 const InputBar(),

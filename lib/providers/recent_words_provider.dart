@@ -31,3 +31,13 @@ final recentWordsProvider =
     NotifierProvider<RecentWordsNotifier, List<String>>(
   RecentWordsNotifier.new,
 );
+
+/// Filters [words] to those starting with [prefix] (case-insensitive).
+///
+/// An empty prefix returns all words, unmodified. Shared by the keyboard
+/// Tab-completion flow in `InputBar` and the mobile target picker sheet.
+List<String> completionsFor(List<String> words, String prefix) {
+  if (prefix.isEmpty) return List.unmodifiable(words);
+  final p = prefix.toLowerCase();
+  return words.where((w) => w.startsWith(p)).toList();
+}

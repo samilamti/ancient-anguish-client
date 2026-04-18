@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
-import 'package:flutter/widgets.dart' show FocusNode;
+import 'package:flutter/widgets.dart' show FocusNode, TextEditingController;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/web_config.dart';
@@ -77,6 +77,16 @@ final inputFocusProvider = Provider<FocusNode>((ref) {
   final node = FocusNode();
   ref.onDispose(() => node.dispose());
   return node;
+});
+
+/// Shared [TextEditingController] for the command input bar.
+///
+/// Exposed so mobile quick-command buttons can pre-fill the input
+/// (e.g. "kill " when no tab-completion targets exist yet).
+final inputControllerProvider = Provider<TextEditingController>((ref) {
+  final controller = TextEditingController();
+  ref.onDispose(() => controller.dispose());
+  return controller;
 });
 
 /// The terminal buffer – a list of styled lines representing all output.

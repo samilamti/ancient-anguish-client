@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/social_message.dart';
+import '../../../models/timestamp_mode.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_message_provider.dart';
 
@@ -92,7 +93,9 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fontSize = ref.watch(settingsProvider).fontSize - 1;
+    final settings = ref.watch(settingsProvider);
+    final fontSize = settings.fontSize - 1;
+    final timestampMode = settings.timestampMode;
     final provider = switch (widget.type) {
       SocialListType.chat => chatMessagesProvider,
       SocialListType.tells => tellMessagesProvider,
@@ -166,6 +169,7 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
           message: displayed[msgIndex],
           isEven: msgIndex.isEven,
           fontSize: fontSize,
+          timestampMode: timestampMode,
         );
       },
     );
@@ -176,11 +180,13 @@ class _MessageWidget extends StatefulWidget {
   final SocialMessage message;
   final bool isEven;
   final double fontSize;
+  final TimestampMode timestampMode;
 
   const _MessageWidget({
     required this.message,
     required this.isEven,
     required this.fontSize,
+    required this.timestampMode,
   });
 
   @override
@@ -211,12 +217,17 @@ class _MessageWidgetState extends State<_MessageWidget>
     super.dispose();
   }
 
+  String get _hhmm =>
+      '${widget.message.timestamp.hour.toString().padLeft(2, '0')}:'
+      '${widget.message.timestamp.minute.toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final controller = _highlightController;
+    Widget row;
     if (controller != null) {
-      return AnimatedBuilder(
+      row = AnimatedBuilder(
         animation: controller,
         builder: (context, child) {
           final highlightAlpha =
@@ -241,18 +252,29 @@ class _MessageWidgetState extends State<_MessageWidget>
         },
         child: _buildContent(theme),
       );
+    } else {
+      row = Container(
+        padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 4),
+        decoration: widget.isEven
+            ? BoxDecoration(
+                color: theme.colorScheme.primary.withAlpha(10),
+                borderRadius: BorderRadius.circular(2),
+              )
+            : null,
+        child: _buildContent(theme),
+      );
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 4),
-      decoration: widget.isEven
-          ? BoxDecoration(
-              color: theme.colorScheme.primary.withAlpha(10),
-              borderRadius: BorderRadius.circular(2),
-            )
-          : null,
-      child: _buildContent(theme),
-    );
+    // On-hover mode: no inline column, full-width message text; show the
+    // HH:MM in a tooltip so the time is still reachable without cost.
+    if (widget.timestampMode == TimestampMode.showOnHover) {
+      row = Tooltip(
+        message: _hhmm,
+        waitDuration: const Duration(milliseconds: 300),
+        child: row,
+      );
+    }
+    return row;
   }
 
   Widget _buildContent(ThemeData theme) {
@@ -268,32 +290,43 @@ class _MessageWidgetState extends State<_MessageWidget>
       ));
     }
 
+    final messageText = Expanded(
+      child: RichText(
+        text: TextSpan(
+          style: TextStyle(
+            fontFamily: 'JetBrainsMono',
+            fontSize: widget.fontSize,
+          ),
+          children: children,
+        ),
+      ),
+    );
+
+    // Hide and on-hover both reclaim the timestamp gutter — the row is just
+    // the message text. On-hover adds a Tooltip at the outer layer.
+    if (widget.timestampMode == TimestampMode.hide ||
+        widget.timestampMode == TimestampMode.showOnHover) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [messageText],
+      );
+    }
+
+    final timestamp = Text(
+      _hhmm,
+      style: TextStyle(
+        fontFamily: 'JetBrainsMono',
+        fontSize: widget.fontSize - 3,
+        color: theme.colorScheme.onSurface.withAlpha(60),
+      ),
+    );
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Timestamp.
-        Text(
-          '${widget.message.timestamp.hour.toString().padLeft(2, '0')}:'
-          '${widget.message.timestamp.minute.toString().padLeft(2, '0')}',
-          style: TextStyle(
-            fontFamily: 'JetBrainsMono',
-            fontSize: widget.fontSize - 3,
-            color: theme.colorScheme.onSurface.withAlpha(60),
-          ),
-        ),
+        timestamp,
         const SizedBox(width: 4),
-        // Message content.
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: TextStyle(
-                fontFamily: 'JetBrainsMono',
-                fontSize: widget.fontSize,
-              ),
-              children: children,
-            ),
-          ),
-        ),
+        messageText,
       ],
     );
   }

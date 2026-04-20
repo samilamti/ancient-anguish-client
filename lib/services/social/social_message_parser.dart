@@ -2,10 +2,11 @@
 /// from MUD output. No Flutter dependencies — easily testable.
 class SocialMessageParser {
   // Chat patterns: "[Chat] Name: message" or "[Chat] Name emotes."
+  // Name may carry a bracketed suffix like "[D]" (deaf-to-chat indicator).
   static final RegExp _chatSayRegex =
-      RegExp(r'^\[Chat\]\s+(\w+):\s+(.+)$');
+      RegExp(r'^\[Chat\]\s+(\w+(?:\[\w+\])?):\s+(.+)$');
   static final RegExp _chatEmoteRegex =
-      RegExp(r'^\[Chat\]\s+(\w+)\s+(.+)$');
+      RegExp(r'^\[Chat\]\s+(\w+(?:\[\w+\])?)\s+(.+)$');
 
   // Party patterns: "<Party Name> Character : message" or "<Party Name> Character emotes."
   static final RegExp _partySayRegex =

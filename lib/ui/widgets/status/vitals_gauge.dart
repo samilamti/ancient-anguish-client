@@ -17,20 +17,22 @@ class VitalsGauge extends StatelessWidget {
   /// The gradient colors for the fill bar.
   final List<Color> gradientColors;
 
-  /// The icon to show before the label.
-  final IconData? icon;
-
   const VitalsGauge({
     super.key,
     required this.label,
     required this.value,
     required this.maxValue,
     required this.gradientColors,
-    this.icon,
   });
 
   double get _fraction =>
       maxValue > 0 ? (value / maxValue).clamp(0.0, 1.0) : 0.0;
+
+  static String _fmt(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,10 +45,6 @@ class VitalsGauge extends StatelessWidget {
         // Label row.
         Row(
           children: [
-            if (icon != null) ...[
-              Icon(icon, size: 14, color: gradientColors.last),
-              const SizedBox(width: 4),
-            ],
             Text(
               label,
               style: TextStyle(
@@ -58,7 +56,7 @@ class VitalsGauge extends StatelessWidget {
             ),
             const Spacer(),
             Text(
-              '$value / $maxValue',
+              '${_fmt(value)}/${_fmt(maxValue)}',
               style: TextStyle(
                 fontFamily: 'JetBrainsMono',
                 fontSize: 11,

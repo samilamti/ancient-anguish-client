@@ -45,6 +45,26 @@ void main() {
         expect(result.isEmote, isTrue);
       });
 
+      test('matches chat say with [D] suffix on sender', () {
+        final result = SocialMessageParser.matchChatLine(
+          '[Chat] Krynna[D]: truth',
+        );
+        expect(result, isNotNull);
+        expect(result!.sender, 'Krynna[D]');
+        expect(result.text, 'truth');
+        expect(result.isEmote, isFalse);
+      });
+
+      test('matches chat emote with [D] suffix on sender', () {
+        final result = SocialMessageParser.matchChatLine(
+          '[Chat] Krynna[D] nods solemnly.',
+        );
+        expect(result, isNotNull);
+        expect(result!.sender, 'Krynna[D]');
+        expect(result.text, 'nods solemnly.');
+        expect(result.isEmote, isTrue);
+      });
+
       test('matches chat say with long message', () {
         final result = SocialMessageParser.matchChatLine(
           "[Chat] Roric: I say that to the invasive tree out side my house that I've",

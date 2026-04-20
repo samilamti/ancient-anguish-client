@@ -70,6 +70,19 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
     );
   }
 
+  void toggleNotesVisible() {
+    state = state.copyWith(
+      notesPanel:
+          state.notesPanel.copyWith(visible: !state.notesPanel.visible),
+    );
+  }
+
+  void showNotes() {
+    state = state.copyWith(
+      notesPanel: state.notesPanel.copyWith(visible: true),
+    );
+  }
+
   // ── Floating position ──
 
   void updateChatPosition(double x, double y) {
@@ -105,6 +118,18 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
   void updatePartySize(double width, double height) {
     state = state.copyWith(
       partyPanel: state.partyPanel.copyWith(width: width, height: height),
+    );
+  }
+
+  void updateNotesPosition(double x, double y) {
+    state = state.copyWith(
+      notesPanel: state.notesPanel.copyWith(x: x, y: y),
+    );
+  }
+
+  void updateNotesSize(double width, double height) {
+    state = state.copyWith(
+      notesPanel: state.notesPanel.copyWith(width: width, height: height),
     );
   }
 
@@ -146,6 +171,18 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
     );
   }
 
+  void dockNotes(DockSide side) {
+    state = state.copyWith(
+      notesPanel: state.notesPanel.copyWith(dockSide: () => side),
+    );
+  }
+
+  void undockNotes() {
+    state = state.copyWith(
+      notesPanel: state.notesPanel.copyWith(dockSide: () => null),
+    );
+  }
+
   // ── Tab mode ──
 
   void combineIntoTabs() {
@@ -154,6 +191,7 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
       chatPanel: state.chatPanel.copyWith(visible: true),
       tellsPanel: state.tellsPanel.copyWith(visible: true),
       partyPanel: state.partyPanel.copyWith(visible: true),
+      notesPanel: state.notesPanel.copyWith(visible: true),
     );
   }
 

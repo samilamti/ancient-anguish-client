@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/connection_provider.dart'
     show connectionServiceProvider;
+import '../../../providers/online_players_provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../providers/social_input_focus_provider.dart';
 import '../../../providers/social_input_provider.dart';
 import '../../../providers/social_message_provider.dart';
 import '../../../services/parser/emoji_parser.dart';
@@ -28,14 +30,18 @@ class SocialInputBar extends ConsumerStatefulWidget {
 class _SocialInputBarState extends ConsumerState<SocialInputBar> {
   final TextEditingController _controller = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
   final FocusNode _nameFocusNode = FocusNode();
+
+  /// The message-input focus node is owned by [socialInputFocusProvider] so
+  /// outside widgets (e.g. the panel body) can request focus without
+  /// reaching into this state. Do not dispose it here.
+  FocusNode get _focusNode =>
+      ref.read(socialInputFocusProvider)[widget.type]!;
 
   @override
   void dispose() {
     _controller.dispose();
     _nameController.dispose();
-    _focusNode.dispose();
     _nameFocusNode.dispose();
     super.dispose();
   }
@@ -177,11 +183,20 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
                 textEditingController: _nameController,
                 focusNode: _nameFocusNode,
                 optionsBuilder: (TextEditingValue textEditingValue) {
+                  // Union of recent tell partners (conversation history) and
+                  // everyone currently online as reported by qwho. Partners
+                  // first so recent conversations surface at the top.
                   final partners = ref.read(recentTellPartnersProvider);
-                  if (partners.isEmpty) return const Iterable<String>.empty();
+                  final online = ref.read(onlinePlayersProvider);
+                  final seen = <String>{};
+                  final combined = <String>[];
+                  for (final name in [...partners, ...online]) {
+                    if (seen.add(name.toLowerCase())) combined.add(name);
+                  }
+                  if (combined.isEmpty) return const Iterable<String>.empty();
                   final text = textEditingValue.text.toLowerCase();
-                  if (text.isEmpty) return partners;
-                  return partners.where(
+                  if (text.isEmpty) return combined;
+                  return combined.where(
                     (name) => name.toLowerCase().startsWith(text),
                   );
                 },

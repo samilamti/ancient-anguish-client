@@ -11,6 +11,10 @@ class PanelTitleBar extends StatelessWidget {
   final VoidCallback? onUndock;
   final VoidCallback? onCombineTabs;
   final VoidCallback? onSeparateTabs;
+  final VoidCallback? onCycleTimestampMode;
+  final IconData? timestampModeIcon;
+  final String? timestampModeLabel;
+  final String? timestampModeTooltip;
   final GestureDragStartCallback onPanStart;
   final GestureDragUpdateCallback onPanUpdate;
   final GestureDragEndCallback onPanEnd;
@@ -26,6 +30,10 @@ class PanelTitleBar extends StatelessWidget {
     this.onUndock,
     this.onCombineTabs,
     this.onSeparateTabs,
+    this.onCycleTimestampMode,
+    this.timestampModeIcon,
+    this.timestampModeLabel,
+    this.timestampModeTooltip,
     required this.onPanStart,
     required this.onPanUpdate,
     required this.onPanEnd,
@@ -68,22 +76,32 @@ class PanelTitleBar extends StatelessWidget {
 
             // Combine/separate tabs – prominent pill button.
             if (isTabbed && onSeparateTabs != null)
-              _TabModePill(
+              _LabeledPill(
                 icon: Icons.splitscreen,
                 label: 'Separate',
                 onPressed: onSeparateTabs!,
               )
             else if (!isTabbed && onCombineTabs != null)
-              _TabModePill(
+              _LabeledPill(
                 icon: Icons.join_full,
                 label: 'Combine',
                 onPressed: onCombineTabs!,
               ),
 
+            // Trifold: timestamp display mode (show → showOnHover → hide).
+            if (onCycleTimestampMode != null && timestampModeIcon != null)
+              _LabeledPill(
+                icon: timestampModeIcon!,
+                label: timestampModeLabel ?? 'Time',
+                tooltip: timestampModeTooltip ?? 'Cycle timestamp display',
+                onPressed: onCycleTimestampMode!,
+              ),
+
             // Dock/undock button.
             if (isDocked && onUndock != null)
-              _TitleButton(
+              _LabeledPill(
                 icon: Icons.open_in_new,
+                label: 'Undock',
                 tooltip: 'Undock',
                 onPressed: onUndock!,
               )
@@ -107,18 +125,20 @@ class PanelTitleBar extends StatelessWidget {
   }
 }
 
-/// A visually prominent pill-shaped button for the combine/separate toggle.
-///
-/// Stands out from the other title bar icon buttons by using a contrasting
-/// background, a text label, and slightly larger touch target.
-class _TabModePill extends StatelessWidget {
+/// A visually prominent pill-shaped button with an icon and a short text
+/// label. Used in the panel title bar for actions that warrant more
+/// affordance than a plain icon button — Combine/Separate, Undock, and the
+/// timestamp-mode trifold.
+class _LabeledPill extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? tooltip;
   final VoidCallback onPressed;
 
-  const _TabModePill({
+  const _LabeledPill({
     required this.icon,
     required this.label,
+    this.tooltip,
     required this.onPressed,
   });
 
@@ -127,35 +147,41 @@ class _TabModePill extends StatelessWidget {
     final theme = Theme.of(context);
     final primary = theme.colorScheme.primary;
 
-    return Padding(
-      padding: const EdgeInsets.only(right: 4),
-      child: Material(
-        color: primary.withAlpha(35),
+    Widget pill = Material(
+      color: primary.withAlpha(35),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onPressed,
         borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 13, color: primary),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'JetBrainsMono',
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: primary,
-                  ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: primary),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'JetBrainsMono',
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: primary,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+
+    if (tooltip != null) {
+      pill = Tooltip(message: tooltip!, child: pill);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: pill,
     );
   }
 }

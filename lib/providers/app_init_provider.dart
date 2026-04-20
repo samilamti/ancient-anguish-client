@@ -25,6 +25,7 @@ final appInitProvider = FutureProvider<void>((ref) async {
       _ensureAreaConfig(storage),
       _ensureAlts(storage),
       storage.ensureFile('Command History.md'),
+      storage.ensureFile('Notes.md'),
       _loadSettings(ref, storage),
     ]);
   } catch (e) {

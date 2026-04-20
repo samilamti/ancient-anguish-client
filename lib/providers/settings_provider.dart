@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/quick_command.dart';
+import '../models/timestamp_mode.dart';
 import '../services/logging/log_service.dart';
 import 'storage_provider.dart';
 
@@ -26,6 +27,8 @@ class AppSettings {
   final bool isDonator; // gates donator-only prompt elements in UI
   final List<QuickCommand> quickCommands; // user-configurable mobile shortcuts
   final bool hideKeyboardOnMobile; // suppress autofocus + dismiss after send
+  final TimestampMode timestampMode; // HH:MM column in social message rows
+  final bool emojiMapsEnabled; // swap ASCII map tiles for emoji
 
   static const Set<String> defaultPromptElements = {
     'HP', 'MAXHP', 'SP', 'MAXSP', 'XCOORD', 'YCOORD',
@@ -57,6 +60,8 @@ class AppSettings {
     this.isDonator = false,
     this.quickCommands = QuickCommand.defaults,
     this.hideKeyboardOnMobile = true,
+    this.timestampMode = TimestampMode.show,
+    this.emojiMapsEnabled = false,
   });
 
   AppSettings copyWith({
@@ -77,6 +82,8 @@ class AppSettings {
     bool? isDonator,
     List<QuickCommand>? quickCommands,
     bool? hideKeyboardOnMobile,
+    TimestampMode? timestampMode,
+    bool? emojiMapsEnabled,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -101,6 +108,8 @@ class AppSettings {
       quickCommands: quickCommands ?? this.quickCommands,
       hideKeyboardOnMobile:
           hideKeyboardOnMobile ?? this.hideKeyboardOnMobile,
+      timestampMode: timestampMode ?? this.timestampMode,
+      emojiMapsEnabled: emojiMapsEnabled ?? this.emojiMapsEnabled,
     );
   }
 
@@ -125,6 +134,8 @@ class AppSettings {
         'quickCommands':
             quickCommands.map((c) => c.toJson()).toList(growable: false),
         'hideKeyboardOnMobile': hideKeyboardOnMobile,
+        'timestampMode': timestampMode.storageKey,
+        'emojiMapsEnabled': emojiMapsEnabled,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -155,6 +166,9 @@ class AppSettings {
               .toList()
           : QuickCommand.defaults,
       hideKeyboardOnMobile: json['hideKeyboardOnMobile'] as bool? ?? true,
+      timestampMode:
+          TimestampMode.fromStorageKey(json['timestampMode'] as String?),
+      emojiMapsEnabled: json['emojiMapsEnabled'] as bool? ?? false,
     );
   }
 }
@@ -227,6 +241,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     _saveSettings();
   }
 
+  void toggleEmojiMaps() {
+    state = state.copyWith(emojiMapsEnabled: !state.emojiMapsEnabled);
+    _saveSettings();
+  }
+
   void toggleBlockMode() {
     state = state.copyWith(blockModeEnabled: !state.blockModeEnabled);
     _saveSettings();
@@ -255,6 +274,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void toggleHideKeyboardOnMobile() {
     state = state.copyWith(hideKeyboardOnMobile: !state.hideKeyboardOnMobile);
     _saveSettings();
+  }
+
+  void setTimestampMode(TimestampMode mode) {
+    state = state.copyWith(timestampMode: mode);
+    _saveSettings();
+  }
+
+  /// Cycles: show → showOnHover → hide → show.
+  void cycleTimestampMode() {
+    setTimestampMode(state.timestampMode.next);
   }
 
   Future<void> toggleLogging() async {

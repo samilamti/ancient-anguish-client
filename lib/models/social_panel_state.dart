@@ -49,8 +49,9 @@ class SocialWindowsState {
   final SocialPanelState chatPanel;
   final SocialPanelState tellsPanel;
   final SocialPanelState partyPanel;
+  final SocialPanelState notesPanel;
   final PanelTabMode tabMode;
-  final int activeTab; // 0=chat, 1=tells, 2=party (when tabbed)
+  final int activeTab; // 0=chat, 1=tells, 2=party, 3=notes (when tabbed)
   final bool chatHasUnread;
   final bool tellsHasUnread;
   final bool partyHasUnread;
@@ -58,6 +59,7 @@ class SocialWindowsState {
   const SocialWindowsState({
     this.chatPanel = const SocialPanelState(
       visible: true,
+      dockSide: DockSide.right,
     ),
     this.tellsPanel = const SocialPanelState(
       visible: true,
@@ -66,6 +68,10 @@ class SocialWindowsState {
     this.partyPanel = const SocialPanelState(
       visible: true,
       x: 820,
+    ),
+    this.notesPanel = const SocialPanelState(
+      visible: true,
+      x: 1180,
     ),
     this.tabMode = PanelTabMode.tabbed,
     this.activeTab = 0,
@@ -78,6 +84,7 @@ class SocialWindowsState {
     SocialPanelState? chatPanel,
     SocialPanelState? tellsPanel,
     SocialPanelState? partyPanel,
+    SocialPanelState? notesPanel,
     PanelTabMode? tabMode,
     int? activeTab,
     bool? chatHasUnread,
@@ -88,6 +95,7 @@ class SocialWindowsState {
       chatPanel: chatPanel ?? this.chatPanel,
       tellsPanel: tellsPanel ?? this.tellsPanel,
       partyPanel: partyPanel ?? this.partyPanel,
+      notesPanel: notesPanel ?? this.notesPanel,
       tabMode: tabMode ?? this.tabMode,
       activeTab: activeTab ?? this.activeTab,
       chatHasUnread: chatHasUnread ?? this.chatHasUnread,

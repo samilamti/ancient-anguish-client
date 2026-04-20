@@ -72,7 +72,7 @@ class VitalsRow extends ConsumerWidget {
     if (!gameState.hasVitals) return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface.withAlpha(230),
         border: Border(
@@ -90,21 +90,19 @@ class VitalsRow extends ConsumerWidget {
               label: 'HP',
               value: gameState.hp,
               maxValue: gameState.maxHp,
-              icon: Icons.favorite,
               gradientColors: [
                 _hpColor(gameState.hpFraction).withAlpha(180),
                 _hpColor(gameState.hpFraction),
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           // SP gauge.
           Expanded(
             child: VitalsGauge(
               label: 'SP',
               value: gameState.sp,
               maxValue: gameState.maxSp,
-              icon: Icons.auto_awesome,
               gradientColors: const [
                 Color(0xFF2255AA),
                 Color(0xFF4488FF),
@@ -258,7 +256,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface.withAlpha(230),
         border: Border(
@@ -274,14 +272,11 @@ class _StatusBarState extends ConsumerState<StatusBar>
           Row(
             children: [
               if (gameState.hasCoordinates) ...[
-                Icon(Icons.explore, size: 14,
-                    color: theme.colorScheme.onSurface.withAlpha(140)),
-                const SizedBox(width: 4),
                 Text(
-                  '(${gameState.x}, ${gameState.y})',
+                  '${gameState.x},${gameState.y}',
                   style: _infoTextStyle(theme),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
               ],
               if (gameState.currentArea != null) ...[
                 Flexible(

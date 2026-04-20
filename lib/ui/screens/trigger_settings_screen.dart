@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/trigger_rule.dart';
 import '../../providers/trigger_provider.dart';
+import '../widgets/common/escape_dismiss.dart';
 
 /// Settings screen for managing trigger/highlight rules.
 ///
@@ -17,7 +18,8 @@ class TriggerSettingsScreen extends ConsumerWidget {
     final triggers = ref.watch(triggerRulesProvider);
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return EscapeDismiss(
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Immersions'),
         actions: [
@@ -77,6 +79,7 @@ class TriggerSettingsScreen extends ConsumerWidget {
                 );
               },
             ),
+    ),
     );
   }
 

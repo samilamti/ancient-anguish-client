@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/alias_rule.dart';
 import '../../providers/alias_provider.dart';
+import '../widgets/common/escape_dismiss.dart';
 
 /// Settings screen for managing command aliases.
 ///
@@ -16,7 +17,8 @@ class AliasSettingsScreen extends ConsumerWidget {
     final aliases = ref.watch(aliasRulesProvider);
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return EscapeDismiss(
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Command Aliases'),
         actions: [
@@ -76,6 +78,7 @@ class AliasSettingsScreen extends ConsumerWidget {
                 );
               },
             ),
+    ),
     );
   }
 

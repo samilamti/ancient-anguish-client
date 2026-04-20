@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/subscription_state.dart';
 import '../../models/support_tier.dart';
 import '../../providers/subscription_provider.dart';
+import '../widgets/common/escape_dismiss.dart';
 
 /// Optional supporter-tier subscription screen.
 ///
@@ -24,14 +25,16 @@ class SupportScreen extends ConsumerWidget {
     final state = ref.watch(subscriptionProvider);
     final notifier = ref.read(subscriptionProvider.notifier);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Support')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: _buildBody(context, state, notifier),
+    return EscapeDismiss(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Support')),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: _buildBody(context, state, notifier),
+            ),
           ),
         ),
       ),

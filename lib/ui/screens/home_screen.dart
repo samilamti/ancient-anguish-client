@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../providers/social_input_focus_provider.dart';
+import '../widgets/common/escape_dismiss.dart';
+import '../widgets/social/social_message_list.dart' show SocialListType;
 
 import '../../models/connection_info.dart';
 import '../../providers/audio_provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/game_state_provider.dart';
 import '../../providers/login_provider.dart';
+import '../../models/social_panel_state.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/social_panel_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../widgets/audio/audio_controls.dart';
 import '../widgets/login/login_dialog.dart';
 import '../widgets/mobile/d_pad.dart';
@@ -20,6 +27,7 @@ import 'about_screen.dart';
 import 'advanced_customization_screen.dart';
 import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
+import 'support_screen.dart';
 import 'trigger_settings_screen.dart';
 
 /// The main game screen – contains the terminal output, status bar,
@@ -52,9 +60,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       key: _scaffoldKey,
       endDrawer: _SettingsDrawer(isMobile: isMobile),
       appBar: AppBar(
-        title: playerName != null && isConnected
-            ? _TitleWithCharName(name: playerName)
-            : const Text('Ancient Anguish'),
+        centerTitle: false,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ConnectionIndicator(isConnected: isConnected),
+            Flexible(
+              child: (playerName != null && isConnected)
+                  ? _TitleWithCharName(name: playerName)
+                  : const Text(
+                      'Ancient Anguish',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+            ),
+          ],
+        ),
         titleTextStyle: TextStyle(
           fontFamily: 'JetBrainsMono',
           fontSize: 16,
@@ -62,10 +82,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           fontWeight: FontWeight.bold,
         ),
         actions: [
-          // Connection indicator (always pinned).
-          _ConnectionIndicator(isConnected: isConnected),
-
-          // Overflow toolbar handles the rest.
           _OverflowToolbar(
             isMobile: isMobile,
             items: [
@@ -82,7 +98,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 },
               ),
               _ToolbarItem(
-                icon: Icons.highlight,
+                emoji: '🎨',
                 label: 'Immersions',
                 onPressed: () {
                   Navigator.of(context).push(
@@ -93,7 +109,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 },
               ),
               _ToolbarItem(
-                icon: Icons.short_text,
+                emoji: '🔡',
                 label: 'Aliases',
                 onPressed: () {
                   Navigator.of(context).push(
@@ -114,31 +130,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   );
                 },
               ),
-              if (!isMobile && settings.socialWindowsEnabled) ...[
+              if (!isMobile)
                 _ToolbarItem(
-                  icon: Icons.chat_bubble_outline,
-                  label: 'Chat',
+                  emoji: '💬',
+                  label: 'Communications',
                   onPressed: () {
                     ref
-                        .read(socialPanelProvider.notifier)
-                        .toggleChatVisible();
+                        .read(settingsProvider.notifier)
+                        .toggleSocialWindows();
                   },
-                  active: ref.watch(socialPanelProvider).chatPanel.visible,
+                  active: settings.socialWindowsEnabled,
                 ),
-                _ToolbarItem(
-                  icon: Icons.message_outlined,
-                  label: 'Tells',
-                  onPressed: () {
-                    ref
-                        .read(socialPanelProvider.notifier)
-                        .toggleTellsVisible();
-                  },
-                  active:
-                      ref.watch(socialPanelProvider).tellsPanel.visible,
-                ),
-              ],
               _ToolbarItem(
-                icon: Icons.clear_all,
+                emoji: '⌫',
                 label: 'Clear',
                 onPressed: () {
                   ref.read(terminalBufferProvider.notifier).clear();
@@ -165,38 +169,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      body: SafeArea(
+      body: CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          // Ctrl/Cmd + 1..4 → focus the corresponding social tab.
+          const SingleActivator(LogicalKeyboardKey.digit1, control: true):
+              () => _focusSocialTab(ref, 0),
+          const SingleActivator(LogicalKeyboardKey.digit1, meta: true):
+              () => _focusSocialTab(ref, 0),
+          const SingleActivator(LogicalKeyboardKey.digit2, control: true):
+              () => _focusSocialTab(ref, 1),
+          const SingleActivator(LogicalKeyboardKey.digit2, meta: true):
+              () => _focusSocialTab(ref, 1),
+          const SingleActivator(LogicalKeyboardKey.digit3, control: true):
+              () => _focusSocialTab(ref, 2),
+          const SingleActivator(LogicalKeyboardKey.digit3, meta: true):
+              () => _focusSocialTab(ref, 2),
+          const SingleActivator(LogicalKeyboardKey.digit4, control: true):
+              () => _focusSocialTab(ref, 3),
+          const SingleActivator(LogicalKeyboardKey.digit4, meta: true):
+              () => _focusSocialTab(ref, 3),
+        },
+        child: SafeArea(
         child: Stack(
           children: [
-            Column(
-              children: [
-                // HP/SP bars side by side (under the app bar).
-                if (isConnected) const VitalsRow(),
+            _MainColumnWithDockInset(
+              reserveSpace: !isMobile && settings.socialWindowsEnabled,
+              child: Column(
+                children: [
+                  // HP/SP bars side by side (under the app bar).
+                  if (isConnected) const VitalsRow(),
 
-                // Coord/map/info bar.
-                if (isConnected) const StatusBar(),
+                  // Coord/map/info bar.
+                  if (isConnected) const StatusBar(),
 
-                // Terminal output – takes all available space.
-                const Expanded(child: TerminalView()),
+                  // Terminal output – takes all available space.
+                  const Expanded(child: TerminalView()),
 
-                // Audio controls (shown when connected and audio is enabled).
-                if (isConnected && audioState.audioEnabled)
-                  const AudioControls(),
+                  // Audio controls (shown when connected and audio is enabled).
+                  if (isConnected && audioState.audioEnabled)
+                    const AudioControls(),
 
-                // Mobile controls: DPad (if enabled) plus the quick-command row.
-                // The quick-command row is always rendered when the keyboard is
-                // being hidden so its keyboard-toggle button stays reachable.
-                if (isMobile) ...[
-                  if (settings.useDPad && settings.quickCommandsVisible)
-                    const DPad(),
-                  if (settings.hideKeyboardOnMobile ||
-                      settings.quickCommandsVisible)
-                    const QuickCommands(),
+                  // Mobile controls: DPad (if enabled) plus the quick-command row.
+                  // The quick-command row is always rendered when the keyboard is
+                  // being hidden so its keyboard-toggle button stays reachable.
+                  if (isMobile) ...[
+                    if (settings.useDPad && settings.quickCommandsVisible)
+                      const DPad(),
+                    if (settings.hideKeyboardOnMobile ||
+                        settings.quickCommandsVisible)
+                      const QuickCommands(),
+                  ],
+
+                  // Command input bar.
+                  const InputBar(),
                 ],
-
-                // Command input bar.
-                const InputBar(),
-              ],
+              ),
             ),
 
             // Social windows overlay (floating/docked panels).
@@ -212,7 +239,54 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
       ),
+      ),
     );
+  }
+
+  /// Switches the SWC to the tab at [tabIndex] (0=Chat, 1=Tells, 2=Party,
+  /// 3=Notes), makes it visible, then requests focus on the matching input
+  /// field. Bound to Ctrl/Cmd + 1..4 at the HomeScreen body level.
+  ///
+  /// The focus request runs on the next microtask so the tab switch lands
+  /// first — the target widget (e.g. `_NotesBody` or the `SocialInputBar`)
+  /// may not yet be mounted when switching in from a different tab.
+  void _focusSocialTab(WidgetRef ref, int tabIndex) {
+    final panelNotifier = ref.read(socialPanelProvider.notifier);
+    final panelState = ref.read(socialPanelProvider);
+
+    switch (tabIndex) {
+      case 0:
+        panelNotifier.showChat();
+        break;
+      case 1:
+        panelNotifier.showTells();
+        break;
+      case 2:
+        panelNotifier.showParty();
+        break;
+      case 3:
+        panelNotifier.showNotes();
+        break;
+    }
+    if (panelState.tabMode == PanelTabMode.tabbed) {
+      panelNotifier.setActiveTab(tabIndex);
+    }
+
+    Future.microtask(() {
+      final FocusNode? node;
+      if (tabIndex == 3) {
+        node = ref.read(notesFocusProvider);
+      } else {
+        final type = switch (tabIndex) {
+          0 => SocialListType.chat,
+          1 => SocialListType.tells,
+          2 => SocialListType.party,
+          _ => SocialListType.chat,
+        };
+        node = ref.read(socialInputFocusProvider)[type];
+      }
+      if (node != null && !node.hasFocus) node.requestFocus();
+    });
   }
 }
 
@@ -225,36 +299,23 @@ class _TitleWithCharName extends StatelessWidget {
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
 
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: name,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: primary,
-              shadows: [
-                Shadow(
-                  offset: const Offset(1, 1),
-                  blurRadius: 0,
-                  color: primary.withAlpha(80),
-                ),
-                Shadow(
-                  offset: const Offset(2, 2),
-                  blurRadius: 1,
-                  color: primary.withAlpha(40),
-                ),
-              ],
-            ),
+    return Text(
+      name,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w900,
+        color: primary,
+        shadows: [
+          Shadow(
+            offset: const Offset(1, 1),
+            blurRadius: 0,
+            color: primary.withAlpha(80),
           ),
-          TextSpan(
-            text: ' - Ancient Anguish',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: primary.withAlpha(180),
-            ),
+          Shadow(
+            offset: const Offset(2, 2),
+            blurRadius: 1,
+            color: primary.withAlpha(40),
           ),
         ],
       ),
@@ -262,19 +323,87 @@ class _TitleWithCharName extends StatelessWidget {
   }
 }
 
+/// Inset-aware wrapper for the main content column.
+///
+/// Watches the social panel state and adds left/right padding equal to the
+/// widest panel docked on each side, so the terminal and HUD don't render
+/// underneath docked social windows.
+class _MainColumnWithDockInset extends ConsumerWidget {
+  final Widget child;
+  final bool reserveSpace;
+
+  const _MainColumnWithDockInset({
+    required this.child,
+    required this.reserveSpace,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!reserveSpace) return child;
+    final ps = ref.watch(socialPanelProvider);
+
+    double left = 0;
+    double right = 0;
+
+    void accumulate(SocialPanelState p) {
+      if (!p.visible || !p.isDocked) return;
+      if (p.dockSide == DockSide.right && p.width > right) right = p.width;
+      if (p.dockSide == DockSide.left && p.width > left) left = p.width;
+    }
+
+    if (ps.tabMode == PanelTabMode.tabbed &&
+        ps.chatPanel.visible &&
+        ps.tellsPanel.visible &&
+        ps.partyPanel.visible &&
+        ps.notesPanel.visible) {
+      // Tabbed mode renders a single panel driven by chatPanel's geometry.
+      accumulate(ps.chatPanel);
+    } else {
+      accumulate(ps.chatPanel);
+      accumulate(ps.tellsPanel);
+      accumulate(ps.partyPanel);
+      accumulate(ps.notesPanel);
+    }
+
+    if (left == 0 && right == 0) return child;
+    return Padding(
+      padding: EdgeInsets.only(left: left, right: right),
+      child: child,
+    );
+  }
+}
+
 /// Data describing a single toolbar action.
+///
+/// Exactly one of [icon] or [emoji] must be provided. Emoji items render as
+/// text glyphs, so the Material "active color" tint only applies to
+/// icon-based items; emoji colour comes from the system's emoji font.
 class _ToolbarItem {
-  final IconData icon;
+  final IconData? icon;
+  final String? emoji;
   final String label;
   final VoidCallback onPressed;
   final bool active;
 
   const _ToolbarItem({
-    required this.icon,
+    this.icon,
+    this.emoji,
     required this.label,
     required this.onPressed,
     this.active = false,
-  });
+  }) : assert(icon != null || emoji != null,
+            'Provide either an icon or an emoji.');
+}
+
+Widget _toolbarLeading(_ToolbarItem item, {double size = 20, Color? color}) {
+  if (item.emoji != null) {
+    // Slight visual down-tune so emojis don't tower over IconData neighbours.
+    return Text(
+      item.emoji!,
+      style: TextStyle(fontSize: size - 4, height: 1.0),
+    );
+  }
+  return Icon(item.icon, size: size, color: color);
 }
 
 /// Toolbar that shows labeled buttons on desktop and overflows excess items
@@ -304,12 +433,12 @@ class _OverflowToolbar extends StatelessWidget {
         children: [
           for (final item in items)
             IconButton(
-              icon: Icon(item.icon, size: 20),
+              icon: _toolbarLeading(item),
               tooltip: item.label,
               onPressed: item.onPressed,
             ),
           IconButton(
-            icon: Icon(pinned.icon, size: 20),
+            icon: _toolbarLeading(pinned),
             tooltip: pinned.label,
             onPressed: pinned.onPressed,
           ),
@@ -342,7 +471,7 @@ class _OverflowToolbar extends StatelessWidget {
                   value: i,
                   child: Row(
                     children: [
-                      Icon(overflowed[i].icon, size: 18),
+                      _toolbarLeading(overflowed[i], size: 18),
                       const SizedBox(width: 12),
                       Text(overflowed[i].label),
                     ],
@@ -360,7 +489,7 @@ class _OverflowToolbar extends StatelessWidget {
     final color = item.active ? primary : null;
 
     return TextButton.icon(
-      icon: Icon(item.icon, size: 20, color: color),
+      icon: _toolbarLeading(item, color: color),
       label: Text(
         item.label,
         style: TextStyle(fontSize: 11, color: color),
@@ -383,36 +512,26 @@ class _ConnectionIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isConnected ? Colors.green : Colors.red,
-              boxShadow: [
-                BoxShadow(
-                  color: (isConnected ? Colors.green : Colors.red)
-                      .withAlpha(100),
-                  blurRadius: 4,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
+    return Tooltip(
+      message: isConnected ? 'Online' : 'Offline',
+      child: Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isConnected ? Colors.green : Colors.red,
+            boxShadow: [
+              BoxShadow(
+                color: (isConnected ? Colors.green : Colors.red)
+                    .withAlpha(100),
+                blurRadius: 4,
+                spreadRadius: 1,
+              ),
+            ],
           ),
-          const SizedBox(width: 6),
-          Text(
-            isConnected ? 'Online' : 'Offline',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurface.withAlpha(180),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -430,7 +549,8 @@ class _SettingsDrawer extends ConsumerWidget {
     final notifier = ref.read(settingsProvider.notifier);
     final theme = Theme.of(context);
     return Drawer(
-      child: SafeArea(
+      child: EscapeDismiss(
+        child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
@@ -549,6 +669,13 @@ class _SettingsDrawer extends ConsumerWidget {
               onChanged: (_) => notifier.toggleEmojiParsing(),
             ),
 
+            _DrawerToggle(
+              label: 'Emoji Maps',
+              icon: Icons.map,
+              value: settings.emojiMapsEnabled,
+              onChanged: (_) => notifier.toggleEmojiMaps(),
+            ),
+
             if (!isMobile)
               _DrawerToggle(
                 label: 'Block Mode',
@@ -643,7 +770,35 @@ class _SettingsDrawer extends ConsumerWidget {
                 );
               },
             ),
+
+            const Divider(height: 24),
+
+            // ── Support ──
+            _DrawerSectionHeader(title: 'Support', icon: Icons.favorite),
+            const SizedBox(height: 8),
+            Consumer(builder: (context, ref, _) {
+              final sub = ref.watch(subscriptionProvider);
+              final subtitle = sub.isActive
+                  ? 'Supporting: ${sub.activeTier!.displayName}'
+                  : 'Optional monthly tiers — nothing gated';
+              return ListTile(
+                leading: const Icon(Icons.favorite_border, size: 20),
+                title: const Text('Support Tiers'),
+                subtitle: Text(subtitle),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                dense: true,
+                onTap: () {
+                  Navigator.of(context).pop(); // close drawer
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SupportScreen(),
+                    ),
+                  );
+                },
+              );
+            }),
           ],
+        ),
         ),
       ),
     );

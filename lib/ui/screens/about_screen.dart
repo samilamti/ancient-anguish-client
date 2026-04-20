@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/common/escape_dismiss.dart';
+import 'support_screen.dart';
+
 /// About screen showing app info, credits, and license.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -8,7 +11,8 @@ class AboutScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return EscapeDismiss(
+      child: Scaffold(
       appBar: AppBar(title: const Text('About')),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -31,7 +35,7 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'v6.7',
+                    'v6.9.0',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurface.withAlpha(160),
                     ),
@@ -92,6 +96,55 @@ class AboutScreen extends StatelessWidget {
 
           const SizedBox(height: 16),
 
+          // ── Support ──
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.favorite_border,
+                        size: 20,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Support',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Optional monthly support tiers — purely cosmetic, '
+                    'nothing gated.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SupportScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.arrow_forward, size: 16),
+                      label: const Text('View tiers'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
           // ── License ──
           Card(
             child: Padding(
@@ -123,6 +176,7 @@ class AboutScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

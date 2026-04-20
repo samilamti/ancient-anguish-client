@@ -8,6 +8,7 @@ import '../../providers/audio_provider.dart';
 import '../../providers/background_image_provider.dart';
 import '../../providers/game_state_provider.dart';
 import '../../providers/unified_area_config_provider.dart';
+import '../widgets/common/escape_dismiss.dart';
 
 /// Unified screen for managing per-area music, background images, and battle themes.
 class AreaConfigurationScreen extends ConsumerStatefulWidget {
@@ -54,7 +55,8 @@ class _AreaConfigurationScreenState
         ? (unifiedConfig?.getBackgroundsForArea(_selectedArea!) ?? const [])
         : const <String>[];
 
-    return Scaffold(
+    return EscapeDismiss(
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Area Configuration'),
         actions: [
@@ -437,6 +439,7 @@ class _AreaConfigurationScreenState
             }),
         ],
       ),
+    ),
     );
   }
 

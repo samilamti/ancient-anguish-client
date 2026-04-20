@@ -4,9 +4,9 @@ import 'package:ancient_anguish_client/models/quick_command.dart';
 
 void main() {
   group('QuickCommand - defaults', () {
-    test('bundles look, kill, loot, inventory', () {
+    test('bundles kill, loot, inventory (Look lives in the D-Pad)', () {
       final labels = QuickCommand.defaults.map((c) => c.label).toList();
-      expect(labels, ['Look', 'Kill', 'Loot', 'Inventory']);
+      expect(labels, ['Kill', 'Loot', 'Inventory']);
     });
 
     test('kill is the only selectTarget default', () {

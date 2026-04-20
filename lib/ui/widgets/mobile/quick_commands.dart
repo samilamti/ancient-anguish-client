@@ -39,7 +39,7 @@ class QuickCommands extends ConsumerWidget {
         children: [
           _QuickCommandButton(
             tooltip: 'Show keyboard',
-            icon: Icons.keyboard,
+            leading: const Icon(Icons.keyboard, size: 20),
             onPressed: () {
               ref.read(inputFocusProvider).requestFocus();
             },
@@ -47,7 +47,7 @@ class QuickCommands extends ConsumerWidget {
           for (final cmd in commands)
             _QuickCommandButton(
               tooltip: cmd.label,
-              icon: iconFromName(cmd.iconName),
+              leading: iconWidgetFromName(cmd.iconName),
               onPressed: () => _handleCommand(context, ref, cmd),
             ),
         ],
@@ -89,12 +89,12 @@ class QuickCommands extends ConsumerWidget {
 
 class _QuickCommandButton extends StatelessWidget {
   final String tooltip;
-  final IconData icon;
+  final Widget leading;
   final VoidCallback onPressed;
 
   const _QuickCommandButton({
     required this.tooltip,
-    required this.icon,
+    required this.leading,
     required this.onPressed,
   });
 
@@ -107,7 +107,13 @@ class _QuickCommandButton extends StatelessWidget {
       child: SizedBox(
         height: 36,
         child: ElevatedButton(
-          onPressed: onPressed,
+          onPressed: () {
+            // Hide the soft keyboard when invoking any quick command so the
+            // subsequent output is visible; callers that want the keyboard
+            // back (e.g. "Show keyboard") re-request focus afterwards.
+            FocusManager.instance.primaryFocus?.unfocus();
+            onPressed();
+          },
           style: ElevatedButton.styleFrom(
             backgroundColor: theme.colorScheme.surface,
             foregroundColor: theme.colorScheme.primary,
@@ -120,7 +126,7 @@ class _QuickCommandButton extends StatelessWidget {
             ),
             minimumSize: const Size(44, 36),
           ),
-          child: Icon(icon, size: 20),
+          child: leading,
         ),
       ),
     );

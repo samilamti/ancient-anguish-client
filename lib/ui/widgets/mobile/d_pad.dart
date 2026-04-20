@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/connection_provider.dart';
 import '../../../providers/game_state_provider.dart';
-import '../status/status_bar.dart' show showRenameAreaDialog;
 
 /// A compass-rose directional pad for mobile navigation.
 ///
@@ -38,53 +37,26 @@ class DPad extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
-          // Up / Down / Look column.
+          // Vertical column: Up / Down / Score.
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               _DPadButton(
                 label: 'Up',
-                icon: Icons.arrow_upward,
+                emoji: '🛫',
                 onPressed: () => send('up'),
               ),
               const SizedBox(height: 4),
               _DPadButton(
-                label: 'Look',
-                icon: Icons.visibility,
-                onPressed: () => send('look'),
-              ),
-              const SizedBox(height: 4),
-              _DPadButton(
                 label: 'Down',
-                icon: Icons.arrow_downward,
+                emoji: '🛬',
                 onPressed: () => send('down'),
-              ),
-            ],
-          ),
-
-          const SizedBox(width: 8),
-
-          // Quick action column.
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _DPadButton(
-                label: 'Inv',
-                icon: Icons.backpack,
-                onPressed: () => send('inventory'),
               ),
               const SizedBox(height: 4),
               _DPadButton(
                 label: 'Score',
                 icon: Icons.star,
                 onPressed: () => send('score'),
-              ),
-              const SizedBox(height: 4),
-              _DPadButton(
-                label: 'Flee',
-                icon: Icons.directions_run,
-                onPressed: () => send('flee'),
-                color: Colors.red,
               ),
             ],
           ),
@@ -94,7 +66,9 @@ class DPad extends ConsumerWidget {
   }
 }
 
-/// The 8-direction compass rose widget.
+/// The 8-direction compass rose widget. The center cell doubles as a Look
+/// button so the user can re-render the current room without leaving the
+/// D-Pad.
 class _CompassRose extends StatelessWidget {
   final void Function(String command) onDirection;
 
@@ -109,16 +83,18 @@ class _CompassRose extends StatelessWidget {
         TableRow(children: [
           _DPadButton(
             label: 'NW',
+            emoji: '↖️',
             onPressed: () => onDirection('northwest'),
             compact: true,
           ),
           _DPadButton(
             label: 'N',
-            icon: Icons.north,
+            emoji: '⬆️',
             onPressed: () => onDirection('north'),
           ),
           _DPadButton(
             label: 'NE',
+            emoji: '↗️',
             onPressed: () => onDirection('northeast'),
             compact: true,
           ),
@@ -126,30 +102,35 @@ class _CompassRose extends StatelessWidget {
         TableRow(children: [
           _DPadButton(
             label: 'W',
-            icon: Icons.west,
+            emoji: '⬅️',
             onPressed: () => onDirection('west'),
           ),
-          // Center: compass indicator.
-          _CompassCenter(),
+          _DPadButton(
+            label: 'Look',
+            emoji: '👀',
+            onPressed: () => onDirection('look'),
+          ),
           _DPadButton(
             label: 'E',
-            icon: Icons.east,
+            emoji: '➡️',
             onPressed: () => onDirection('east'),
           ),
         ]),
         TableRow(children: [
           _DPadButton(
             label: 'SW',
+            emoji: '↙️',
             onPressed: () => onDirection('southwest'),
             compact: true,
           ),
           _DPadButton(
             label: 'S',
-            icon: Icons.south,
+            emoji: '⬇️',
             onPressed: () => onDirection('south'),
           ),
           _DPadButton(
             label: 'SE',
+            emoji: '↘️',
             onPressed: () => onDirection('southeast'),
             compact: true,
           ),
@@ -159,111 +140,72 @@ class _CompassRose extends StatelessWidget {
   }
 }
 
-/// The center piece of the compass rose.
-///
-/// Shows the current area name when known, or a compass icon otherwise.
-class _CompassCenter extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final areaName = ref.watch(
-      gameStateProvider.select((s) => s.currentArea),
-    );
-
-    return Padding(
-      padding: const EdgeInsets.all(2),
-      child: SizedBox(
-        width: 44,
-        height: 44,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: theme.colorScheme.primary.withAlpha(60),
-            ),
-          ),
-          child: areaName != null
-              ? Tooltip(
-                  message: 'Click to rename',
-                  child: GestureDetector(
-                    onTap: () => showRenameAreaDialog(context, ref),
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(2),
-                        child: Text(
-                          areaName,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'JetBrainsMono',
-                            fontSize: 7,
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-              : Icon(
-                  Icons.explore,
-                  size: 20,
-                  color: theme.colorScheme.primary.withAlpha(120),
-                ),
-        ),
-      ),
-    );
-  }
-}
-
 /// A single direction button on the D-Pad.
+///
+/// Exactly one of [emoji] or [icon] should be provided; [label] is always
+/// used for the tooltip/semantic text even when a glyph is shown.
 class _DPadButton extends StatelessWidget {
   final String label;
   final IconData? icon;
+  final String? emoji;
   final VoidCallback onPressed;
   final bool compact;
-  final Color? color;
 
   const _DPadButton({
     required this.label,
     this.icon,
+    this.emoji,
     required this.onPressed,
     this.compact = false,
-    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final buttonColor = color ?? theme.colorScheme.primary;
+    final buttonColor = theme.colorScheme.primary;
+
+    final Widget child;
+    if (emoji != null) {
+      child = Text(
+        emoji!,
+        style: TextStyle(fontSize: compact ? 18 : 22, height: 1.0),
+      );
+    } else if (icon != null) {
+      child = Icon(icon, size: 18, color: buttonColor);
+    } else {
+      child = Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'JetBrainsMono',
+          fontSize: compact ? 10 : 11,
+          fontWeight: FontWeight.bold,
+          color: buttonColor,
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.all(2),
-      child: SizedBox(
-        width: compact ? 40 : 44,
-        height: compact ? 36 : 44,
-        child: Material(
-          color: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: buttonColor.withAlpha(80)),
-          ),
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(8),
-            child: Center(
-              child: icon != null && !compact
-                  ? Icon(icon, size: 18, color: buttonColor)
-                  : Text(
-                      label,
-                      style: TextStyle(
-                        fontFamily: 'JetBrainsMono',
-                        fontSize: compact ? 10 : 11,
-                        fontWeight: FontWeight.bold,
-                        color: buttonColor,
-                      ),
-                    ),
+      child: Tooltip(
+        message: label,
+        child: SizedBox(
+          width: compact ? 40 : 44,
+          height: compact ? 36 : 44,
+          child: Material(
+            color: theme.colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: buttonColor.withAlpha(80)),
+            ),
+            child: InkWell(
+              onTap: () {
+                // Hide the soft keyboard when moving around so the room text
+                // isn't occluded by it.
+                FocusManager.instance.primaryFocus?.unfocus();
+                onPressed();
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Center(child: child),
             ),
           ),
         ),

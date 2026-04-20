@@ -57,14 +57,9 @@ class QuickCommand {
         enabled: json['enabled'] as bool? ?? true,
       );
 
-  /// The four built-in defaults for a fresh install.
+  /// The built-in defaults for a fresh install. Look intentionally omitted —
+  /// the D-Pad's center button covers that.
   static const List<QuickCommand> defaults = [
-    QuickCommand(
-      id: 'default_look',
-      label: 'Look',
-      iconName: 'eye',
-      command: 'look',
-    ),
     QuickCommand(
       id: 'default_kill',
       label: 'Kill',

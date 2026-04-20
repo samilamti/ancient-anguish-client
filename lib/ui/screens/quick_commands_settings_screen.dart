@@ -148,8 +148,9 @@ class _QuickCommandTile extends StatelessWidget {
     ];
 
     return ListTile(
-      leading: Icon(
-        iconFromName(command.iconName),
+      leading: iconWidgetFromName(
+        command.iconName,
+        size: 24,
         color: command.enabled
             ? theme.colorScheme.primary
             : theme.colorScheme.onSurface.withAlpha(60),
@@ -349,8 +350,8 @@ class _QuickCommandEditScreenState
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        iconFromName(name),
+                      iconWidgetFromName(
+                        name,
                         size: 24,
                         color: selected
                             ? theme.colorScheme.primary

@@ -1,13 +1,7 @@
 import 'package:flutter/material.dart';
 
-// Stock Flutter Material Icons has no dedicated skull glyph, so 'skull' maps to
-// Icons.dangerous (circular skull-and-crossbones warning) as the closest visual
-// analogue. Swapping in a real skull would require pulling in material_symbols.
 const Map<String, IconData> _kIcons = {
   'eye': Icons.visibility,
-  'skull': Icons.dangerous,
-  'treasure': Icons.diamond,
-  'bag': Icons.backpack,
   'sword': Icons.sports_martial_arts,
   'shield': Icons.shield,
   'heart': Icons.favorite,
@@ -27,6 +21,36 @@ const Map<String, IconData> _kIcons = {
   'down': Icons.keyboard_arrow_down,
 };
 
-IconData iconFromName(String name) => _kIcons[name] ?? Icons.bolt;
+/// Icon names that render as a Unicode emoji instead of a Material Icon.
+/// Material's core font has no glyphs for these, and the emoji reads better
+/// on mobile anyway.
+const Map<String, String> _kEmojis = {
+  'skull': '💀',
+  'bag': '🎒',
+  'treasure': '🪎',
+};
 
-List<String> availableIconNames() => _kIcons.keys.toList(growable: false);
+/// Canonical order of picker entries — emoji names first so they're easy to
+/// find, followed by the Material icons.
+List<String> availableIconNames() =>
+    [..._kEmojis.keys, ..._kIcons.keys];
+
+/// Returns a rendered leading widget for the given icon name, choosing
+/// between an emoji glyph and a Material icon. Unknown names fall back to
+/// [Icons.bolt]. Use [size] and [color] to match the surrounding widget.
+Widget iconWidgetFromName(
+  String name, {
+  double size = 20,
+  Color? color,
+}) {
+  final emoji = _kEmojis[name];
+  if (emoji != null) {
+    // Emoji glyphs render smaller than Material icons at the same nominal
+    // size; bump the font size a little so they land visually balanced.
+    return Text(
+      emoji,
+      style: TextStyle(fontSize: size, height: 1.0),
+    );
+  }
+  return Icon(_kIcons[name] ?? Icons.bolt, size: size, color: color);
+}

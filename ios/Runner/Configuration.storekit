@@ -1,0 +1,95 @@
+{
+  "identifier" : "50A4F6F0-1D71-4B14-B8D6-0E0C8AA71234",
+  "nonRenewingSubscriptions" : [],
+  "products" : [],
+  "settings" : {
+    "_applicationInternalID" : "6547000000",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : []
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21478123",
+      "localizations" : [
+        {
+          "description" : "Optional supporter tiers.",
+          "displayName" : "Support",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Support",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "1.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "pww_small_id",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "A small monthly nod to the developer.",
+              "displayName" : "Small",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "pww_small",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Small",
+          "subscriptionGroupID" : "21478123",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "3.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "pww_medium_id",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Helps cover signing and account fees.",
+              "displayName" : "Medium",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "pww_medium",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Medium",
+          "subscriptionGroupID" : "21478123",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "5.99",
+          "familyShareable" : false,
+          "groupNumber" : 3,
+          "internalID" : "pww_large_id",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Powers new features and release sprints.",
+              "displayName" : "Large",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "pww_large",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Large",
+          "subscriptionGroupID" : "21478123",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

@@ -36,6 +36,9 @@ dependencies:
   # URL handling
   url_launcher: ^6.3.1
 
+  # In-app purchases (Support tiers)
+  in_app_purchase: ^3.2.0
+
   # Utilities
   path_provider: ^2.1.5
   collection: ^1.19.1

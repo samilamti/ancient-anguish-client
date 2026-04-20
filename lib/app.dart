@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
 import 'models/auth_state.dart';
+import 'models/subscription_state.dart';
 import 'providers/app_init_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/settings_provider.dart';
 import 'ui/screens/auth_screen.dart';
 import 'ui/screens/home_screen.dart';
+import 'ui/screens/support_screen.dart';
 
 /// The root application widget.
 class AncientAnguishApp extends ConsumerWidget {
@@ -64,7 +66,9 @@ class AncientAnguishApp extends ConsumerWidget {
           title: 'Ancient Anguish',
           theme: theme,
           debugShowCheckedModeBanner: false,
-          home: const HomeScreen(),
+          home: kIsSubscriptionSeeded
+              ? const SupportScreen()
+              : const HomeScreen(),
         );
       },
     );

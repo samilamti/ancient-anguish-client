@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/settings_provider.dart';
+import '../../providers/subscription_provider.dart';
 import 'about_screen.dart';
 import 'advanced_customization_screen.dart';
 import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
 import 'quick_commands_settings_screen.dart';
+import 'support_screen.dart';
 import 'trigger_settings_screen.dart';
 
 /// Settings screen for configuring the client.
@@ -355,6 +357,29 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
+
+          const Divider(height: 32),
+
+          // ── Support section ──
+          _SectionHeader(title: 'Support', icon: Icons.favorite),
+          const SizedBox(height: 8),
+          Consumer(builder: (context, ref, _) {
+            final sub = ref.watch(subscriptionProvider);
+            final subtitle = sub.isActive
+                ? 'Supporting: ${sub.activeTier!.displayName}'
+                : 'Optional monthly tiers — nothing gated';
+            return ListTile(
+              leading: const Icon(Icons.favorite_border),
+              title: const Text('Support Tiers'),
+              subtitle: Text(subtitle),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SupportScreen()),
+                );
+              },
+            );
+          }),
 
           const Divider(height: 32),
 

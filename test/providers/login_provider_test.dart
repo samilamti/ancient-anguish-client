@@ -106,7 +106,8 @@ void main() {
       fakeService.sentCommands.clear();
 
       notifier.onPasswordPromptDetected();
-      expect(fakeService.sentCommands, hasLength(2)); // password + prompt cmd
+      // password + prompt cmd + qwho
+      expect(fakeService.sentCommands, hasLength(3));
 
       fakeService.sentCommands.clear();
       notifier.onPasswordPromptDetected(); // Should be no-op now.

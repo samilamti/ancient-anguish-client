@@ -133,6 +133,8 @@ class LoginNotifier extends Notifier<LoginState> {
     bufferNotifier.setLoginDetected();
     final service = ref.read(connectionServiceProvider);
     service.sendCommand(ref.read(promptConfigProvider).promptCommand);
+    // Capture the currently-online players for Tell autocomplete.
+    service.sendCommand('qwho');
     // Force alias loading from disk (provider is lazy, only loads on first access).
     ref.read(aliasRulesProvider);
   }

@@ -14,8 +14,10 @@ import '../protocol/ansi/styled_span.dart';
 import '../protocol/telnet/telnet_events.dart';
 import '../services/connection/connection_interface.dart';
 import '../services/connection/create_connection.dart';
+import '../models/map_block.dart';
 import '../services/parser/emoji_parser.dart';
 import '../services/parser/link_parser.dart';
+import '../services/parser/map_emoji_transformer.dart';
 import '../services/parser/output_parser.dart';
 import '../models/social_message.dart';
 import '../services/command_history_service.dart';
@@ -26,6 +28,8 @@ import '../services/social/social_message_parser.dart';
 import 'battle_provider.dart';
 import 'game_state_provider.dart';
 import 'login_provider.dart';
+import 'map_block_provider.dart';
+import 'online_players_provider.dart';
 import 'prompt_config_provider.dart';
 import 'settings_provider.dart';
 import 'social_message_provider.dart';
@@ -119,6 +123,11 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// waiting for the closing one.
   bool _insideMapBorder = false;
 
+  /// Accumulator used when capturing a map block for grid rendering. Active
+  /// only while `settings.emojiMapsEnabled` is on and we are between the
+  /// opening and closing `+---+` borders.
+  List<List<MapTile>>? _pendingMapRows;
+
   static final RegExp _mapBorderRegex =
       RegExp(r'^\+\-{20,}\+$');
 
@@ -210,30 +219,76 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             }
 
             // Map border detection: suppress emoji inside ASCII-art maps
-            // delimited by +---...---+ borders.
-            if (_mapBorderRegex.hasMatch(plainText.trim())) {
+            // delimited by +---...---+ borders. When emojiMapsEnabled, we
+            // additionally capture the whole block into a structured
+            // MapBlock and emit a single sentinel line in its place; the
+            // terminal renderer expands that sentinel into a grid widget.
+            final settings = ref.read(settingsProvider);
+            final isBorder = _mapBorderRegex.hasMatch(plainText.trim());
+            var captureLineIntoMap = false;
+            var emitMapSentinel = false;
+            int? finishedMapId;
+
+            if (isBorder) {
               if (!_insideMapBorder) {
-                // Opening border — begin suppression.
+                // Opening border.
                 _insideMapBorder = true;
                 _emojiSuppressed = true;
+                if (settings.emojiMapsEnabled) {
+                  _pendingMapRows = <List<MapTile>>[];
+                  continue; // Suppress the opening border line entirely.
+                }
               } else {
-                // Closing border — will lift suppression after this line.
+                // Closing border.
                 _insideMapBorder = false;
-                // Keep suppressed for this line (the border itself), clear
-                // after processing below.
+                if (settings.emojiMapsEnabled && _pendingMapRows != null) {
+                  final rows = _pendingMapRows!;
+                  _pendingMapRows = null;
+                  if (rows.isNotEmpty) {
+                    finishedMapId = ref
+                        .read(mapBlocksProvider.notifier)
+                        .put(MapBlock(rows));
+                    emitMapSentinel = true;
+                  }
+                  _emojiSuppressed = false;
+                  if (!emitMapSentinel) continue;
+                }
               }
+            } else if (_insideMapBorder &&
+                settings.emojiMapsEnabled &&
+                _pendingMapRows != null) {
+              // Map content row — accumulate, don't add to buffer.
+              final tiles = parseMapRow(plainText);
+              if (tiles.isNotEmpty) _pendingMapRows!.add(tiles);
+              captureLineIntoMap = true;
+            }
+
+            if (captureLineIntoMap) continue;
+
+            // Build the line to emit. For a finished map, this is a
+            // sentinel the renderer looks up; otherwise it's the usual
+            // transformed/emoji-parsed line.
+            var workingLine = line;
+            if (emitMapSentinel && finishedMapId != null) {
+              workingLine = StyledLine([
+                StyledSpan(text: sentinelForBlockId(finishedMapId)),
+              ]);
+            } else if (settings.emojiMapsEnabled && _insideMapBorder) {
+              // Rare path: user has maps enabled but accumulator missed a
+              // line (e.g. flag flipped mid-block). Fall back to inline
+              // emoji transform so the output remains legible.
+              workingLine = MapEmojiTransformer.processLine(workingLine);
             }
 
             // Apply emoji parsing: replace text emoticons with emoji.
-            final settings = ref.read(settingsProvider);
             final emojiLine =
                 settings.emojiParsingEnabled && !_emojiSuppressed
-                    ? EmojiParser.processLine(line)
-                    : line;
+                    ? EmojiParser.processLine(workingLine)
+                    : workingLine;
 
-            // Lift suppression after the closing border line is processed.
-            if (!_insideMapBorder && _emojiSuppressed &&
-                _mapBorderRegex.hasMatch(plainText.trim())) {
+            // Lift suppression after the closing border line is processed
+            // (only reached when emojiMapsEnabled is off).
+            if (!_insideMapBorder && _emojiSuppressed && isBorder) {
               _emojiSuppressed = false;
             }
 
@@ -291,6 +346,9 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             // Feed to game state parser for HP/SP prompt detection.
             gameNotifier.processLine(plainText);
             gameNotifier.processRoomText(plainText);
+
+            // Capture `qwho` output to populate the Tell-recipient list.
+            ref.read(onlinePlayersProvider.notifier).processLine(plainText);
           }
 
           if (processedLines.isNotEmpty) {
@@ -643,8 +701,11 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// sent, so prompt line gagging activates).
   void setLoginDetected() => _loginDetected = true;
 
-  /// Clears the terminal buffer.
-  void clear() => state = [];
+  /// Clears the terminal buffer (and any captured map blocks).
+  void clear() {
+    state = [];
+    ref.read(mapBlocksProvider.notifier).clear();
+  }
 }
 
 /// Parsed prompt values plus any trailing text that followed the prompt.

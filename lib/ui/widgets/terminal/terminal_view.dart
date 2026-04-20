@@ -15,8 +15,10 @@ import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
 import '../../../providers/terminal_block_provider.dart';
+import '../../../providers/map_block_provider.dart';
 import '../../../services/platform/file_utils.dart';
 import 'block_action_bar.dart';
+import 'map_block_widget.dart';
 import 'terminal_selection.dart';
 import 'terminal_selection_controller.dart';
 
@@ -678,6 +680,19 @@ class _TerminalLine extends StatelessWidget {
             ),
           ),
         ),
+      );
+    }
+
+    // Map-block sentinel line → render as a grid widget. The block data
+    // lives in [mapBlocksProvider], keyed by the id embedded in the line.
+    final blockId = tryParseBlockId(line.plainText);
+    if (blockId != null) {
+      return Consumer(
+        builder: (context, ref, _) {
+          final block = ref.watch(mapBlocksProvider)[blockId];
+          if (block == null) return const SizedBox.shrink();
+          return MapBlockWidget(block: block, fontSize: fontSize);
+        },
       );
     }
 

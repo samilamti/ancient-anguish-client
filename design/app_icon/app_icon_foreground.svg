@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Android adaptive-icon foreground.
+  Transparent background; content fits within the central 66% safe zone
+  (everything within 180px of center per launcher-icons guidelines).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="gold" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%"  stop-color="#fbe9a1"/>
+      <stop offset="22%" stop-color="#ebc27a"/>
+      <stop offset="55%" stop-color="#ca9a52"/>
+      <stop offset="88%" stop-color="#8a5f2a"/>
+      <stop offset="100%" stop-color="#5e3d1b"/>
+    </linearGradient>
+
+    <linearGradient id="shine" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <radialGradient id="gem" cx="50%" cy="40%" r="60%">
+      <stop offset="0%"  stop-color="#ffd9a1"/>
+      <stop offset="45%" stop-color="#c9304a"/>
+      <stop offset="100%" stop-color="#5a0c1e"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Ornate "A" centered at (512, 512); scaled to fit the 66% safe zone -->
+  <g transform="translate(512 512) scale(0.78)">
+
+    <polygon points="-268,282 -300,300 -290,328 -162,328 -172,300"
+             fill="url(#gold)"/>
+    <polygon points="268,282 300,300 290,328 162,328 172,300"
+             fill="url(#gold)"/>
+
+    <path d="M 0 -320
+             L 268 282
+             L -268 282 Z
+             M 0 -178
+             L -128 132
+             L 128 132 Z"
+          fill="url(#gold)"
+          fill-rule="evenodd"/>
+
+    <path d="M 0 -320
+             L 268 282
+             L -268 282 Z
+             M 0 -178
+             L -128 132
+             L 128 132 Z"
+          fill="url(#shine)"
+          fill-rule="evenodd"
+          opacity="0.9"/>
+
+    <line x1="-128" y1="148" x2="128" y2="148"
+          stroke="#5e3d1b" stroke-opacity="0.55" stroke-width="3"/>
+    <line x1="-128" y1="155" x2="128" y2="155"
+          stroke="#ffefc6" stroke-opacity="0.18" stroke-width="1"/>
+
+    <circle cx="0" cy="185" r="18" fill="url(#gem)"/>
+    <circle cx="0" cy="185" r="18" fill="none"
+            stroke="#5e3d1b" stroke-width="3"/>
+    <circle cx="-5" cy="178" r="6" fill="#ffe0b0" opacity="0.75"/>
+
+  </g>
+</svg>

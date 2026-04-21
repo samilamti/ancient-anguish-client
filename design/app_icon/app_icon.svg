@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="72%">
+      <stop offset="0%" stop-color="#3c2415"/>
+      <stop offset="55%" stop-color="#1a0f07"/>
+      <stop offset="100%" stop-color="#060301"/>
+    </radialGradient>
+
+    <linearGradient id="gold" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%"  stop-color="#fbe9a1"/>
+      <stop offset="22%" stop-color="#ebc27a"/>
+      <stop offset="55%" stop-color="#ca9a52"/>
+      <stop offset="88%" stop-color="#8a5f2a"/>
+      <stop offset="100%" stop-color="#5e3d1b"/>
+    </linearGradient>
+
+    <linearGradient id="shine" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <radialGradient id="glow" cx="50%" cy="52%" r="45%">
+      <stop offset="0%"   stop-color="#d4a057" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#d4a057" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="gem" cx="50%" cy="40%" r="60%">
+      <stop offset="0%"  stop-color="#ffd9a1"/>
+      <stop offset="45%" stop-color="#c9304a"/>
+      <stop offset="100%" stop-color="#5a0c1e"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+
+  <!-- Decorative inner border -->
+  <rect x="60" y="60" width="904" height="904" rx="56" ry="56"
+        fill="none" stroke="#d4a057" stroke-opacity="0.24" stroke-width="5"/>
+  <rect x="82" y="82" width="860" height="860" rx="42" ry="42"
+        fill="none" stroke="#d4a057" stroke-opacity="0.10" stroke-width="2"/>
+
+  <!-- Ornate "A" centered at (512, 512) -->
+  <g transform="translate(512 512)">
+
+    <!-- Base serif feet (drawn first, the A sits on top) -->
+    <polygon points="-268,282 -300,300 -290,328 -162,328 -172,300"
+             fill="url(#gold)"/>
+    <polygon points="268,282 300,300 290,328 162,328 172,300"
+             fill="url(#gold)"/>
+
+    <!-- Main A silhouette: outer triangle with inner triangular cutout (evenodd) -->
+    <!-- Inner triangle base sits at y=132, creating the natural crossbar band y=132..282 -->
+    <path d="M 0 -320
+             L 268 282
+             L -268 282 Z
+             M 0 -178
+             L -128 132
+             L 128 132 Z"
+          fill="url(#gold)"
+          fill-rule="evenodd"/>
+
+    <!-- Top-edge shine overlay (applied to the A silhouette + cutout) -->
+    <path d="M 0 -320
+             L 268 282
+             L -268 282 Z
+             M 0 -178
+             L -128 132
+             L 128 132 Z"
+          fill="url(#shine)"
+          fill-rule="evenodd"
+          opacity="0.9"/>
+
+    <!-- Subtle tonal line across the crossbar band to suggest engraving -->
+    <line x1="-128" y1="148" x2="128" y2="148"
+          stroke="#5e3d1b" stroke-opacity="0.55" stroke-width="3"/>
+    <line x1="-128" y1="155" x2="128" y2="155"
+          stroke="#ffefc6" stroke-opacity="0.18" stroke-width="1"/>
+
+    <!-- Small inset gem / rune bead at the center of the crossbar -->
+    <circle cx="0" cy="185" r="18" fill="url(#gem)"/>
+    <circle cx="0" cy="185" r="18" fill="none"
+            stroke="#5e3d1b" stroke-width="3"/>
+    <circle cx="-5" cy="178" r="6" fill="#ffe0b0" opacity="0.75"/>
+
+  </g>
+
+  <!-- Corner rune dots -->
+  <g fill="#d4a057" opacity="0.36">
+    <circle cx="140" cy="140" r="5"/>
+    <circle cx="884" cy="140" r="5"/>
+    <circle cx="140" cy="884" r="5"/>
+    <circle cx="884" cy="884" r="5"/>
+  </g>
+</svg>

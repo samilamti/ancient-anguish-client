@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/services.dart' show SmartDashesType, SmartQuotesType;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/quick_command.dart';
@@ -29,6 +30,7 @@ class AppSettings {
   final bool hideKeyboardOnMobile; // suppress autofocus + dismiss after send
   final TimestampMode timestampMode; // HH:MM column in social message rows
   final bool emojiMapsEnabled; // swap ASCII map tiles for emoji
+  final bool mobileAutoCorrectEnabled; // soft-keyboard autocorrect/suggestions
 
   static const Set<String> defaultPromptElements = {
     'HP', 'MAXHP', 'SP', 'MAXSP', 'XCOORD', 'YCOORD',
@@ -62,6 +64,7 @@ class AppSettings {
     this.hideKeyboardOnMobile = true,
     this.timestampMode = TimestampMode.show,
     this.emojiMapsEnabled = false,
+    this.mobileAutoCorrectEnabled = false,
   });
 
   AppSettings copyWith({
@@ -84,6 +87,7 @@ class AppSettings {
     bool? hideKeyboardOnMobile,
     TimestampMode? timestampMode,
     bool? emojiMapsEnabled,
+    bool? mobileAutoCorrectEnabled,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -110,6 +114,8 @@ class AppSettings {
           hideKeyboardOnMobile ?? this.hideKeyboardOnMobile,
       timestampMode: timestampMode ?? this.timestampMode,
       emojiMapsEnabled: emojiMapsEnabled ?? this.emojiMapsEnabled,
+      mobileAutoCorrectEnabled:
+          mobileAutoCorrectEnabled ?? this.mobileAutoCorrectEnabled,
     );
   }
 
@@ -136,6 +142,7 @@ class AppSettings {
         'hideKeyboardOnMobile': hideKeyboardOnMobile,
         'timestampMode': timestampMode.storageKey,
         'emojiMapsEnabled': emojiMapsEnabled,
+        'mobileAutoCorrectEnabled': mobileAutoCorrectEnabled,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -169,8 +176,31 @@ class AppSettings {
       timestampMode:
           TimestampMode.fromStorageKey(json['timestampMode'] as String?),
       emojiMapsEnabled: json['emojiMapsEnabled'] as bool? ?? false,
+      mobileAutoCorrectEnabled:
+          json['mobileAutoCorrectEnabled'] as bool? ?? false,
     );
   }
+
+  /// TextField properties driven by [mobileAutoCorrectEnabled].
+  /// Use like: `TextField(autocorrect: s.mobileInput.autocorrect, …)`.
+  ({
+    bool autocorrect,
+    bool enableSuggestions,
+    SmartDashesType smartDashesType,
+    SmartQuotesType smartQuotesType,
+  }) get mobileInput => mobileAutoCorrectEnabled
+      ? (
+          autocorrect: true,
+          enableSuggestions: true,
+          smartDashesType: SmartDashesType.enabled,
+          smartQuotesType: SmartQuotesType.enabled,
+        )
+      : (
+          autocorrect: false,
+          enableSuggestions: false,
+          smartDashesType: SmartDashesType.disabled,
+          smartQuotesType: SmartQuotesType.disabled,
+        );
 }
 
 /// Provides application settings.
@@ -273,6 +303,13 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void toggleHideKeyboardOnMobile() {
     state = state.copyWith(hideKeyboardOnMobile: !state.hideKeyboardOnMobile);
+    _saveSettings();
+  }
+
+  void toggleMobileAutoCorrect() {
+    state = state.copyWith(
+      mobileAutoCorrectEnabled: !state.mobileAutoCorrectEnabled,
+    );
     _saveSettings();
   }
 

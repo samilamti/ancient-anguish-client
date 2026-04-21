@@ -149,6 +149,7 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
     }
 
     final fontSize = ref.watch(settingsProvider).fontSize;
+    final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -215,6 +216,10 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
                   return TextField(
                     controller: controller,
                     focusNode: focusNode,
+                    autocorrect: mib.autocorrect,
+                    enableSuggestions: mib.enableSuggestions,
+                    smartDashesType: mib.smartDashesType,
+                    smartQuotesType: mib.smartQuotesType,
                     style: TextStyle(
                       fontFamily: 'JetBrainsMono',
                       fontSize: fontSize - 2,
@@ -306,6 +311,10 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
                 focusNode: _focusNode,
                 minLines: 1,
                 maxLines: 1,
+                autocorrect: mib.autocorrect,
+                enableSuggestions: mib.enableSuggestions,
+                smartDashesType: mib.smartDashesType,
+                smartQuotesType: mib.smartQuotesType,
                 style: TextStyle(
                   fontFamily: 'JetBrainsMono',
                   fontSize: fontSize - 2,

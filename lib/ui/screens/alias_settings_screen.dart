@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/alias_rule.dart';
 import '../../providers/alias_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../widgets/common/escape_dismiss.dart';
 
 /// Settings screen for managing command aliases.
@@ -313,6 +314,7 @@ class _AliasEditScreenState extends ConsumerState<_AliasEditScreen> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.existing != null;
+    final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
 
     return Scaffold(
       appBar: AppBar(
@@ -330,6 +332,10 @@ class _AliasEditScreenState extends ConsumerState<_AliasEditScreen> {
           // Keyword field.
           TextField(
             controller: _keywordController,
+            autocorrect: mib.autocorrect,
+            enableSuggestions: mib.enableSuggestions,
+            smartDashesType: mib.smartDashesType,
+            smartQuotesType: mib.smartQuotesType,
             decoration: const InputDecoration(
               labelText: 'Keyword',
               hintText: 'e.g., k, ga, c',
@@ -345,6 +351,10 @@ class _AliasEditScreenState extends ConsumerState<_AliasEditScreen> {
           // Expansion field.
           TextField(
             controller: _expansionController,
+            autocorrect: mib.autocorrect,
+            enableSuggestions: mib.enableSuggestions,
+            smartDashesType: mib.smartDashesType,
+            smartQuotesType: mib.smartQuotesType,
             decoration: const InputDecoration(
               labelText: 'Expands to',
               hintText: r'e.g., kill $1',
@@ -358,6 +368,10 @@ class _AliasEditScreenState extends ConsumerState<_AliasEditScreen> {
           // Description field.
           TextField(
             controller: _descriptionController,
+            autocorrect: mib.autocorrect,
+            enableSuggestions: mib.enableSuggestions,
+            smartDashesType: mib.smartDashesType,
+            smartQuotesType: mib.smartQuotesType,
             decoration: const InputDecoration(
               labelText: 'Description (optional)',
               hintText: 'e.g., Kill a target',
@@ -380,6 +394,10 @@ class _AliasEditScreenState extends ConsumerState<_AliasEditScreen> {
               Expanded(
                 child: TextField(
                   controller: _testInputController,
+                  autocorrect: mib.autocorrect,
+                  enableSuggestions: mib.enableSuggestions,
+                  smartDashesType: mib.smartDashesType,
+                  smartQuotesType: mib.smartQuotesType,
                   decoration: const InputDecoration(
                     labelText: 'Test input',
                     hintText: 'e.g., k goblin',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/login_provider.dart';
+import '../../../providers/settings_provider.dart';
 
 /// Overlay dialog for entering login credentials or choosing guest.
 class LoginDialog extends ConsumerStatefulWidget {
@@ -72,6 +73,7 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final alts = ref.watch(savedAltsProvider).value ?? <SavedAlt>[];
+    final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
 
     return Center(
       child: Material(
@@ -187,6 +189,10 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
                     controller: controller,
                     focusNode: focusNode,
                     autofocus: alts.isEmpty,
+                    autocorrect: mib.autocorrect,
+                    enableSuggestions: mib.enableSuggestions,
+                    smartDashesType: mib.smartDashesType,
+                    smartQuotesType: mib.smartQuotesType,
                     decoration: const InputDecoration(
                       labelText: 'Character name',
                       prefixIcon: Icon(Icons.person_outline, size: 20),

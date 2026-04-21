@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/terminal_block.dart';
 import '../../../models/trigger_rule.dart';
+import '../../../providers/settings_provider.dart';
 import '../../../providers/trigger_provider.dart';
 import '../../screens/trigger_settings_screen.dart';
 
@@ -76,6 +77,7 @@ class BlockActionBar extends ConsumerWidget {
   void _showGagDialog(BuildContext context, WidgetRef ref) {
     final pattern = _suggestPattern();
     final controller = TextEditingController(text: pattern);
+    final mib = ref.read(settingsProvider).mobileInput;
 
     showDialog<void>(
       context: context,
@@ -83,6 +85,10 @@ class BlockActionBar extends ConsumerWidget {
         title: const Text('Quick Gag'),
         content: TextField(
           controller: controller,
+          autocorrect: mib.autocorrect,
+          enableSuggestions: mib.enableSuggestions,
+          smartDashesType: mib.smartDashesType,
+          smartQuotesType: mib.smartQuotesType,
           decoration: const InputDecoration(
             labelText: 'Pattern to gag',
             helperText: 'Lines matching this regex will be hidden',

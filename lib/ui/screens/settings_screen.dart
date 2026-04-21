@@ -241,6 +241,17 @@ class SettingsScreen extends ConsumerWidget {
             ),
 
             SwitchListTile(
+              title: const Text('Mobile Auto-Correct'),
+              subtitle: const Text(
+                'Enable autocorrect, suggestions, and smart quotes on the '
+                'soft keyboard. Most MUD commands do not benefit from these.',
+              ),
+              value: settings.mobileAutoCorrectEnabled,
+              onChanged: (_) => notifier.toggleMobileAutoCorrect(),
+              secondary: const Icon(Icons.spellcheck),
+            ),
+
+            SwitchListTile(
               title: const Text('Quick Command Buttons'),
               subtitle: const Text('Show shortcut buttons on mobile'),
               value: settings.quickCommandsVisible,
@@ -441,7 +452,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _ColorEditorTile extends StatelessWidget {
+class _ColorEditorTile extends ConsumerWidget {
   final String label;
   final String colorKey;
   final int colorValue;
@@ -455,9 +466,10 @@ class _ColorEditorTile extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final color = Color(colorValue);
     final hex = colorValue.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
+    final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -482,6 +494,10 @@ class _ColorEditorTile extends StatelessWidget {
             width: 100,
             child: TextField(
               controller: TextEditingController(text: hex),
+              autocorrect: mib.autocorrect,
+              enableSuggestions: mib.enableSuggestions,
+              smartDashesType: mib.smartDashesType,
+              smartQuotesType: mib.smartQuotesType,
               style: const TextStyle(fontSize: 13, fontFamily: 'JetBrainsMono'),
               decoration: const InputDecoration(
                 prefixText: '#',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/recent_words_provider.dart';
+import '../../../providers/settings_provider.dart';
 
 /// Modal bottom sheet listing recent MUD words for a quick-command target.
 ///
@@ -41,6 +42,7 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final words = ref.watch(recentWordsProvider);
+    final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
     final matches = completionsFor(words, _prefix).take(_maxResults).toList();
     final viewInsets = MediaQuery.of(context).viewInsets;
 
@@ -79,6 +81,10 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
                 child: TextField(
                   controller: _filterController,
                   autofocus: false,
+                  autocorrect: mib.autocorrect,
+                  enableSuggestions: mib.enableSuggestions,
+                  smartDashesType: mib.smartDashesType,
+                  smartQuotesType: mib.smartQuotesType,
                   decoration: const InputDecoration(
                     hintText: 'Filter…',
                     prefixIcon: Icon(Icons.search, size: 18),

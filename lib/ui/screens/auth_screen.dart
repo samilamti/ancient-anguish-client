@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/auth_state.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/settings_provider.dart';
 
 /// Login/register screen for the web client.
 class AuthScreen extends ConsumerStatefulWidget {
@@ -44,6 +45,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final isLoading = authState is AuthLoading;
     final errorMessage = authState is AuthError ? authState.message : null;
     final theme = Theme.of(context);
+    final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
 
     return Scaffold(
       body: Center(
@@ -97,6 +99,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     // Username field
                     TextFormField(
                       controller: _usernameController,
+                      autocorrect: mib.autocorrect,
+                      enableSuggestions: mib.enableSuggestions,
+                      smartDashesType: mib.smartDashesType,
+                      smartQuotesType: mib.smartQuotesType,
                       decoration: const InputDecoration(
                         labelText: 'Username',
                         prefixIcon: Icon(Icons.person_outline),

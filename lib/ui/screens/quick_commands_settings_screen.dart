@@ -270,6 +270,7 @@ class _QuickCommandEditScreenState
     final isEditing = widget.existing != null;
     final theme = Theme.of(context);
     final iconNames = availableIconNames();
+    final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
 
     return Scaffold(
       appBar: AppBar(
@@ -286,6 +287,10 @@ class _QuickCommandEditScreenState
         children: [
           TextField(
             controller: _labelController,
+            autocorrect: mib.autocorrect,
+            enableSuggestions: mib.enableSuggestions,
+            smartDashesType: mib.smartDashesType,
+            smartQuotesType: mib.smartQuotesType,
             decoration: const InputDecoration(
               labelText: 'Label',
               hintText: 'e.g., Kill',
@@ -295,6 +300,10 @@ class _QuickCommandEditScreenState
           const SizedBox(height: 16),
           TextField(
             controller: _commandController,
+            autocorrect: mib.autocorrect,
+            enableSuggestions: mib.enableSuggestions,
+            smartDashesType: mib.smartDashesType,
+            smartQuotesType: mib.smartQuotesType,
             decoration: const InputDecoration(
               labelText: 'Command',
               hintText: 'e.g., kill, get all from corpse',

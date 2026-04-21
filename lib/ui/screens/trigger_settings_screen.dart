@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/trigger_rule.dart';
+import '../../providers/settings_provider.dart';
 import '../../providers/trigger_provider.dart';
 import '../widgets/common/escape_dismiss.dart';
 
@@ -343,6 +344,7 @@ class TriggerEditScreenState extends ConsumerState<TriggerEditScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isEditing = widget.existing != null;
+    final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
     final showHighlightOptions =
         _action == TriggerAction.highlight ||
         _action == TriggerAction.highlightAndSound;
@@ -366,6 +368,10 @@ class TriggerEditScreenState extends ConsumerState<TriggerEditScreen> {
           // Name field.
           TextField(
             controller: _nameController,
+            autocorrect: mib.autocorrect,
+            enableSuggestions: mib.enableSuggestions,
+            smartDashesType: mib.smartDashesType,
+            smartQuotesType: mib.smartQuotesType,
             decoration: const InputDecoration(
               labelText: 'Immersion Name',
               hintText: 'e.g., Tells, Combat hits',
@@ -376,6 +382,10 @@ class TriggerEditScreenState extends ConsumerState<TriggerEditScreen> {
           // Pattern field.
           TextField(
             controller: _patternController,
+            autocorrect: mib.autocorrect,
+            enableSuggestions: mib.enableSuggestions,
+            smartDashesType: mib.smartDashesType,
+            smartQuotesType: mib.smartQuotesType,
             decoration: InputDecoration(
               labelText: 'Pattern (regex)',
               hintText: r'e.g., \w+ tells you:',

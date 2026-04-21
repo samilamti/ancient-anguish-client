@@ -260,6 +260,7 @@ class _InputBarState extends ConsumerState<InputBar> {
   }
 
   Widget _buildTextField(double fontSize, int wrapWidth, bool autofocus) {
+    final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
     final textField = Focus(
       onKeyEvent: _handleKey,
       child: TextField(
@@ -267,6 +268,10 @@ class _InputBarState extends ConsumerState<InputBar> {
         focusNode: _focusNode,
         autofocus: autofocus,
         maxLines: 1,
+        autocorrect: mib.autocorrect,
+        enableSuggestions: mib.enableSuggestions,
+        smartDashesType: mib.smartDashesType,
+        smartQuotesType: mib.smartQuotesType,
         style: TextStyle(
           fontFamily: 'JetBrainsMono',
           fontSize: fontSize,

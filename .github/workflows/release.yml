@@ -47,6 +47,43 @@ env:
 #    ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_BASE64
 #
 #    To encode files: base64 -i <file> | pbcopy  (macOS)
+#
+# 4. Android Upload Keystore:
+#    a. Generate a keystore (keep the .jks file secure, never commit it):
+#       keytool -genkey -v -keystore upload-keystore.jks \
+#         -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 \
+#         -alias upload
+#    b. Note your keystore password and key password (they can be the same).
+#
+# 5. Google Play Console (play.google.com/console):
+#    a. Create a Google Play Developer account ($25 one-time fee) if you
+#       don't already have one.
+#    b. Create the app with package name
+#       org.ancientanguish.ancient_anguish_client.
+#    c. Complete the app content declarations (privacy policy, target
+#       audience, content rating questionnaire) — required before first
+#       upload.
+#    d. Upload an initial AAB manually to the internal testing track so
+#       that the app record exists (the CI action cannot create new apps).
+#
+# 6. Google Play Service Account (for automated uploads):
+#    a. Google Cloud Console > IAM & Admin > Service Accounts: create a
+#       service account (e.g. "github-play-publisher").
+#    b. Create a JSON key for the service account and download it.
+#    c. Google Play Console > Users & permissions > Invite user: add the
+#       service account email with "Release manager" permission for your
+#       app.
+#    d. Wait ~24 hours for permissions to propagate before first CI upload.
+#
+# 7. GitHub Secrets for Android (Settings > Secrets and variables > Actions):
+#    ANDROID_KEYSTORE_BASE64   - upload-keystore.jks, base64-encoded
+#    ANDROID_KEYSTORE_PASSWORD - keystore password
+#    ANDROID_KEY_ALIAS         - key alias (e.g. "upload")
+#    ANDROID_KEY_PASSWORD      - key password
+#    PLAY_SERVICE_ACCOUNT_JSON - full JSON content of the service account key
+#
+#    To encode the keystore: base64 -i upload-keystore.jks | pbcopy  (macOS)
+#    To set the JSON secret: copy the entire JSON file content as-is
 # ──────────────────────────────────────────────────────────────────────
 
 jobs:
@@ -439,6 +476,12 @@ jobs:
   build-android:
     needs: version
     runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -484,6 +527,33 @@ jobs:
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs
 
+      - name: Setup Android signing
+        run: |
+          KEYSTORE_PATH="${GITHUB_WORKSPACE}/android/app/upload-keystore.jks"
+
+          # Decode keystore from base64 (strip CR/LF first, matching Apple pattern)
+          b64_value="${ANDROID_KEYSTORE_BASE64//$'\r'/}"
+          b64_value="${b64_value//$'\n'/}"
+          printf '%s' "$b64_value" | base64 --decode > "$KEYSTORE_PATH"
+
+          # Validate decoded keystore size
+          KEYSTORE_SIZE=$(stat -c%s "$KEYSTORE_PATH")
+          if [ "$KEYSTORE_SIZE" -lt 500 ]; then
+            echo "ERROR: decoded keystore is only ${KEYSTORE_SIZE} bytes — secret looks wrong or truncated"
+            rm -f "$KEYSTORE_PATH"
+            exit 1
+          fi
+          echo "Keystore decoded: ${KEYSTORE_SIZE} bytes"
+
+          # Write key.properties for Gradle
+          cat > "${GITHUB_WORKSPACE}/android/app/key.properties" <<EOF
+          storeFile=upload-keystore.jks
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          EOF
+          echo "key.properties written"
+
       - name: Build APK
         run: |
           flutter build apk --release \
@@ -513,6 +583,23 @@ jobs:
         with:
           name: android-aab-release
           path: ancient-anguish-client-android-*.aab
+
+      - name: Upload AAB to Google Play
+        if: github.ref_type == 'tag'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: org.ancientanguish.ancient_anguish_client
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
+
+      - name: Cleanup Android signing
+        if: always()
+        run: |
+          rm -f "${GITHUB_WORKSPACE}/android/app/upload-keystore.jks"
+          rm -f "${GITHUB_WORKSPACE}/android/app/key.properties"
+          echo "Android signing artifacts removed"
 
   build-linux:
     needs: version

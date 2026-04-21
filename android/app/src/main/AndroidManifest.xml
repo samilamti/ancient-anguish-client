@@ -2,7 +2,7 @@
     <!-- Required for TCP socket connections to MUD servers -->
     <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="ancient_anguish_client"
+        android:label="Ancient Anguish Client"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

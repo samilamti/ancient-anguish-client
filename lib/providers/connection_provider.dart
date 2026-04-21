@@ -106,8 +106,17 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   static const int _maxLines = 5000;
   static final RegExp _ansiEscapeRegex = RegExp(r'\x1B\[[0-9;]*[a-zA-Z]');
 
+  /// How long to wait after the last incoming byte before flushing any
+  /// buffered partial line as a synthetic prompt. The AA server sends
+  /// prompts without `\n`, `IAC GA`, or `IAC EOR`, so the client must
+  /// decide for itself when a line is "done". 150 ms is long enough to
+  /// ride out packet fragmentation on bad networks while still feeling
+  /// instant during character creation.
+  static const Duration _promptFlushTimeout = Duration(milliseconds: 150);
+
   StreamSubscription<TelnetEvent>? _eventSub;
   StreamSubscription<ConnectionStatus>? _statusSub;
+  Timer? _promptFlushTimer;
   bool _loginDetected = false;
   SocialMessageType? _lastSocialType;
   bool _inTellHistory = false;
@@ -143,6 +152,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     ref.onDispose(() {
       _eventSub?.cancel();
       _statusSub?.cancel();
+      _promptFlushTimer?.cancel();
     });
     return [];
   }
@@ -164,6 +174,8 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
     _eventSub = service.events.listen((event) {
       if (event is TelnetDataEvent) {
+        // New bytes arrived — any pending prompt-flush timer is now stale.
+        _promptFlushTimer?.cancel();
         final newLines = parser.processBytes(event.data);
         if (newLines.isNotEmpty) {
           final triggerEngine = ref.read(triggerEngineProvider);
@@ -395,48 +407,26 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             parser.pendingText.contains('Password:')) {
           ref.read(loginProvider.notifier).onPasswordPromptDetected();
         }
+
+        // AA sends prompts with no terminator (no `\n`, no `IAC GA`, no
+        // `IAC EOR`). If buffered data is still pending after this data
+        // event — and doesn't look like a partial in-game `@@…@@` prompt
+        // being delivered across packets — schedule a debounced flush so
+        // the prompt text becomes visible without waiting for the next
+        // line. Particularly important during character creation.
+        if (parser.hasPendingData &&
+            !_looksLikePartialPrompt(parser.pendingText)) {
+          _promptFlushTimer = Timer(
+            _promptFlushTimeout,
+            _flushPendingAsPrompt,
+          );
+        }
       } else if (event is TelnetCommandEvent) {
         // GA or EOR signals "end of prompt" – flush partial line.
+        _promptFlushTimer?.cancel();
         final flushed = parser.flush();
         if (flushed != null) {
-          final plainText = flushed.plainText;
-
-          // Login dialog: detect "Password:" prompt.
-          if (plainText.contains('Password:')) {
-            ref.read(loginProvider.notifier).onPasswordPromptDetected();
-          }
-
-          // Fallback login detection for guest/manual login.
-          if (!_loginDetected &&
-              plainText.contains('A player usage graph.')) {
-            _loginDetected = true;
-            service.sendCommand(ref.read(promptConfigProvider).promptCommand);
-          }
-
-          // Prompt line detection: gag and capture HP/SP/coordinates.
-          if (_loginDetected) {
-            final vitals = _extractPrompt(plainText);
-            if (vitals != null) {
-              ref.read(gameStateProvider.notifier).updateFromPrompt(
-                vitals.values,
-              );
-              return; // Gagged.
-            }
-          }
-
-          // Apply emoji parsing and trigger processing.
-          final settings = ref.read(settingsProvider);
-          final emojiLine = settings.emojiParsingEnabled
-              ? EmojiParser.processLine(flushed)
-              : flushed;
-          final triggerEngine = ref.read(triggerEngineProvider);
-          final result = triggerEngine.processLine(emojiLine);
-          if (!result.gagged) {
-            _addLines([result.styledLine]);
-          }
-
-          // Feed to game state parser.
-          ref.read(gameStateProvider.notifier).processLine(plainText);
+          _emitFlushedPrompt(flushed);
         }
       }
     }, onError: (error) {
@@ -478,6 +468,8 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
       // Reset parsers and login detection on disconnect.
       if (status == ConnectionStatus.disconnected) {
+        _promptFlushTimer?.cancel();
+        _promptFlushTimer = null;
         ref.read(outputParserProvider).reset();
         ref.read(gameStateProvider.notifier).reset();
         ref.read(battleStateProvider.notifier).reset();
@@ -700,6 +692,93 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// Marks login as complete (called by [LoginNotifier] after credentials are
   /// sent, so prompt line gagging activates).
   void setLoginDetected() => _loginDetected = true;
+
+  /// True if [pending] looks like an in-flight `@@…@@` game prompt that
+  /// hasn't finished arriving yet. Used to suppress the debounced flush
+  /// so a prompt split across TCP packets doesn't leak the first half
+  /// into the terminal as a plain line.
+  bool _looksLikePartialPrompt(String pending) {
+    final stripped = pending.replaceAll(_ansiEscapeRegex, '').trimLeft();
+    return stripped.startsWith('@@') &&
+        !ref.read(promptConfigProvider).promptRegex.hasMatch(stripped);
+  }
+
+  /// Timer callback: flush buffered partial text as a synthetic prompt
+  /// line, unless the `@@…@@` regex has meanwhile started matching (in
+  /// which case we still route through the prompt-gagging path).
+  void _flushPendingAsPrompt() {
+    _promptFlushTimer = null;
+    final parser = ref.read(outputParserProvider);
+    if (!parser.hasPendingData) return;
+
+    if (_loginDetected) {
+      final pendingPlain =
+          parser.pendingText.replaceAll(_ansiEscapeRegex, '');
+      if (ref.read(promptConfigProvider).promptRegex.hasMatch(pendingPlain)) {
+        final flushed = parser.flush();
+        if (flushed != null) {
+          final vitals = _extractPrompt(flushed.plainText);
+          if (vitals != null) {
+            ref
+                .read(gameStateProvider.notifier)
+                .updateFromPrompt(vitals.values);
+            if (ref.read(settingsProvider).blockModeEnabled) {
+              ref
+                  .read(blockBoundaryProvider.notifier)
+                  .markPromptBoundary(state.length);
+            }
+          }
+        }
+        return;
+      }
+    }
+
+    final flushed = parser.flush();
+    if (flushed != null) {
+      _emitFlushedPrompt(flushed);
+    }
+  }
+
+  /// Shared flush-and-emit logic used by both the `IAC GA`/`IAC EOR`
+  /// branch and the debounced prompt-flush timer.
+  void _emitFlushedPrompt(StyledLine flushed) {
+    final service = ref.read(connectionServiceProvider);
+    final plainText = flushed.plainText;
+
+    // Login dialog: detect "Password:" prompt.
+    if (plainText.contains('Password:')) {
+      ref.read(loginProvider.notifier).onPasswordPromptDetected();
+    }
+
+    // Fallback login detection for guest/manual login.
+    if (!_loginDetected && plainText.contains('A player usage graph.')) {
+      _loginDetected = true;
+      service.sendCommand(ref.read(promptConfigProvider).promptCommand);
+    }
+
+    // Prompt line detection: gag and capture HP/SP/coordinates.
+    if (_loginDetected) {
+      final vitals = _extractPrompt(plainText);
+      if (vitals != null) {
+        ref.read(gameStateProvider.notifier).updateFromPrompt(vitals.values);
+        return; // Gagged.
+      }
+    }
+
+    // Apply emoji parsing and trigger processing.
+    final settings = ref.read(settingsProvider);
+    final emojiLine = settings.emojiParsingEnabled
+        ? EmojiParser.processLine(flushed)
+        : flushed;
+    final triggerEngine = ref.read(triggerEngineProvider);
+    final result = triggerEngine.processLine(emojiLine);
+    if (!result.gagged) {
+      _addLines([result.styledLine]);
+    }
+
+    // Feed to game state parser.
+    ref.read(gameStateProvider.notifier).processLine(plainText);
+  }
 
   /// Clears the terminal buffer (and any captured map blocks).
   void clear() {

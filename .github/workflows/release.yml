@@ -528,6 +528,7 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Setup Android signing
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
         run: |
           KEYSTORE_PATH="${GITHUB_WORKSPACE}/android/app/upload-keystore.jks"
 
@@ -553,6 +554,11 @@ jobs:
           keyPassword=${ANDROID_KEY_PASSWORD}
           EOF
           echo "key.properties written"
+
+      - name: Note unsigned Android build
+        if: env.ANDROID_KEYSTORE_BASE64 == ''
+        run: |
+          echo "::notice::ANDROID_KEYSTORE_BASE64 secret not set — falling back to debug signing. AAB cannot be uploaded to Play."
 
       - name: Build APK
         run: |
@@ -585,7 +591,7 @@ jobs:
           path: ancient-anguish-client-android-*.aab
 
       - name: Upload AAB to Google Play
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' && env.PLAY_SERVICE_ACCOUNT_JSON != ''
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}

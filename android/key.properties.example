@@ -1,0 +1,8 @@
+# Android release signing configuration.
+# Copy to key.properties and fill in your values.
+# key.properties is git-ignored -- never commit real credentials.
+
+storeFile=../upload-keystore.jks
+storePassword=your-keystore-password
+keyAlias=upload
+keyPassword=your-key-password

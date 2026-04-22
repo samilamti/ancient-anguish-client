@@ -64,3 +64,13 @@ Area Music/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Apple signing artifacts — never commit
+*.p8
+*.cer
+*.mobileprovision
+*.provisionprofile
+AppStore Connect Stuff for Ancient Anguish Client/
+
+# Android signing
+android/key.properties

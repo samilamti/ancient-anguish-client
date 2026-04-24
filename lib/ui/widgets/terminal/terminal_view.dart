@@ -14,10 +14,12 @@ import '../../../providers/connection_provider.dart'
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
+import '../../../providers/framed_text_block_provider.dart';
 import '../../../providers/terminal_block_provider.dart';
 import '../../../providers/map_block_provider.dart';
 import '../../../services/platform/file_utils.dart';
 import 'block_action_bar.dart';
+import 'framed_text_block_widget.dart';
 import 'map_block_widget.dart';
 import 'terminal_selection.dart';
 import 'terminal_selection_controller.dart';
@@ -692,6 +694,19 @@ class _TerminalLine extends StatelessWidget {
           final block = ref.watch(mapBlocksProvider)[blockId];
           if (block == null) return const SizedBox.shrink();
           return MapBlockWidget(block: block, fontSize: fontSize);
+        },
+      );
+    }
+
+    // Framed-text sentinel → render as a parchment card. Non-map `+---+`
+    // blocks (shop listings, info cards) land here.
+    final framedId = tryParseFramedBlockId(line.plainText);
+    if (framedId != null) {
+      return Consumer(
+        builder: (context, ref, _) {
+          final block = ref.watch(framedTextBlocksProvider)[framedId];
+          if (block == null) return const SizedBox.shrink();
+          return FramedTextBlockWidget(block: block, fontSize: fontSize);
         },
       );
     }

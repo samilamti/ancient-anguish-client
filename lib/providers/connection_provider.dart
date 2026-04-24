@@ -14,6 +14,7 @@ import '../protocol/ansi/styled_span.dart';
 import '../protocol/telnet/telnet_events.dart';
 import '../services/connection/connection_interface.dart';
 import '../services/connection/create_connection.dart';
+import '../models/framed_text_block.dart';
 import '../models/map_block.dart';
 import '../services/parser/emoji_parser.dart';
 import '../services/parser/link_parser.dart';
@@ -28,6 +29,7 @@ import '../services/social/social_message_parser.dart';
 import 'battle_provider.dart';
 import 'game_state_provider.dart';
 import 'login_provider.dart';
+import 'framed_text_block_provider.dart';
 import 'map_block_provider.dart';
 import 'online_players_provider.dart';
 import 'prompt_config_provider.dart';
@@ -137,6 +139,16 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// opening and closing `+---+` borders.
   List<List<MapTile>>? _pendingMapRows;
 
+  /// Raw lines buffered while inside a `+---+` border. If the block turns
+  /// out to be a real map we drop this; if it doesn't (shop listing, info
+  /// card…) we replay these into the parchment widget.
+  List<StyledLine>? _pendingMapOriginalLines;
+
+  /// Snapshot of `_emojiSuppressed` taken at the opening border, so the
+  /// user-initiated `read map` gag isn't accidentally lifted when we fall
+  /// back to the parchment renderer.
+  bool _emojiSuppressedBeforeBorder = false;
+
   static final RegExp _mapBorderRegex =
       RegExp(r'^\+\-{20,}\+$');
 
@@ -239,37 +251,70 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             final isBorder = _mapBorderRegex.hasMatch(plainText.trim());
             var captureLineIntoMap = false;
             var emitMapSentinel = false;
+            var emitFramedSentinel = false;
             int? finishedMapId;
+            int? finishedFramedId;
 
             if (isBorder) {
               if (!_insideMapBorder) {
                 // Opening border.
+                _emojiSuppressedBeforeBorder = _emojiSuppressed;
                 _insideMapBorder = true;
                 _emojiSuppressed = true;
                 if (settings.emojiMapsEnabled) {
                   _pendingMapRows = <List<MapTile>>[];
-                  continue; // Suppress the opening border line entirely.
+                  _pendingMapOriginalLines = <StyledLine>[line];
+                  continue; // Buffer; decision deferred to closing border.
                 }
               } else {
                 // Closing border.
                 _insideMapBorder = false;
                 if (settings.emojiMapsEnabled && _pendingMapRows != null) {
                   final rows = _pendingMapRows!;
+                  final originals = _pendingMapOriginalLines!;
+                  originals.add(line);
                   _pendingMapRows = null;
-                  if (rows.isNotEmpty) {
+                  _pendingMapOriginalLines = null;
+
+                  if (looksLikeMapBlock(rows)) {
                     finishedMapId = ref
                         .read(mapBlocksProvider.notifier)
                         .put(MapBlock(rows));
                     emitMapSentinel = true;
+                    _emojiSuppressed = false;
+                  } else if (originals.length >= 3) {
+                    // Not a map — render as a parchment card. Strip the
+                    // outer `+---+` / `|` frame chars; keep styled interiors.
+                    _emojiSuppressed = _emojiSuppressedBeforeBorder;
+                    final framedLines = <StyledLine>[];
+                    for (var j = 1; j < originals.length - 1; j++) {
+                      var content = stripFramedRowEdges(originals[j]);
+                      if (settings.emojiParsingEnabled && !_emojiSuppressed) {
+                        content = EmojiParser.processLine(content);
+                      }
+                      final result = triggerEngine.processLine(content);
+                      if (!result.gagged) {
+                        framedLines.add(result.styledLine);
+                      }
+                    }
+                    finishedFramedId = ref
+                        .read(framedTextBlocksProvider.notifier)
+                        .put(FramedTextBlock(framedLines));
+                    emitFramedSentinel = true;
+                  } else {
+                    // Degenerate `+---+\n+---+` with no interior — drop
+                    // the whole thing (suppress the closing border too).
+                    _emojiSuppressed = _emojiSuppressedBeforeBorder;
+                    continue;
                   }
-                  _emojiSuppressed = false;
-                  if (!emitMapSentinel) continue;
                 }
               }
             } else if (_insideMapBorder &&
                 settings.emojiMapsEnabled &&
                 _pendingMapRows != null) {
-              // Map content row — accumulate, don't add to buffer.
+              // Inside a framed block — buffer the original line and try
+              // to parse it as a map row. Accumulation decides Layer 2.
+              _pendingMapOriginalLines!.add(line);
               final tiles = parseMapRow(plainText);
               if (tiles.isNotEmpty) _pendingMapRows!.add(tiles);
               captureLineIntoMap = true;
@@ -277,13 +322,17 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
             if (captureLineIntoMap) continue;
 
-            // Build the line to emit. For a finished map, this is a
-            // sentinel the renderer looks up; otherwise it's the usual
-            // transformed/emoji-parsed line.
+            // Build the line to emit. For a finished map or parchment
+            // block, this is a sentinel the renderer looks up; otherwise
+            // it's the usual transformed/emoji-parsed line.
             var workingLine = line;
             if (emitMapSentinel && finishedMapId != null) {
               workingLine = StyledLine([
                 StyledSpan(text: sentinelForBlockId(finishedMapId)),
+              ]);
+            } else if (emitFramedSentinel && finishedFramedId != null) {
+              workingLine = StyledLine([
+                StyledSpan(text: sentinelForFramedBlockId(finishedFramedId)),
               ]);
             } else if (settings.emojiMapsEnabled && _insideMapBorder) {
               // Rare path: user has maps enabled but accumulator missed a
@@ -478,7 +527,10 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         _lastSocialType = null;
         _inTellHistory = false;
         _emojiSuppressed = false;
+        _emojiSuppressedBeforeBorder = false;
         _insideMapBorder = false;
+        _pendingMapRows = null;
+        _pendingMapOriginalLines = null;
         ref.read(blockBoundaryProvider.notifier).reset();
       }
     });
@@ -780,10 +832,11 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     ref.read(gameStateProvider.notifier).processLine(plainText);
   }
 
-  /// Clears the terminal buffer (and any captured map blocks).
+  /// Clears the terminal buffer (and any captured map / parchment blocks).
   void clear() {
     state = [];
     ref.read(mapBlocksProvider.notifier).clear();
+    ref.read(framedTextBlocksProvider.notifier).clear();
   }
 }
 

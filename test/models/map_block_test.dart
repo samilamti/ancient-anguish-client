@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/models/map_block.dart';
+import 'package:ancient_anguish_client/models/map_tile_kind.dart';
 
 void main() {
   group('parseMapRow', () {
@@ -43,6 +44,31 @@ void main() {
       expect(tiles[3], const TerrainTile('=='));
       expect(tiles[4], const TerrainTile('=='));
     });
+
+    test('rejects prose rows whose 2-char chunks span word boundaries', () {
+      // Shop-listing interiors: tokens like `"a "` / `"e "` give it away.
+      expect(
+        parseMapRow('|     a dart.....................94      |'),
+        isEmpty,
+      );
+      expect(
+        parseMapRow('|     a throwing knife..........536      |'),
+        isEmpty,
+      );
+      expect(
+        parseMapRow('|     a hunga-munga............1700      |'),
+        isEmpty,
+      );
+    });
+
+    test('rejects a short prose header row', () {
+      // "We sell only the best throwing weapons" — the words alternate
+      // even / odd length so several 2-char chunks include a trailing space.
+      expect(
+        parseMapRow('| We sell only the best throwing weapons |'),
+        isEmpty,
+      );
+    });
   });
 
   group('MapBlock', () {
@@ -59,6 +85,54 @@ void main() {
       const block = MapBlock([]);
       expect(block.rowCount, 0);
       expect(block.colCount, 0);
+    });
+  });
+
+  group('looksLikeMapBlock', () {
+    test('empty rows → false', () {
+      expect(looksLikeMapBlock(const []), isFalse);
+    });
+
+    test('only unknown tiles → false', () {
+      // `xy` and `zz` aren't in classifyTile's vocabulary.
+      expect(
+        looksLikeMapBlock([
+          [const TerrainTile('xy'), const TerrainTile('zz')],
+        ]),
+        isFalse,
+      );
+    });
+
+    test('at least one known tile → true', () {
+      expect(
+        looksLikeMapBlock([
+          [const TerrainTile('xy'), const TerrainTile('oo')], // oo = grass
+        ]),
+        isTrue,
+      );
+    });
+
+    test('player-only row is not enough (grass underlay not counted)', () {
+      expect(
+        looksLikeMapBlock([
+          [const PlayerTile()],
+        ]),
+        isFalse,
+      );
+    });
+
+    test('every known TileKind case qualifies', () {
+      // Spot-check: at least one tile per known family triggers true.
+      for (final ascii in const ['/\\', '~~', '==', '##', '[]', '+o']) {
+        expect(classifyTile(ascii), isNot(TileKind.unknown));
+        expect(
+          looksLikeMapBlock([
+            [TerrainTile(ascii)],
+          ]),
+          isTrue,
+          reason: ascii,
+        );
+      }
     });
   });
 

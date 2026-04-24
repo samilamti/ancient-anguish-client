@@ -1,3 +1,5 @@
+import 'map_tile_kind.dart';
+
 /// A rectangular block of ASCII map tiles captured between a pair of
 /// `+---...---+` borders. Rendered by the terminal view as a grid widget
 /// with uniform cells and a styled frame (instead of per-line ASCII).
@@ -67,6 +69,11 @@ List<MapTile> parseMapRow(String plainText) {
       continue;
     }
     if (i + 2 <= content.length) {
+      // A well-formed map tile is always two non-space chars. If the next
+      // char is a space, we're chunking across a word boundary in prose —
+      // this row isn't a map row at all. (`content[i]` is guaranteed
+      // non-space by the skip loop above.)
+      if (content[i + 1] == ' ') return const [];
       tiles.add(TerrainTile(content.substring(i, i + 2)));
       i += 2;
     } else {
@@ -75,4 +82,24 @@ List<MapTile> parseMapRow(String plainText) {
     }
   }
   return tiles;
+}
+
+/// Heuristic: does this collection of parsed rows actually describe a map?
+///
+/// The row-level parser accepts unknown 2-char tokens so the renderer can
+/// show uncommon tiles (e.g. area-specific landmarks) as raw glyphs. But a
+/// block of *entirely* unknown tokens is almost certainly prose that was
+/// chunked into tiles by accident — a shop listing, an info card, etc.
+/// Require at least one tile to classify to a known [TileKind].
+bool looksLikeMapBlock(List<List<MapTile>> rows) {
+  if (rows.isEmpty) return false;
+  for (final row in rows) {
+    for (final tile in row) {
+      if (tile is TerrainTile &&
+          classifyTile(tile.ascii) != TileKind.unknown) {
+        return true;
+      }
+    }
+  }
+  return false;
 }

@@ -224,6 +224,72 @@ void main() {
         )!;
         expect(SocialMessageParser.isPartySystemMessage(match), isFalse);
       });
+
+      test('returns true for begins exploring', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<womp womp> Alterego begins exploring.',
+        )!;
+        expect(SocialMessageParser.isPartySystemMessage(match), isTrue);
+      });
+
+      test('returns true for begins exploring with (line off)', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<womp womp> Savage begins exploring (line off).',
+        )!;
+        expect(SocialMessageParser.isPartySystemMessage(match), isTrue);
+      });
+
+      test('returns true for leaves to explore elsewhere', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<womp womp> Alterego leaves to explore elsewhere.',
+        )!;
+        expect(SocialMessageParser.isPartySystemMessage(match), isTrue);
+      });
+
+      test('returns false for "begins exploring the cave" (exact-match guard)',
+          () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<womp womp> Godsend begins exploring the cave.',
+        )!;
+        expect(SocialMessageParser.isPartySystemMessage(match), isFalse);
+      });
+    });
+
+    group('isNonPartyGroup', () {
+      test('returns true for Geo say (Geographic Society channel)', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<Geo> Nomad : found the eastern shore',
+        )!;
+        expect(SocialMessageParser.isNonPartyGroup(match), isTrue);
+      });
+
+      test('returns true for Geo emote', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<Geo> Nomad waves.',
+        )!;
+        expect(SocialMessageParser.isNonPartyGroup(match), isTrue);
+      });
+
+      test('returns true for Bear say', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<Bear> Ursa : rawr',
+        )!;
+        expect(SocialMessageParser.isNonPartyGroup(match), isTrue);
+      });
+
+      test('returns false for a real party', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<womp womp> Godsend : hi',
+        )!;
+        expect(SocialMessageParser.isNonPartyGroup(match), isFalse);
+      });
+
+      test('is case-sensitive (lowercase geo is not excluded)', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<geo> Nomad : hi',
+        )!;
+        expect(SocialMessageParser.isNonPartyGroup(match), isFalse);
+      });
     });
 
     group('isChatSystemMessage', () {
@@ -244,6 +310,13 @@ void main() {
       test('returns true for leaves to explore elsewhere', () {
         final match = SocialMessageParser.matchChatLine(
           '[Chat] Roric leaves to explore elsewhere.',
+        )!;
+        expect(SocialMessageParser.isChatSystemMessage(match), isTrue);
+      });
+
+      test('returns true for begins exploring with (line off)', () {
+        final match = SocialMessageParser.matchChatLine(
+          '[Chat] Savage begins exploring (line off).',
         )!;
         expect(SocialMessageParser.isChatSystemMessage(match), isTrue);
       });

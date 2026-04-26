@@ -98,11 +98,37 @@ class SocialMessageParser {
     return null;
   }
 
+  /// Exact text bodies emitted by the MUD when tracking party movement.
+  /// Filtered from both Chat and Party tabs so they don't flood the social
+  /// windows. Exact match (not prefix) so legitimate emotes like
+  /// `begins exploring the cave.` still come through.
+  static const _explorationTrackingTexts = {
+    'begins exploring.',
+    'begins exploring (line off).',
+    'leaves to explore elsewhere.',
+  };
+
   /// Returns true if a party match is a system message (not a player message).
   /// e.g. `<PartyName> Your party just killed the giant troll.`
+  /// e.g. `<PartyName> Foo begins exploring (line off).`
   static bool isPartySystemMessage(PartyMatchResult match) {
-    return match.sender == 'Your' &&
-        match.text.startsWith('party just killed');
+    if (match.sender == 'Your' &&
+        match.text.startsWith('party just killed')) {
+      return true;
+    }
+    if (_explorationTrackingTexts.contains(match.text)) return true;
+    return false;
+  }
+
+  /// Party-name look-alikes that aren't actual parties (e.g. guild/club
+  /// channels that use the same `<Name>` framing). These should stay in the
+  /// main terminal, not the Party tab.
+  static const _nonPartyGroups = {'Geo', 'Bear'};
+
+  /// Returns true if a party match is actually a non-party channel
+  /// (Geographic Society, etc.) masquerading as party syntax.
+  static bool isNonPartyGroup(PartyMatchResult match) {
+    return _nonPartyGroups.contains(match.partyName);
   }
 
   /// Returns true if a chat match is a system/NPC message (not a player message).
@@ -110,8 +136,7 @@ class SocialMessageParser {
   /// e.g. "[Chat] Foo begins exploring."
   static bool isChatSystemMessage(ChatMatchResult match) {
     if (match.sender == 'The') return true;
-    if (match.text == 'begins exploring.') return true;
-    if (match.text == 'leaves to explore elsewhere.') return true;
+    if (_explorationTrackingTexts.contains(match.text)) return true;
     return false;
   }
 

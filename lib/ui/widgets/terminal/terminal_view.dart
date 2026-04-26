@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants.dart';
-import '../../../models/terminal_block.dart';
 import '../../../protocol/ansi/styled_span.dart';
 import '../../../providers/background_image_provider.dart';
 import '../../../providers/connection_provider.dart'
@@ -15,10 +14,8 @@ import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
 import '../../../providers/framed_text_block_provider.dart';
-import '../../../providers/terminal_block_provider.dart';
 import '../../../providers/map_block_provider.dart';
 import '../../../services/platform/file_utils.dart';
-import 'block_action_bar.dart';
 import 'framed_text_block_widget.dart';
 import 'map_block_widget.dart';
 import 'terminal_selection.dart';
@@ -55,7 +52,6 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
 
   static const double _tapSlopSquared = 18.0 * 18.0;
   static const Duration _doubleTapTimeout = Duration(milliseconds: 300);
-  static const double _blockSeparatorHeight = 8.0;
 
   // Monospace font measurements (recomputed when font size changes).
   double _charWidth = 0;
@@ -141,48 +137,8 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     return TerminalPosition(lineIndex, column);
   }
 
-  /// Hit-test for block mode: walks blocks to account for separator heights.
-  TerminalPosition? _hitTestBlocks(
-      Offset localPosition, List<TerminalBlock> blocks, List<StyledLine> lines) {
-    if (_charWidth == 0 || _lineHeight == 0 || blocks.isEmpty) return null;
-
-    final scrollOffset =
-        _scrollController.hasClients ? _scrollController.offset : 0.0;
-    final adjustedY = localPosition.dy + scrollOffset - 4.0;
-    final adjustedX = localPosition.dx - 8.0;
-
-    // Walk blocks to find which block and line the Y coordinate falls in.
-    var cumulativeY = 0.0;
-    for (final block in blocks) {
-      final blockHeight = block.lineCount * _lineHeight;
-      if (adjustedY < cumulativeY + blockHeight) {
-        // Within this block.
-        final localLineIndex =
-            ((adjustedY - cumulativeY) / _lineHeight).floor().clamp(0, block.lineCount - 1);
-        final globalIndex = block.startLineIndex + localLineIndex;
-        if (globalIndex >= lines.length) break;
-        final lineLength = lines[globalIndex].plainText.length;
-        final column = (adjustedX / _charWidth).round().clamp(0, lineLength);
-        return TerminalPosition(globalIndex, column);
-      }
-      cumulativeY += blockHeight + _blockSeparatorHeight;
-    }
-
-    // Below all blocks — clamp to last line.
-    if (lines.isNotEmpty) {
-      final last = lines.length - 1;
-      return TerminalPosition(last, lines[last].plainText.length);
-    }
-    return null;
-  }
-
-  /// Dispatches to flat or block hit-test based on current mode.
   TerminalPosition? _hitTestAuto(Offset localPosition) {
     final lines = ref.read(terminalBufferProvider);
-    if (ref.read(settingsProvider).blockModeEnabled) {
-      final blocks = ref.read(terminalBlocksProvider);
-      return _hitTestBlocks(localPosition, blocks, lines);
-    }
     return _hitTest(localPosition, lines);
   }
 
@@ -485,10 +441,8 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final fontSize = settings.fontSize;
-    final blockMode = settings.blockModeEnabled;
     _measureFont(fontSize);
     final lines = ref.watch(terminalBufferProvider);
-    final blocks = blockMode ? ref.watch(terminalBlocksProvider) : <TerminalBlock>[];
     final selection = _selectionController.selection;
     final bgImagePath = ref.watch(backgroundImageProvider);
 
@@ -528,38 +482,21 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
               // Terminal output.
               MouseRegion(
                 cursor: SystemMouseCursors.text,
-                child: blockMode
-                    ? ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        cacheExtent: 2000,
-                        itemCount: blocks.length,
-                        itemBuilder: (context, blockIndex) {
-                          return _TerminalBlockWidget(
-                            key: ValueKey(blocks[blockIndex].id),
-                            block: blocks[blockIndex],
-                            selection: selection,
-                            fontSize: fontSize,
-                            separatorHeight: _blockSeparatorHeight,
-                          );
-                        },
-                      )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        cacheExtent: 2000,
-                        itemCount: lines.length,
-                        itemBuilder: (context, index) {
-                          return _TerminalLine(
-                            line: lines[index],
-                            lineIndex: index,
-                            selection: selection,
-                            fontSize: fontSize,
-                          );
-                        },
-                      ),
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  cacheExtent: 2000,
+                  itemCount: lines.length,
+                  itemBuilder: (context, index) {
+                    return _TerminalLine(
+                      line: lines[index],
+                      lineIndex: index,
+                      selection: selection,
+                      fontSize: fontSize,
+                    );
+                  },
+                ),
               ),
 
               // "Scroll to bottom" indicator when not auto-scrolling.
@@ -579,74 +516,6 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
                 ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A block of grouped terminal output lines with hover actions.
-class _TerminalBlockWidget extends StatefulWidget {
-  final TerminalBlock block;
-  final TerminalSelection? selection;
-  final double fontSize;
-  final double separatorHeight;
-
-  const _TerminalBlockWidget({
-    super.key,
-    required this.block,
-    required this.selection,
-    required this.fontSize,
-    required this.separatorHeight,
-  });
-
-  @override
-  State<_TerminalBlockWidget> createState() => _TerminalBlockWidgetState();
-}
-
-class _TerminalBlockWidgetState extends State<_TerminalBlockWidget> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.block.isEmpty) return SizedBox(height: widget.separatorHeight);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: Container(
-        margin: EdgeInsets.only(bottom: widget.separatorHeight),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor.withAlpha(40),
-              width: 0.5,
-            ),
-          ),
-        ),
-        child: Stack(
-          children: [
-            // Block lines.
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < widget.block.lineCount; i++)
-                  _TerminalLine(
-                    line: widget.block.lines[i],
-                    lineIndex: widget.block.startLineIndex + i,
-                    selection: widget.selection,
-                    fontSize: widget.fontSize,
-                  ),
-              ],
-            ),
-            // Hover action bar.
-            if (_isHovered)
-              Positioned(
-                top: 2,
-                right: 2,
-                child: BlockActionBar(block: widget.block),
-              ),
-          ],
         ),
       ),
     );

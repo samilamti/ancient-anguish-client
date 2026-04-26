@@ -23,7 +23,6 @@ class AppSettings {
   final bool gagSocialFromTerminal; // hide social messages from main terminal
   final bool emojiParsingEnabled; // replace text emoticons with emoji
   final int inputWrapWidth; // 0 = disabled, otherwise wrap input at N chars
-  final bool blockModeEnabled; // group output into interactive blocks
   final Set<String> enabledPromptElements; // active prompt tokens
   final bool isDonator; // gates donator-only prompt elements in UI
   final List<QuickCommand> quickCommands; // user-configurable mobile shortcuts
@@ -57,7 +56,6 @@ class AppSettings {
     this.gagSocialFromTerminal = true,
     this.emojiParsingEnabled = true,
     this.inputWrapWidth = 0,
-    this.blockModeEnabled = false,
     this.enabledPromptElements = defaultPromptElements,
     this.isDonator = false,
     this.quickCommands = QuickCommand.defaults,
@@ -80,7 +78,6 @@ class AppSettings {
     bool? gagSocialFromTerminal,
     bool? emojiParsingEnabled,
     int? inputWrapWidth,
-    bool? blockModeEnabled,
     Set<String>? enabledPromptElements,
     bool? isDonator,
     List<QuickCommand>? quickCommands,
@@ -105,7 +102,6 @@ class AppSettings {
       emojiParsingEnabled:
           emojiParsingEnabled ?? this.emojiParsingEnabled,
       inputWrapWidth: inputWrapWidth ?? this.inputWrapWidth,
-      blockModeEnabled: blockModeEnabled ?? this.blockModeEnabled,
       enabledPromptElements:
           enabledPromptElements ?? this.enabledPromptElements,
       isDonator: isDonator ?? this.isDonator,
@@ -134,7 +130,6 @@ class AppSettings {
         'gagSocialFromTerminal': gagSocialFromTerminal,
         'emojiParsingEnabled': emojiParsingEnabled,
         'inputWrapWidth': inputWrapWidth,
-        'blockModeEnabled': blockModeEnabled,
         'enabledPromptElements': enabledPromptElements.toList(),
         'isDonator': isDonator,
         'quickCommands':
@@ -162,7 +157,6 @@ class AppSettings {
       gagSocialFromTerminal: json['gagSocialFromTerminal'] as bool? ?? true,
       emojiParsingEnabled: json['emojiParsingEnabled'] as bool? ?? true,
       inputWrapWidth: json['inputWrapWidth'] as int? ?? 0,
-      blockModeEnabled: json['blockModeEnabled'] as bool? ?? false,
       enabledPromptElements: json['enabledPromptElements'] != null
           ? Set<String>.from(json['enabledPromptElements'] as List)
           : defaultPromptElements,
@@ -273,11 +267,6 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void toggleEmojiMaps() {
     state = state.copyWith(emojiMapsEnabled: !state.emojiMapsEnabled);
-    _saveSettings();
-  }
-
-  void toggleBlockMode() {
-    state = state.copyWith(blockModeEnabled: !state.blockModeEnabled);
     _saveSettings();
   }
 

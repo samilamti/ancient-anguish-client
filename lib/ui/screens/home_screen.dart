@@ -676,14 +676,6 @@ class _SettingsDrawer extends ConsumerWidget {
               onChanged: (_) => notifier.toggleEmojiMaps(),
             ),
 
-            if (!isMobile)
-              _DrawerToggle(
-                label: 'Block Mode',
-                icon: Icons.view_agenda,
-                value: settings.blockModeEnabled,
-                onChanged: (_) => notifier.toggleBlockMode(),
-              ),
-
             if (isMobile) ...[
               _DrawerToggle(
                 label: 'Quick Commands',

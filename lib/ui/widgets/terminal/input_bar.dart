@@ -11,7 +11,6 @@ import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
-import '../../../providers/terminal_block_provider.dart';
 import '../../../services/parser/emoji_parser.dart';
 
 /// The command input bar at the bottom of the terminal.
@@ -86,12 +85,6 @@ class _InputBarState extends ConsumerState<InputBar> {
     history.add(command);
     _resetHistorySearch();
     ref.read(gameStateProvider.notifier).recordDirectionalAttempt(command);
-    // Emit a command boundary for block mode.
-    if (settings.blockModeEnabled) {
-      ref
-          .read(blockBoundaryProvider.notifier)
-          .markCommandBoundary(ref.read(terminalBufferProvider).length);
-    }
     // Select all text so the user can resend with Enter or type to replace.
     _controller.selection = TextSelection(
       baseOffset: 0,

@@ -37,7 +37,6 @@ import 'settings_provider.dart';
 import 'social_message_provider.dart';
 import 'social_panel_provider.dart';
 import 'recent_words_provider.dart';
-import 'terminal_block_provider.dart';
 import 'trigger_provider.dart';
 
 /// Provides the singleton [MudConnectionService].
@@ -194,7 +193,6 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           final gameNotifier = ref.read(gameStateProvider.notifier);
           final battleNotifier = ref.read(battleStateProvider.notifier);
           final processedLines = <StyledLine>[];
-          var promptDetected = false;
 
           for (final line in newLines) {
             final plainText = line.plainText;
@@ -217,7 +215,6 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             if (_loginDetected) {
               final vitals = _extractPrompt(plainText);
               if (vitals != null) {
-                promptDetected = true;
                 // A prompt signals end-of-output — lift emoji suppression
                 // that was triggered by `read map`.
                 _emojiSuppressed = false;
@@ -415,14 +412,6 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           if (processedLines.isNotEmpty) {
             _addLines(processedLines);
           }
-
-          // Emit a prompt boundary for block mode when a prompt was detected.
-          if (promptDetected &&
-              ref.read(settingsProvider).blockModeEnabled) {
-            ref
-                .read(blockBoundaryProvider.notifier)
-                .markPromptBoundary(state.length);
-          }
         }
 
         // The MUD uses SGA (Suppress Go Ahead), so prompt lines arrive
@@ -440,12 +429,6 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                 ref.read(gameStateProvider.notifier).updateFromPrompt(
                   vitals.values,
                 );
-                // Prompt boundary for block mode.
-                if (ref.read(settingsProvider).blockModeEnabled) {
-                  ref
-                      .read(blockBoundaryProvider.notifier)
-                      .markPromptBoundary(state.length);
-                }
               }
             }
           }
@@ -531,7 +514,6 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         _insideMapBorder = false;
         _pendingMapRows = null;
         _pendingMapOriginalLines = null;
-        ref.read(blockBoundaryProvider.notifier).reset();
       }
     });
   }
@@ -707,10 +689,6 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     if (newState.length > _maxLines) {
       final removedCount = newState.length - _maxLines;
       state = newState.sublist(removedCount);
-      // Adjust block boundaries to account for trimmed lines.
-      if (ref.read(settingsProvider).blockModeEnabled) {
-        ref.read(blockBoundaryProvider.notifier).adjustForTrim(removedCount);
-      }
     } else {
       state = newState;
     }
@@ -774,11 +752,6 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             ref
                 .read(gameStateProvider.notifier)
                 .updateFromPrompt(vitals.values);
-            if (ref.read(settingsProvider).blockModeEnabled) {
-              ref
-                  .read(blockBoundaryProvider.notifier)
-                  .markPromptBoundary(state.length);
-            }
           }
         }
         return;

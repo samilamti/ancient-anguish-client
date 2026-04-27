@@ -18,9 +18,19 @@ import 'connection_interface.dart';
 /// - Emitting parsed [TelnetEvent]s to listeners.
 /// - Sending user commands with CR+LF termination.
 class TcpConnectionService implements MudConnectionService {
+  /// How often to probe the socket with a telnet NOP while connected.
+  ///
+  /// Without this, an idle client never writes to the socket, so the OS
+  /// never notices a half-open connection (WiFi dropped, laptop slept,
+  /// iOS suspended the app). The NOP forces a TCP send; if the link is
+  /// broken, the stream's `onError`/`onDone` fires within the retransmit
+  /// window and the UI flips to disconnected.
+  static const Duration _heartbeatInterval = Duration(seconds: 30);
+
   Socket? _socket;
   final TelnetProtocol _telnet = TelnetProtocol();
   StreamSubscription<Uint8List>? _subscription;
+  Timer? _heartbeatTimer;
 
   ConnectionStatus _status = ConnectionStatus.disconnected;
   ConnectionInfo? _connectionInfo;
@@ -80,6 +90,8 @@ class TcpConnectionService implements MudConnectionService {
         onDone: _onDone,
         cancelOnError: false,
       );
+
+      _startHeartbeat();
     } on SocketException catch (e) {
       debugPrint('ConnectionService.connect: ${e.message}');
       _setStatus(ConnectionStatus.error);
@@ -99,6 +111,9 @@ class TcpConnectionService implements MudConnectionService {
     }
 
     _setStatus(ConnectionStatus.disconnecting);
+
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
 
     await _subscription?.cancel();
     _subscription = null;
@@ -161,14 +176,50 @@ class TcpConnectionService implements MudConnectionService {
   }
 
   void _onError(Object error) {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     _setStatus(ConnectionStatus.error);
     _eventController.addError('Socket error: $error');
   }
 
   void _onDone() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     _subscription = null;
     _socket = null;
     _setStatus(ConnectionStatus.disconnected);
+  }
+
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(
+      _heartbeatInterval,
+      (_) => _sendHeartbeat(),
+    );
+  }
+
+  /// Writes a telnet NOP (`IAC NOP`, bytes `0xFF 0xF1`) to keep the pipe
+  /// flowing. The server ignores NOP; we ignore failures here because any
+  /// actual socket error is routed via `_onError`/`_onDone`.
+  void _sendHeartbeat() {
+    if (_status != ConnectionStatus.connected || _socket == null) {
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
+      return;
+    }
+    try {
+      _socket!.add(Uint8List.fromList([TelnetCmd.iac, TelnetCmd.nop]));
+    } catch (e) {
+      debugPrint('ConnectionService._sendHeartbeat: $e');
+      _onError(e);
+    }
+  }
+
+  @override
+  void checkAlive() {
+    if (_status == ConnectionStatus.connected) {
+      _sendHeartbeat();
+    }
   }
 
   void _setStatus(ConnectionStatus newStatus) {

@@ -39,8 +39,32 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Coming back from background/sleep — iOS/macOS may have torn the
+    // socket down silently. Probe immediately so the UI flips to
+    // disconnected if the link is dead rather than waiting up to 30s
+    // for the next heartbeat.
+    if (state == AppLifecycleState.resumed) {
+      ref.read(connectionServiceProvider).checkAlive();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +76,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       data: (status) => status == ConnectionStatus.connected,
       loading: () => false,
       error: (_, _) => false,
+    );
+    final connectLabel = statusAsync.when(
+      data: (status) => switch (status) {
+        ConnectionStatus.connecting => 'Connecting…',
+        ConnectionStatus.disconnecting => 'Disconnecting…',
+        ConnectionStatus.connected => 'Disconnect',
+        ConnectionStatus.disconnected => 'Reconnect',
+        ConnectionStatus.error => 'Reconnect',
+      },
+      loading: () => 'Reconnect',
+      error: (_, _) => 'Reconnect',
     );
     final isMobile = MediaQuery.of(context).size.width < 768;
     final playerName = gameState.playerName;
@@ -87,7 +122,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             items: [
               _ToolbarItem(
                 icon: isConnected ? Icons.link_off : Icons.link,
-                label: isConnected ? 'Disconnect' : 'Connect',
+                label: connectLabel,
                 onPressed: () {
                   final service = ref.read(connectionServiceProvider);
                   if (isConnected) {

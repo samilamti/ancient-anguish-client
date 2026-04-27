@@ -7,6 +7,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../models/connection_info.dart';
 import '../../protocol/telnet/telnet_events.dart';
+import '../../protocol/telnet/telnet_option.dart';
 import '../../protocol/telnet/telnet_protocol.dart';
 import 'connection_interface.dart';
 
@@ -26,8 +27,11 @@ class WebConnectionService implements MudConnectionService {
   final String _serverUrl;
   final String Function() _tokenProvider;
 
+  static const Duration _heartbeatInterval = Duration(seconds: 30);
+
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
+  Timer? _heartbeatTimer;
   final TelnetProtocol _telnet = TelnetProtocol();
 
   final _eventController = StreamController<TelnetEvent>.broadcast();
@@ -82,6 +86,7 @@ class WebConnectionService implements MudConnectionService {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       await _channel!.ready;
       _setStatus(ConnectionStatus.connected);
+      _startHeartbeat();
 
       _subscription = _channel!.stream.listen(
         (data) {
@@ -142,12 +147,49 @@ class WebConnectionService implements MudConnectionService {
   }
 
   Future<void> _cleanup() async {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     await _subscription?.cancel();
     _subscription = null;
     try {
       await _channel?.sink.close();
     } catch (_) {}
     _channel = null;
+  }
+
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(
+      _heartbeatInterval,
+      (_) => _sendHeartbeat(),
+    );
+  }
+
+  /// Writes a telnet NOP through the WebSocket tunnel so the server proxy
+  /// forwards a TCP segment to the MUD. The ping is ignored by AA, and any
+  /// transport-level failure lands in `onError`/`onDone` below.
+  void _sendHeartbeat() {
+    if (_status != ConnectionStatus.connected || _channel == null) {
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
+      return;
+    }
+    try {
+      _channel!.sink.add(
+        Uint8List.fromList([TelnetCmd.iac, TelnetCmd.nop]),
+      );
+    } catch (e) {
+      debugPrint('WebConnectionService._sendHeartbeat: $e');
+      _setStatus(ConnectionStatus.error);
+      _cleanup();
+    }
+  }
+
+  @override
+  void checkAlive() {
+    if (_status == ConnectionStatus.connected) {
+      _sendHeartbeat();
+    }
   }
 
   @override

@@ -39,6 +39,14 @@ abstract class MudConnectionService {
   /// Sends raw bytes to the socket (for telnet negotiation responses).
   void sendBytes(Uint8List bytes);
 
+  /// Probes the socket immediately to detect a silently-dead connection.
+  ///
+  /// Writes a telnet NOP so the OS attempts to send; if the link is broken,
+  /// the underlying stream will fire `onError`/`onDone` within the TCP
+  /// retransmit window, flipping status to disconnected. Safe to call on
+  /// an already-disconnected service (no-op).
+  void checkAlive();
+
   /// Disposes all resources.
   Future<void> dispose();
 }

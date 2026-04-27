@@ -203,6 +203,9 @@ class _FakeConnectionService implements MudConnectionService {
   void sendBytes(Uint8List bytes) {}
 
   @override
+  void checkAlive() {}
+
+  @override
   Future<void> dispose() async {
     await _events.close();
     await _status.close();

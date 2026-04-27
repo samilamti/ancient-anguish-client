@@ -526,7 +526,8 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     // Check for party line: "<Party Name> Character : message" or emote
     final partyMatch = SocialMessageParser.matchPartyLine(plainText);
     if (partyMatch != null &&
-        !SocialMessageParser.isPartySystemMessage(partyMatch)) {
+        !SocialMessageParser.isPartySystemMessage(partyMatch) &&
+        !SocialMessageParser.isNonPartyGroup(partyMatch)) {
       _lastSocialType = SocialMessageType.party;
       // Say: "Character: message", Emote: "Character does something"
       final displayBody = partyMatch.isEmote

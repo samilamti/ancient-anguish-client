@@ -253,6 +253,20 @@ void main() {
         )!;
         expect(SocialMessageParser.isPartySystemMessage(match), isFalse);
       });
+
+      test('returns true for The High Priest confessional announcement', () {
+        final match = SocialMessageParser.matchPartyLine(
+          '<womp womp> The High Priest: Confessionals will be held during the next 20 minutes. All monks are required to attend.',
+        )!;
+        expect(SocialMessageParser.isPartySystemMessage(match), isTrue);
+      });
+
+      test('returns true for The High Priest countdown announcement', () {
+        final match = SocialMessageParser.matchPartyLine(
+          "<womp womp> The High Priest: Only another 17 minutes 29 seconds left before confessionals are over. Make sure you're there.",
+        )!;
+        expect(SocialMessageParser.isPartySystemMessage(match), isTrue);
+      });
     });
 
     group('isNonPartyGroup', () {

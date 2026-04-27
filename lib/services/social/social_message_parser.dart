@@ -111,11 +111,13 @@ class SocialMessageParser {
   /// Returns true if a party match is a system message (not a player message).
   /// e.g. `<PartyName> Your party just killed the giant troll.`
   /// e.g. `<PartyName> Foo begins exploring (line off).`
+  /// e.g. `<PartyName> The High Priest: Confessionals will be held ...`
   static bool isPartySystemMessage(PartyMatchResult match) {
     if (match.sender == 'Your' &&
         match.text.startsWith('party just killed')) {
       return true;
     }
+    if (match.sender == 'The') return true;
     if (_explorationTrackingTexts.contains(match.text)) return true;
     return false;
   }

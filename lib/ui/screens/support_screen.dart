@@ -17,8 +17,10 @@ class SupportScreen extends ConsumerWidget {
 
   static const String _manageUrl =
       'https://apps.apple.com/account/subscriptions';
-  static const String _termsUrl = 'https://anguish.org/connect.php';
-  static const String _privacyUrl = 'https://anguish.org/privacy.html';
+  static const String _termsUrl =
+      'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+  static const String _privacyUrl =
+      'https://samilamti.github.io/ancient-anguish-client/';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -71,12 +73,19 @@ class SupportScreen extends ConsumerWidget {
 
     return [
       const _IntroCard(),
+      const SizedBox(height: 12),
+      const _LegalLinksRow(
+        termsUrl: _termsUrl,
+        privacyUrl: _privacyUrl,
+      ),
       const SizedBox(height: 16),
       for (final tier in SupportTier.values) ...[
         _TierCard(
           tier: tier,
           state: state,
           onSubscribe: () => notifier.purchase(tier),
+          termsUrl: _termsUrl,
+          privacyUrl: _privacyUrl,
         ),
         const SizedBox(height: 12),
       ],
@@ -152,11 +161,15 @@ class _TierCard extends StatelessWidget {
     required this.tier,
     required this.state,
     required this.onSubscribe,
+    required this.termsUrl,
+    required this.privacyUrl,
   });
 
   final SupportTier tier;
   final SubscriptionState state;
   final VoidCallback onSubscribe;
+  final String termsUrl;
+  final String privacyUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +221,8 @@ class _TierCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(tier.blurb, style: theme.textTheme.bodyMedium),
             const SizedBox(height: 16),
+            _TierLegalLine(termsUrl: termsUrl, privacyUrl: privacyUrl),
+            const SizedBox(height: 8),
             Row(
               children: [
                 if (isActive)
@@ -235,6 +250,49 @@ class _TierCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TierLegalLine extends StatelessWidget {
+  const _TierLegalLine({required this.termsUrl, required this.privacyUrl});
+
+  final String termsUrl;
+  final String privacyUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final baseStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurface.withAlpha(160),
+    );
+    final linkStyle = baseStyle?.copyWith(
+      color: theme.colorScheme.primary,
+      decoration: TextDecoration.underline,
+      fontWeight: FontWeight.w600,
+    );
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text('Subscribing accepts the ', style: baseStyle),
+        InkWell(
+          onTap: () => launchUrl(
+            Uri.parse(termsUrl),
+            mode: LaunchMode.externalApplication,
+          ),
+          child: Text('Terms of Use', style: linkStyle),
+        ),
+        Text(' · ', style: baseStyle),
+        InkWell(
+          onTap: () => launchUrl(
+            Uri.parse(privacyUrl),
+            mode: LaunchMode.externalApplication,
+          ),
+          child: Text('Privacy Policy', style: linkStyle),
+        ),
+        Text('.', style: baseStyle),
+      ],
     );
   }
 }
@@ -312,6 +370,78 @@ class _ErrorBanner extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LegalLinksRow extends StatelessWidget {
+  const _LegalLinksRow({required this.termsUrl, required this.privacyUrl});
+
+  final String termsUrl;
+  final String privacyUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurface.withAlpha(200),
+    );
+    final linkStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.primary,
+      decoration: TextDecoration.underline,
+      fontWeight: FontWeight.w600,
+    );
+    final dotStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurface.withAlpha(140),
+    );
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: theme.colorScheme.primary.withAlpha(80),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(
+              Icons.info_outline,
+              size: 20,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text('Before you subscribe: ', style: labelStyle),
+                  InkWell(
+                    onTap: () => launchUrl(
+                      Uri.parse(termsUrl),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    child: Text('Terms of Use', style: linkStyle),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('·', style: dotStyle),
+                  ),
+                  InkWell(
+                    onTap: () => launchUrl(
+                      Uri.parse(privacyUrl),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    child: Text('Privacy Policy', style: linkStyle),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

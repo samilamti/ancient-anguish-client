@@ -1,0 +1,209 @@
+<?php /*
+  connect.php — body-content rewrite suggestion
+  ----------------------------------------------
+  Drop into the existing connect.php template (whatever wraps the body
+  with site nav, header, footer is left alone). The rewrite leads with the
+  dedicated client and the App Store / Mac App Store badges; keeps the
+  web client and raw telnet as a "no-install" fallback below; and preserves
+  the existing optimization-settings block at the bottom for players
+  configuring a third-party client by hand.
+
+  Replace these placeholders with real values before going live:
+
+    {{IOS_APP_STORE_URL}}     — e.g. https://apps.apple.com/app/idXXXXXXXXXX
+    {{MAC_APP_STORE_URL}}     — e.g. https://apps.apple.com/app/idXXXXXXXXXX
+                                (often the same App Store id as iOS)
+    {{GOOGLE_PLAY_URL}}       — Play Store URL, or remove the badge if not on Play
+    {{GITHUB_RELEASES_URL}}   — https://github.com/SamiLamti/ancient-anguish-client/releases/latest
+    {{WEB_CLIENT_URL}}        — current browser client target
+
+  Apple ships official store badges at:
+    https://tools.applemediaservices.com/app-store/   (iOS / iPadOS / macOS)
+    https://play.google.com/intl/en_us/badges/        (Google Play)
+
+  Save the SVG/PNG into /img/store/ to match the paths below, or update the paths.
+*/ ?>
+
+<section class="connect-hero">
+  <h1>Connect</h1>
+
+  <p class="lede">
+    The fastest way in is the <strong>Ancient Anguish Client</strong> — a free,
+    purpose-built front end with a real terminal, a live HUD, ambient music,
+    and themes tuned for the realms.
+  </p>
+
+  <div class="connect-cta">
+    <a href="{{IOS_APP_STORE_URL}}" class="store-badge store-badge--ios"
+       aria-label="Download on the App Store (iPhone &amp; iPad)">
+      <img src="/img/store/app-store-badge.svg"
+           alt="Download on the App Store" height="56" />
+    </a>
+
+    <a href="{{MAC_APP_STORE_URL}}" class="store-badge store-badge--mac"
+       aria-label="Download on the Mac App Store">
+      <img src="/img/store/mac-app-store-badge.svg"
+           alt="Download on the Mac App Store" height="56" />
+    </a>
+
+    <a href="{{GOOGLE_PLAY_URL}}" class="store-badge store-badge--play"
+       aria-label="Get it on Google Play">
+      <img src="/img/store/google-play-badge.png"
+           alt="Get it on Google Play" height="56" />
+    </a>
+
+    <a href="{{GITHUB_RELEASES_URL}}" class="store-badge store-badge--github"
+       aria-label="Windows, Linux, and direct Android APK downloads">
+      <span class="badge-line">Windows · Linux · Android APK</span>
+      <span class="badge-sub">GitHub releases →</span>
+    </a>
+  </div>
+
+  <p class="connect-platforms">
+    iPhone, iPad, Mac, Android, Windows, Linux, and any modern browser.
+    Free to download. Free to play. No ads, no analytics, no third-party SDKs.
+  </p>
+</section>
+
+
+<section class="connect-features">
+  <h2>What you get</h2>
+
+  <ul class="feature-grid">
+    <li>
+      <h3>A real terminal</h3>
+      <p>Truecolor ANSI, GMCP, MCCP, drag-to-select copy, clickable URLs, and a 5,000-line scrollback. Bold, italic, underline, inverse — all rendered.</p>
+    </li>
+
+    <li>
+      <h3>Live game-state HUD</h3>
+      <p>30+ configurable elements: HP/SP/XP, combat aim/attack/defend, hunger/thirst/drunk, alignment, followers, reboot countdown. The client rebuilds your prompt and syncs it for you.</p>
+    </li>
+
+    <li>
+      <h3>Quick Commands and D-Pad</h3>
+      <p>Tap-to-send buttons, eight-direction movement, and a target picker that learns from recent words. Combat loops and travel at thumb reach.</p>
+    </li>
+
+    <li>
+      <h3>Aliases and Immersions</h3>
+      <p>Short keywords that expand with <code>$0</code>/<code>$1</code>/<code>$2</code> substitution. Display-only triggers that highlight, gag, or play sounds. Strict no-bots design.</p>
+    </li>
+
+    <li>
+      <h3>Floating social windows</h3>
+      <p>Chat and Tells as dockable, resizable panels — pinned to one edge, hidden from your main log, or mirrored alongside it.</p>
+    </li>
+
+    <li>
+      <h3>Area-based ambient music</h3>
+      <p>The client detects your location and crossfades between tracks. Bring your own music per area.</p>
+    </li>
+
+    <li>
+      <h3>Themes &amp; accessibility</h3>
+      <p>RPG Dark (gold on wood), Classic Dark (green on black), High Contrast, and a fully editable Custom palette. Scalable fonts (8–32 pt), wrap slider, native VoiceOver.</p>
+    </li>
+
+    <li>
+      <h3>Privacy by default</h3>
+      <p>No analytics. No tracking. No ads. The only network traffic is your single connection to the game — you control the host.</p>
+    </li>
+  </ul>
+</section>
+
+
+<section class="connect-no-install">
+  <h2>No install? Use the web client.</h2>
+  <p>
+    On a public computer, or just want a five-minute look? The browser-based
+    client runs without anything to download.
+  </p>
+  <p>
+    <a class="btn-primary" href="{{WEB_CLIENT_URL}}">Open the web client →</a>
+  </p>
+  <p class="muted">
+    The web client is great for trying things out. The dedicated client above
+    is better for daily play — HUD, music, themes, social windows, and offline
+    settings storage all live there.
+  </p>
+</section>
+
+
+<section class="connect-direct">
+  <h2>Direct connection</h2>
+  <p>
+    Prefer your own setup? The MUD lives at
+    <code>anguish.org</code> port <code>2222</code> over plain telnet — any
+    standard MUD client will connect.
+  </p>
+  <pre><code>telnet anguish.org 2222</code></pre>
+  <p class="muted">
+    The dedicated client handles ANSI, prompt, font, and the HUD for you.
+    The next section is for players tuning a third-party client by hand.
+  </p>
+</section>
+
+
+<section class="connect-tuning">
+  <h2>If you're configuring a third-party client</h2>
+
+  <h3>Recommended settings</h3>
+  <ul>
+    <li>Enable ANSI colors</li>
+    <li>Disable <code>puebloclient</code></li>
+    <li>Enable riverblock protection</li>
+    <li>Customize your prompt with the in-game <code>prompt</code> command</li>
+  </ul>
+
+  <h3>Font</h3>
+  <p>Monospace / fixed-width. Baseline: <strong>Courier New 10pt bold</strong>.</p>
+
+  <h3>16-color ANSI palette</h3>
+  <!--
+    Preserve the existing palette table from the current connect.php here —
+    the RGB/hex values for the 16 ANSI colors. The dedicated client ships
+    these defaults already; this table is for hand-tuned third-party clients.
+  -->
+  <p class="muted">[Existing 16-color RGB/hex palette table goes here — kept verbatim from the current page.]</p>
+</section>
+
+
+<?php /*
+  Optional: minimal CSS to make the badge row look intentional even if the
+  rest of the site styles aren't pulled in. Move into the site stylesheet.
+
+  .connect-cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin: 28px 0;
+    align-items: center;
+  }
+  .connect-cta .store-badge img { display: block; }
+  .connect-cta .store-badge--github {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 56px;
+    padding: 0 18px;
+    border: 1px solid currentColor;
+    border-radius: 10px;
+    text-decoration: none;
+    line-height: 1.2;
+  }
+  .connect-cta .store-badge--github .badge-sub { font-size: .85em; opacity: .8; }
+
+  .feature-grid {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+  }
+  .feature-grid h3 { margin: 0 0 4px; }
+  .feature-grid p  { margin: 0; }
+  .lede { font-size: 1.15em; }
+  .muted { opacity: .75; font-size: .95em; }
+*/ ?>

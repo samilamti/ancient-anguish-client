@@ -282,7 +282,7 @@ class _MessageWidgetState extends State<_MessageWidget>
     final children = <InlineSpan>[];
     for (var i = 0; i < widget.message.styledLines.length; i++) {
       if (i > 0) {
-        children.add(const TextSpan(text: '\n'));
+        children.add(const TextSpan(text: ' '));
       }
       children.add(widget.message.styledLines[i].toTextSpan(
         fontFamily: fontFamily,

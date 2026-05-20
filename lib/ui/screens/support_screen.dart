@@ -20,7 +20,7 @@ class SupportScreen extends ConsumerWidget {
   static const String _termsUrl =
       'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
   static const String _privacyUrl =
-      'https://samilamti.github.io/ancient-anguish-client/';
+      'https://ancient-anguish.duckdns.org/privacy.html';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

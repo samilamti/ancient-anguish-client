@@ -1,4 +1,4 @@
-# Ancient Anguish Client — Store Listings (v6.12.0)
+# Chosen's MUD Client for Ancient Anguish — Store Listings (v6.12.0)
 
 Paste each block into the matching field in App Store Connect (iOS), App Store Connect (macOS), or Google Play Console. Character counts follow each bounded field.
 
@@ -66,7 +66,7 @@ SUBSCRIPTION TERMS
 Optional Support tiers are auto-renewable monthly subscriptions (Small $1.99, Medium $3.99, Large $5.99 — USD). They are purely cosmetic: nothing in the app is gated behind them. Payment is charged to your Apple ID at confirmation of purchase. Auto-renews unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime from your Apple ID subscription settings.
 
 Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
-Privacy Policy: https://samilamti.github.io/ancient-anguish-client/
+Privacy Policy: https://ancient-anguish.duckdns.org/privacy.html
 
 Adventure awaits. See you in the realms.
 ```
@@ -91,7 +91,7 @@ WHAT CHANGED FOR GUIDELINE 3.1.2(c)
 • The existing legal banner directly below the intro card has been promoted to a card-style row with an info icon and "Before you subscribe:" prefix, so it reads as a deliberate disclosure rather than a quiet caption.
 • The full auto-renewal disclosure footer (length, price, renewal terms, management path, Terms / Privacy links repeated inline) remains present at the bottom of the same screen.
 • Terms of Use URL: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/ (Apple's published standard EULA).
-• Privacy Policy URL: https://samilamti.github.io/ancient-anguish-client/
+• Privacy Policy URL: https://ancient-anguish.duckdns.org/privacy.html
 
 GUIDELINE 4.1(c) — Authorization to use the Ancient Anguish name
 This app is the official third-party client for the Ancient Anguish MUD. It is publicly promoted on the game's official Connect page at https://anguish.org/connect.php, and several Ancient Anguish staff members (Tuinn, Bytre, Jerusulum) actively contribute to its development. We have attached written approval from the Ancient Anguish development team confirming our use of the brand name; please see "AA Endorsement" in the App Review Information attachments.
@@ -107,7 +107,7 @@ IMPORTANT CLARIFICATIONS
 • All three subscriptions live in a single subscription group so upgrade/downgrade between tiers works without cancelling.
 
 CONTACT
-For questions during review: https://anguish.org/connect.php
+For questions during review: https://ancient-anguish.duckdns.org/support.html
 ```
 
 ---
@@ -167,7 +167,7 @@ SUBSCRIPTION TERMS
 Optional Support tiers are auto-renewable monthly subscriptions (Small $1.99, Medium $3.99, Large $5.99 — USD). They are purely cosmetic: nothing in the app is gated behind them. Payment is charged to your Apple ID at confirmation of purchase. Auto-renews unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime from your Apple ID subscription settings.
 
 Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
-Privacy Policy: https://samilamti.github.io/ancient-anguish-client/
+Privacy Policy: https://ancient-anguish.duckdns.org/privacy.html
 
 Adventure awaits. See you in the realms.
 ```
@@ -192,7 +192,7 @@ WHAT CHANGED FOR GUIDELINE 3.1.2(c)
 • The existing legal banner directly below the intro card has been promoted to a bordered card with an info icon and "Before you subscribe:" prefix.
 • The full auto-renewal disclosure footer remains present at the bottom of the same screen.
 • Terms of Use URL: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
-• Privacy Policy URL: https://samilamti.github.io/ancient-anguish-client/
+• Privacy Policy URL: https://ancient-anguish.duckdns.org/privacy.html
 
 GUIDELINE 4.1(c) — Authorization to use the Ancient Anguish name
 This app is the official third-party client for the Ancient Anguish MUD. It is publicly promoted on the game's official Connect page at https://anguish.org/connect.php, and several Ancient Anguish staff members actively contribute to its development. Written approval from the Ancient Anguish development team is attached under "App Review Information → Attachments → AA Endorsement".
@@ -208,7 +208,7 @@ IMPORTANT CLARIFICATIONS
 • All three subscriptions live in one subscription group so seamless upgrade/downgrade works correctly.
 
 CONTACT
-For questions during review: https://anguish.org/connect.php
+For questions during review: https://ancient-anguish.duckdns.org/support.html
 ```
 
 ---
@@ -298,7 +298,7 @@ Support Tiers are optional monthly subscriptions that help fund client developme
 • Manage or cancel anytime from your Apple ID subscription settings.
 
 Terms of Use:     https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
-Privacy Policy:   https://samilamti.github.io/ancient-anguish-client/
+Privacy Policy:   https://ancient-anguish.duckdns.org/privacy.html
 ```
 
 **App Store Connect App Information fields (both iOS and macOS records):**
@@ -306,7 +306,7 @@ Privacy Policy:   https://samilamti.github.io/ancient-anguish-client/
 | Field               | Value                                                                      |
 |---------------------|----------------------------------------------------------------------------|
 | Terms of Use URL    | `https://www.apple.com/legal/internet-services/itunes/dev/stdeula/`        |
-| Privacy Policy URL  | `https://samilamti.github.io/ancient-anguish-client/`                      |
+| Privacy Policy URL  | `https://ancient-anguish.duckdns.org/privacy.html`                                      |
 
 The Terms of Use URL is Apple's published standard EULA; no custom hosting is required. If a custom EULA is ever needed in the future, upload it to the per-record "EULA" field in App Store Connect and update both the constants at the top of `lib/ui/screens/support_screen.dart` and the App Store Connect App Information field in lock-step.
 
@@ -356,9 +356,9 @@ In-app changes (v6.12.0):
 • Path to reach: launch the app → Settings → Support Tiers.
 
 App Store metadata:
-• The App Description (iOS and macOS) continues to include a "SUBSCRIPTION TERMS" paragraph with functional links to the Terms of Use (Apple's standard EULA: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/) and the Privacy Policy (https://samilamti.github.io/ancient-anguish-client/).
+• The App Description (iOS and macOS) continues to include a "SUBSCRIPTION TERMS" paragraph with functional links to the Terms of Use (Apple's standard EULA: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/) and the Privacy Policy (https://ancient-anguish.duckdns.org/privacy.html).
 • The Terms of Use URL field in App Information for both iOS and macOS records is set to Apple's standard EULA.
-• The Privacy Policy URL field in App Information for both records is set to https://samilamti.github.io/ancient-anguish-client/.
+• The Privacy Policy URL field in App Information for both records is set to https://ancient-anguish.duckdns.org/privacy.html.
 
 A short screen recording demonstrating the strengthened in-app disclosure is attached.
 
@@ -369,6 +369,40 @@ This app is the official third-party client for the Ancient Anguish MUD. We are 
 We have attached written approval from the Ancient Anguish development team under App Review Information → Attachments ("AA Endorsement"). It confirms our authorization to use the name "Ancient Anguish" in the app's title and metadata.
 
 Please let us know if any further evidence would help close this thread out. Thank you.
+```
+
+---
+
+## 7b. Resolution Center reply (v6.12.0 — Guideline 1.5 Safety rejection)
+
+After the 3.1.2(c) / 4.1(c) reply above was accepted, the v6.12.0 review cycle was rejected under **Guideline 1.5 — Safety** with the note that the configured Support URL (`https://anguish.org/connect.php`) did not direct users to a page where they could ask questions or request support — that URL is the MUD's own "authorized clients" promotion page, not a support page for the client app.
+
+Resolution: the client app's Support, Privacy Policy, and Marketing URLs all now point at a dedicated static site at `https://ancient-anguish.duckdns.org/`, hosted by the developer. The support page contains the developer's contact email, a Discord invite, and a FAQ covering connection, character creation, subscription management, accessibility, bug reporting, and feature requests.
+
+Paste the following into the Resolution Center reply for the v6.12.0 / 1.5 rejection.
+
+```
+Thank you for the follow-up. v6.12.0 now addresses Guideline 1.5.
+
+Guideline 1.5 — Support URL
+
+The configured Support URL previously pointed at the MUD's own "authorized clients" promotion page (https://anguish.org/connect.php) rather than a page where users can ask questions or request support. We have now stood up a dedicated support site for the client at https://ancient-anguish.duckdns.org/.
+
+Updates in App Store Connect (both iOS and macOS App Information records):
+• Support URL → https://ancient-anguish.duckdns.org/support.html
+• Marketing URL → https://ancient-anguish.duckdns.org/
+• Privacy Policy URL → https://ancient-anguish.duckdns.org/privacy.html
+
+The support page (https://ancient-anguish.duckdns.org/support.html) contains:
+• A Contact section with the developer's email (sami.lamti@gmail.com) and a Discord invite for the client's community.
+• A FAQ covering: connecting to the MUD, creating a character, managing or cancelling a Support tier subscription, the Restore Purchases flow, on-screen keyboard behaviour, theme and font-size controls, map rendering, VoiceOver / screen-reader support, reporting bugs, and submitting feature requests.
+• A pointer to the game itself (anguish.org) for game-specific questions, with a clear note that the app developer is a separate party from the MUD's operators.
+
+The privacy policy is published at https://ancient-anguish.duckdns.org/privacy.html (previously hosted via GitHub Pages) and is the same plain-English policy you have already reviewed — same protections, same wording, new canonical host.
+
+No code or binary changes were required to address Guideline 1.5; this resubmission carries the existing v6.12.0 binary. The in-app Support screen's Privacy Policy link has been updated in-source to the new URL and will be picked up in the next regular build, but the legal link is already valid in the current binary because both URLs are operational.
+
+Please let us know if any further detail would help close this out. Thank you.
 ```
 
 ---
@@ -392,7 +426,8 @@ Please let us know if any further evidence would help close this thread out. Tha
 - [ ] What's New in v6.12.0 pasted.
 - [ ] Reviewer Notes addendum (v6.12.0) pasted.
 - [ ] App Information → Terms of Use URL = Apple's standard EULA URL.
-- [ ] App Information → Privacy Policy URL = `https://samilamti.github.io/ancient-anguish-client/`.
+- [ ] App Information → Support URL = `https://ancient-anguish.duckdns.org/support.html`.
+- [ ] App Information → Privacy Policy URL = `https://ancient-anguish.duckdns.org/privacy.html`.
 - [ ] App Review Information → Attachments → "AA Endorsement" PDF uploaded (`screenshots/review-response/aa-endorsement.pdf`).
 
 ### App Store Connect — macOS record
@@ -401,7 +436,8 @@ Please let us know if any further evidence would help close this thread out. Tha
 - [ ] What's New in v6.12.0 pasted.
 - [ ] Reviewer Notes addendum (v6.12.0) pasted.
 - [ ] App Information → Terms of Use URL = Apple's standard EULA URL.
-- [ ] App Information → Privacy Policy URL = `https://samilamti.github.io/ancient-anguish-client/`.
+- [ ] App Information → Support URL = `https://ancient-anguish.duckdns.org/support.html`.
+- [ ] App Information → Privacy Policy URL = `https://ancient-anguish.duckdns.org/privacy.html`.
 - [ ] App Review Information → Attachments → "AA Endorsement" PDF uploaded.
 
 ### Resubmission

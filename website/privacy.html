@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy — Chosen's MUD Client for Ancient Anguish</title>
+  <meta name="description" content="Privacy policy for Chosen's MUD Client for Ancient Anguish — an independent, third-party MUD client.">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site">
+    <div class="inner">
+      <a class="brand" href="/">Chosen's MUD Client</a>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/support.html">Support</a>
+        <a href="/privacy.html" aria-current="page">Privacy</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <h1>Privacy Policy</h1>
+    <p class="updated"><strong>Last updated:</strong> May 20, 2026</p>
+
+    <p>Chosen's MUD Client for Ancient Anguish is an independent third-party client for <a href="https://anguish.org/">Ancient Anguish</a>, a text-based multiplayer fantasy game that has been running since 1991. This policy explains, plainly, what data the client does and does not handle.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>No analytics.</li>
+      <li>No tracking.</li>
+      <li>No advertising.</li>
+      <li>No third-party SDKs (no Firebase, Sentry, Mixpanel, Crashlytics, or similar).</li>
+      <li>No account is required with the client itself.</li>
+      <li>Your data stays on your device.</li>
+    </ul>
+    <p>If you want the longer version, read on.</p>
+
+    <h2>What stays on your device</h2>
+    <p>All of the following are stored locally on your device using the Hive local-storage library, and nothing in this list leaves your device:</p>
+    <ul>
+      <li>Character credentials (the username and password you use to log in to the MUD).</li>
+      <li>Connection settings (host, port, auto-reconnect preferences).</li>
+      <li>Aliases, Immersions (triggers), and HUD preferences.</li>
+      <li>Theme choices and custom color palettes.</li>
+      <li>Scrollback buffer and session logs.</li>
+      <li>Quick Command definitions.</li>
+    </ul>
+    <p>If you uninstall the app, all of this data is removed with it.</p>
+
+    <h2>Network traffic</h2>
+    <p>The client opens a <strong>single outbound TCP socket</strong> to the MUD server you tell it to connect to. By default, that is <code>ancient.anguish.org:2222</code>. You can change the host and port at any time in the app's settings.</p>
+    <ul>
+      <li>On the iOS, Android, macOS, Windows, and Linux builds, this connection is a direct TCP socket.</li>
+      <li>On the web build (if you use it), the same traffic is tunneled through a WebSocket-to-TCP proxy hosted under the AA domain. This is a transport detail only and does not change what information is sent.</li>
+    </ul>
+    <p>No other network connections are made by the client. No content is uploaded to any other service.</p>
+
+    <h2>Permissions</h2>
+    <ul>
+      <li><strong>iOS.</strong> The app's <code>Info.plist</code> includes purpose strings for camera, microphone, and photo library. These exist solely because Flutter's <code>file_picker</code> plugin links those symbols at the framework level. The client itself never invokes camera, microphone, or photo-library APIs. You will never see a permission prompt for them from this app.</li>
+      <li><strong>Android.</strong> The app requests only the <code>INTERNET</code> permission, which is required to connect to the MUD server.</li>
+      <li><strong>macOS.</strong> The app is sandboxed with the standard outgoing-network entitlement and no additional privileges.</li>
+    </ul>
+
+    <h2>In-game data</h2>
+    <p>Anything you type, say, or do inside Ancient Anguish travels to the MUD server and is subject to the game's own rules and records. Ancient Anguish is an independent service operated by its own team. For questions about what the game itself records or retains, contact Ancient Anguish directly at <a href="https://anguish.org/">anguish.org</a>.</p>
+
+    <h2>Children</h2>
+    <p>The client does not knowingly collect data from anyone, and the game's in-world content includes fantasy violence and unmoderated player chat. We rate the app <strong>12+ (Apple) / Teen (Google Play)</strong>. Parental discretion is advised.</p>
+
+    <h2>Changes</h2>
+    <p>If this policy changes, the updated version will be published at <a href="https://ancient-anguish.duckdns.org/privacy.html">ancient-anguish.duckdns.org/privacy.html</a> and surfaced from the app's <strong>About</strong> screen.</p>
+
+    <h2>Contact</h2>
+    <p>Questions or concerns about the client itself? Email <a href="mailto:sami.lamti@gmail.com?subject=Ancient%20Anguish%20Client%20privacy">sami.lamti@gmail.com</a>, or see the full <a href="/support.html">Support page</a>. For questions about the game itself, visit <a href="https://anguish.org/">anguish.org</a>.</p>
+  </main>
+
+  <footer class="site">
+    <p><a href="/">Home</a> · <a href="/support.html">Support</a> · <a href="https://anguish.org/">Ancient Anguish (the game)</a></p>
+  </footer>
+</body>
+</html>

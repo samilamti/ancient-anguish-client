@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../providers/common_targets_provider.dart';
 import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
 
@@ -41,7 +42,7 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final words = ref.watch(recentWordsProvider);
+    final words = ref.watch(commonTargetsProvider);
     final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
     final matches = completionsFor(words, _prefix).take(_maxResults).toList();
     final viewInsets = MediaQuery.of(context).viewInsets;
@@ -102,7 +103,7 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
                           padding: const EdgeInsets.all(24),
                           child: Text(
                             _prefix.isEmpty
-                                ? 'No recent words yet.'
+                                ? 'No targets available.'
                                 : 'No matches for "$_prefix".',
                             style: TextStyle(
                               color:

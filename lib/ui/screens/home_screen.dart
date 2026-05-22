@@ -18,7 +18,6 @@ import '../../providers/subscription_provider.dart';
 import '../widgets/audio/audio_controls.dart';
 import '../widgets/login/login_dialog.dart';
 import '../widgets/mobile/d_pad.dart';
-import '../widgets/mobile/quick_commands.dart';
 import '../widgets/social/social_windows_overlay.dart';
 import '../widgets/status/status_bar.dart';
 import '../widgets/terminal/input_bar.dart';
@@ -244,16 +243,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   if (isConnected && audioState.audioEnabled)
                     const AudioControls(),
 
-                  // Mobile controls: DPad (if enabled) plus the quick-command row.
-                  // The quick-command row is always rendered when the keyboard is
-                  // being hidden so its keyboard-toggle button stays reachable.
-                  if (isMobile) ...[
-                    if (settings.useDPad && settings.quickCommandsVisible)
-                      const DPad(),
-                    if (settings.hideKeyboardOnMobile ||
-                        settings.quickCommandsVisible)
-                      const QuickCommands(),
-                  ],
+                  // Mobile controls: D-pad with movement, floor change, and the
+                  // user's enabled quick-command buttons all in one band. The
+                  // soft keyboard is summoned by tapping the input field below.
+                  if (isMobile &&
+                      settings.useDPad &&
+                      settings.quickCommandsVisible)
+                    const DPad(),
 
                   // Command input bar.
                   const InputBar(),

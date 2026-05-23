@@ -133,39 +133,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   }
                 },
               ),
-              _ToolbarItem(
-                emoji: '🎨',
-                label: 'Immersions',
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const TriggerSettingsScreen(),
-                    ),
-                  );
-                },
-              ),
-              _ToolbarItem(
-                emoji: '🔡',
-                label: 'Aliases',
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const AliasSettingsScreen(),
-                    ),
-                  );
-                },
-              ),
-              _ToolbarItem(
-                icon: Icons.landscape,
-                label: 'Areas',
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const AreaConfigurationScreen(),
-                    ),
-                  );
-                },
-              ),
+              // Immersions / Aliases / Areas live in the AppBar on desktop;
+              // on mobile they're relocated to the Settings drawer to free
+              // toolbar space.
+              if (!isMobile) ...[
+                _ToolbarItem(
+                  emoji: '🎨',
+                  label: 'Immersions',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const TriggerSettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _ToolbarItem(
+                  emoji: '🔡',
+                  label: 'Aliases',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AliasSettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _ToolbarItem(
+                  icon: Icons.landscape,
+                  label: 'Areas',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AreaConfigurationScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
               if (!isMobile)
                 _ToolbarItem(
                   emoji: '💬',
@@ -785,21 +790,42 @@ class _SettingsDrawer extends ConsumerWidget {
 
             const Divider(height: 24),
 
-            // ── Advanced Customization ──
-            ListTile(
-              leading: const Icon(Icons.tune, size: 20),
-              title: const Text('Advanced Customization'),
-              subtitle: const Text('HUD stat visibility'),
-              trailing: const Icon(Icons.chevron_right, size: 18),
-              dense: true,
-              onTap: () {
-                Navigator.of(context).pop(); // close drawer
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const AdvancedCustomizationScreen(),
-                  ),
-                );
-              },
+            // ── Configuration ──
+            // On mobile, the Immersions / Aliases / Areas screens live here
+            // because the AppBar can't fit their buttons; on desktop they
+            // remain in the AppBar so this section just holds Advanced
+            // Customization.
+            _DrawerSectionHeader(
+                title: 'Configuration', icon: Icons.settings_applications),
+            const SizedBox(height: 4),
+
+            if (isMobile) ...[
+              _DrawerNavTile(
+                icon: const Text('🎨', style: TextStyle(fontSize: 18)),
+                title: 'Immersions',
+                onTap: () => _openScreen(
+                    context, const TriggerSettingsScreen()),
+              ),
+              _DrawerNavTile(
+                icon: const Text('🔡', style: TextStyle(fontSize: 18)),
+                title: 'Command Aliases',
+                onTap: () => _openScreen(
+                    context, const AliasSettingsScreen()),
+              ),
+              _DrawerNavTile(
+                icon: const Icon(Icons.landscape, size: 20),
+                title: 'Area Configuration',
+                onTap: () => _openScreen(
+                    context, const AreaConfigurationScreen()),
+              ),
+            ],
+
+            _DrawerNavTile(
+              icon: const Icon(Icons.tune, size: 20),
+              title: 'Advanced Customization',
+              subtitle: 'HUD stat visibility',
+              onTap: () => _openScreen(
+                  context, const AdvancedCustomizationScreen()),
             ),
 
             const Divider(height: 24),
@@ -858,6 +884,40 @@ class _DrawerSectionHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Drawer entry that pushes a screen — closes the drawer first so the user
+/// returns to the game on pop rather than back to the open drawer.
+void _openScreen(BuildContext context, Widget screen) {
+  Navigator.of(context).pop();
+  Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+}
+
+class _DrawerNavTile extends StatelessWidget {
+  final Widget icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+
+  const _DrawerNavTile({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: SizedBox(width: 24, child: Center(child: icon)),
+      title: Text(title, style: const TextStyle(fontSize: 14)),
+      subtitle: subtitle != null ? Text(subtitle!) : null,
+      trailing: const Icon(Icons.chevron_right, size: 18),
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      onTap: onTap,
     );
   }
 }

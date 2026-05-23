@@ -88,6 +88,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       error: (_, _) => 'Reconnect',
     );
     final isMobile = MediaQuery.of(context).size.width < 768;
+    final keyboardHidesSecondaryBars =
+        isMobile && MediaQuery.viewInsetsOf(context).bottom > 0;
     final playerName = gameState.playerName;
 
     return Scaffold(
@@ -233,14 +235,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   // HP/SP bars side by side (under the app bar).
                   if (isConnected) const VitalsRow(),
 
-                  // Coord/map/info bar.
-                  if (isConnected) const StatusBar(),
+                  // Coord/map/info bar. Hidden while the soft keyboard is up
+                  // on mobile so the terminal keeps as much vertical room as
+                  // possible.
+                  if (isConnected && !keyboardHidesSecondaryBars)
+                    const StatusBar(),
 
                   // Terminal output – takes all available space.
                   const Expanded(child: TerminalView()),
 
                   // Audio controls (shown when connected and audio is enabled).
-                  if (isConnected && audioState.audioEnabled)
+                  // Also yields vertical space to the soft keyboard on mobile.
+                  if (isConnected &&
+                      audioState.audioEnabled &&
+                      !keyboardHidesSecondaryBars)
                     const AudioControls(),
 
                   // Mobile controls: D-pad with movement, floor change, and the

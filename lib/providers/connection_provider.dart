@@ -37,6 +37,7 @@ import 'settings_provider.dart';
 import 'social_message_provider.dart';
 import 'social_panel_provider.dart';
 import 'recent_words_provider.dart';
+import 'room_targets_provider.dart';
 import 'trigger_provider.dart';
 
 /// Provides the singleton [MudConnectionService].
@@ -394,6 +395,10 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
             // Extract capitalized words for TAB completion.
             ref.read(recentWordsProvider.notifier).extractFromLine(plainText);
+
+            // Track NPCs in the most-recent room block so the Kill picker
+            // can seed targets from what's actually in the room.
+            ref.read(roomTargetsProvider.notifier).processLine(plainText);
 
             // Normal trigger processing.
             final result = triggerEngine.processLine(emojiLine);

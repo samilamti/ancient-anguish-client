@@ -65,6 +65,35 @@ void main() {
       expect(settings.quickCommands.first.label, 'Heal');
       expect(settings.hideKeyboardOnMobile, isFalse);
     });
+
+    test('fromJson drops legacy default_look from upgraded installs', () {
+      final json = {
+        'quickCommands': [
+          {
+            'id': 'default_look',
+            'label': 'Look',
+            'iconName': 'eye',
+            'command': 'look',
+          },
+          {
+            'id': 'default_kill',
+            'label': 'Kill',
+            'iconName': 'skull',
+            'command': 'kill',
+            'selectTarget': true,
+          },
+          {
+            'id': 'q_custom_eye',
+            'label': 'Peek',
+            'iconName': 'eye',
+            'command': 'glance',
+          },
+        ],
+      };
+      final settings = AppSettings.fromJson(json);
+      final ids = settings.quickCommands.map((c) => c.id).toList();
+      expect(ids, ['default_kill', 'q_custom_eye']);
+    });
   });
 
   group('SettingsNotifier - quick command mutations', () {

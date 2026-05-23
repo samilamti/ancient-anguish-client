@@ -164,6 +164,7 @@ class AppSettings {
       quickCommands: json['quickCommands'] != null
           ? (json['quickCommands'] as List)
               .map((e) => QuickCommand.fromJson(e as Map<String, dynamic>))
+              .where((c) => c.id != 'default_look')
               .toList()
           : QuickCommand.defaults,
       hideKeyboardOnMobile: json['hideKeyboardOnMobile'] as bool? ?? true,

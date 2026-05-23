@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../models/alias_rule.dart';
+import '../../../providers/alias_provider.dart';
 import '../../../providers/connection_provider.dart';
 import '../../../providers/game_state_provider.dart';
 import '../../../providers/settings_provider.dart';
@@ -21,10 +23,23 @@ class DPad extends ConsumerWidget {
     final theme = Theme.of(context);
     final commands = ref.watch(settingsProvider
         .select((s) => s.quickCommands.where((c) => c.enabled).toList()));
+    final pinnedIds = ref.watch(
+        settingsProvider.select((s) => s.pinnedAliasIds));
+    final allAliases = ref.watch(aliasRulesProvider);
+    final pinnedAliases = _resolvePinnedAliases(pinnedIds, allAliases);
 
     void send(String command) {
       ref.read(connectionServiceProvider).sendCommand(command);
       ref.read(gameStateProvider.notifier).recordDirectionalAttempt(command);
+    }
+
+    void runAliasSlot(AliasRule rule) {
+      final engine = ref.read(aliasEngineProvider);
+      final service = ref.read(connectionServiceProvider);
+      FocusManager.instance.primaryFocus?.unfocus();
+      for (final outgoing in engine.expand(rule.keyword)) {
+        if (outgoing.isNotEmpty) service.sendCommand(outgoing);
+      }
     }
 
     return Container(
@@ -83,9 +98,48 @@ class DPad extends ConsumerWidget {
               ],
             ),
           ],
+
+          if (pinnedAliases.isNotEmpty) ...[
+            const SizedBox(width: 8),
+
+            // Pinned-alias column. Each button is labelled with the alias
+            // keyword and dispatches via the alias engine so any `$0`/`$1`
+            // substitutions are honoured (args expand to empty when fired
+            // from a quick slot — pin parameterless aliases for best UX).
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (int i = 0; i < pinnedAliases.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 4),
+                  _DPadButton(
+                    label: pinnedAliases[i].keyword,
+                    onPressed: () => runAliasSlot(pinnedAliases[i]),
+                  ),
+                ],
+              ],
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  /// Maps the persisted pinned-id list to the live, enabled [AliasRule]s.
+  /// Stale ids (deleted aliases) and disabled aliases are skipped so the
+  /// column never renders dead buttons, but the persisted list is left
+  /// untouched — re-enabling an alias brings its slot back.
+  List<AliasRule> _resolvePinnedAliases(
+    List<String> pinnedIds,
+    List<AliasRule> allAliases,
+  ) {
+    if (pinnedIds.isEmpty) return const [];
+    final byId = {for (final a in allAliases) a.id: a};
+    final result = <AliasRule>[];
+    for (final id in pinnedIds) {
+      final rule = byId[id];
+      if (rule != null && rule.enabled) result.add(rule);
+    }
+    return result;
   }
 }
 

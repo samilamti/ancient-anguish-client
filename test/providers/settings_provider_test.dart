@@ -119,6 +119,27 @@ void main() {
     });
   });
 
+  group('SettingsNotifier - alias pin slots', () {
+    test('pin/unpin toggles state and returns the new pin status', () {
+      expect(notifier.toggleAliasPin('a1'), isTrue);
+      expect(container.read(settingsProvider).pinnedAliasIds, ['a1']);
+      expect(notifier.toggleAliasPin('a1'), isFalse);
+      expect(container.read(settingsProvider).pinnedAliasIds, isEmpty);
+    });
+
+    test('pinning a fourth alias evicts the oldest (FIFO)', () {
+      notifier.toggleAliasPin('a1');
+      notifier.toggleAliasPin('a2');
+      notifier.toggleAliasPin('a3');
+      expect(container.read(settingsProvider).pinnedAliasIds,
+          ['a1', 'a2', 'a3']);
+
+      notifier.toggleAliasPin('a4');
+      expect(container.read(settingsProvider).pinnedAliasIds,
+          ['a2', 'a3', 'a4']);
+    });
+  });
+
   group('AppSettings - copyWith', () {
     test('preserves unspecified fields', () {
       const settings = AppSettings(fontSize: 16.0, themeMode: 'classic');

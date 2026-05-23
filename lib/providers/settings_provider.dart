@@ -30,6 +30,11 @@ class AppSettings {
   final TimestampMode timestampMode; // HH:MM column in social message rows
   final bool emojiMapsEnabled; // swap ASCII map tiles for emoji
   final bool mobileAutoCorrectEnabled; // soft-keyboard autocorrect/suggestions
+  final List<String> pinnedAliasIds; // up to 3 alias IDs shown as D-Pad quick slots
+
+  /// Maximum number of alias rules that can be pinned to the D-Pad's
+  /// quick-slot column at once.
+  static const int maxPinnedAliases = 3;
 
   static const Set<String> defaultPromptElements = {
     'HP', 'MAXHP', 'SP', 'MAXSP', 'XCOORD', 'YCOORD',
@@ -63,6 +68,7 @@ class AppSettings {
     this.timestampMode = TimestampMode.show,
     this.emojiMapsEnabled = false,
     this.mobileAutoCorrectEnabled = false,
+    this.pinnedAliasIds = const [],
   });
 
   AppSettings copyWith({
@@ -85,6 +91,7 @@ class AppSettings {
     TimestampMode? timestampMode,
     bool? emojiMapsEnabled,
     bool? mobileAutoCorrectEnabled,
+    List<String>? pinnedAliasIds,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -112,6 +119,7 @@ class AppSettings {
       emojiMapsEnabled: emojiMapsEnabled ?? this.emojiMapsEnabled,
       mobileAutoCorrectEnabled:
           mobileAutoCorrectEnabled ?? this.mobileAutoCorrectEnabled,
+      pinnedAliasIds: pinnedAliasIds ?? this.pinnedAliasIds,
     );
   }
 
@@ -138,6 +146,7 @@ class AppSettings {
         'timestampMode': timestampMode.storageKey,
         'emojiMapsEnabled': emojiMapsEnabled,
         'mobileAutoCorrectEnabled': mobileAutoCorrectEnabled,
+        'pinnedAliasIds': pinnedAliasIds,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -173,6 +182,9 @@ class AppSettings {
       emojiMapsEnabled: json['emojiMapsEnabled'] as bool? ?? false,
       mobileAutoCorrectEnabled:
           json['mobileAutoCorrectEnabled'] as bool? ?? false,
+      pinnedAliasIds: json['pinnedAliasIds'] != null
+          ? List<String>.from(json['pinnedAliasIds'] as List)
+          : const [],
     );
   }
 
@@ -294,6 +306,28 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void toggleHideKeyboardOnMobile() {
     state = state.copyWith(hideKeyboardOnMobile: !state.hideKeyboardOnMobile);
     _saveSettings();
+  }
+
+  /// Toggles whether [aliasId] is pinned to the D-Pad's quick-slot column.
+  /// Pinning a fourth alias bumps the oldest pin out (FIFO) so the list
+  /// never exceeds [AppSettings.maxPinnedAliases]. Returns the new pin
+  /// state for the alias (true = pinned, false = unpinned).
+  bool toggleAliasPin(String aliasId) {
+    final current = [...state.pinnedAliasIds];
+    final wasPinned = current.remove(aliasId);
+    final bool nowPinned;
+    if (wasPinned) {
+      nowPinned = false;
+    } else {
+      current.add(aliasId);
+      while (current.length > AppSettings.maxPinnedAliases) {
+        current.removeAt(0);
+      }
+      nowPinned = true;
+    }
+    state = state.copyWith(pinnedAliasIds: List.unmodifiable(current));
+    _saveSettings();
+    return nowPinned;
   }
 
   void toggleMobileAutoCorrect() {

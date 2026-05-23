@@ -16,6 +16,8 @@ class AliasSettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final aliases = ref.watch(aliasRulesProvider);
+    final pinnedIds = ref.watch(
+        settingsProvider.select((s) => s.pinnedAliasIds));
     final theme = Theme.of(context);
 
     return EscapeDismiss(
@@ -64,10 +66,29 @@ class AliasSettingsScreen extends ConsumerWidget {
               itemCount: aliases.length,
               itemBuilder: (context, index) {
                 final alias = aliases[index];
+                final isPinned = pinnedIds.contains(alias.id);
                 return _AliasTile(
                   alias: alias,
+                  isPinned: isPinned,
                   onToggle: () {
                     ref.read(aliasRulesProvider.notifier).toggleRule(alias.id);
+                  },
+                  onTogglePin: () {
+                    final nowPinned = ref
+                        .read(settingsProvider.notifier)
+                        .toggleAliasPin(alias.id);
+                    if (nowPinned &&
+                        pinnedIds.length >= AppSettings.maxPinnedAliases &&
+                        !pinnedIds.contains(alias.id)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Pinned "${alias.keyword}" — '
+                            'oldest quick-slot was bumped out.',
+                          ),
+                        ),
+                      );
+                    }
                   },
                   onEdit: () => _showEditDialog(context, ref, alias),
                   onDelete: () {
@@ -128,13 +149,17 @@ class AliasSettingsScreen extends ConsumerWidget {
 /// List tile for a single alias rule.
 class _AliasTile extends StatelessWidget {
   final AliasRule alias;
+  final bool isPinned;
   final VoidCallback onToggle;
+  final VoidCallback onTogglePin;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _AliasTile({
     required this.alias,
+    required this.isPinned,
     required this.onToggle,
+    required this.onTogglePin,
     required this.onEdit,
     required this.onDelete,
   });
@@ -193,6 +218,18 @@ class _AliasTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          IconButton(
+            icon: Icon(
+              isPinned ? Icons.star : Icons.star_border,
+              color: isPinned
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurface.withAlpha(120),
+            ),
+            tooltip: isPinned
+                ? 'Unpin from mobile quick slot'
+                : 'Pin to mobile quick slot',
+            onPressed: onTogglePin,
+          ),
           Switch(
             value: alias.enabled,
             onChanged: (_) => onToggle(),

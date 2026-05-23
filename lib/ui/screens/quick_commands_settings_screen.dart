@@ -103,7 +103,7 @@ class QuickCommandsSettingsScreen extends ConsumerWidget {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Restore defaults?'),
         content: const Text(
-          'Replaces your current quick commands with Look, Kill, Loot, Inventory.',
+          'Replaces your current quick commands with Kill, Loot, Inventory.',
         ),
         actions: [
           TextButton(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/platform/file_utils.dart';
+import '../../services/platform/photo_library_picker.dart';
 import '../../providers/audio_provider.dart';
 import '../../providers/background_image_provider.dart';
 import '../../providers/game_state_provider.dart';
@@ -474,23 +475,35 @@ class _AreaConfigurationScreenState
 
   Future<void> _pickAndAddImage(dynamic unifiedConfig) async {
     if (_selectedArea == null || unifiedConfig == null) return;
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['png', 'jpg', 'jpeg'],
-    );
-    if (result == null || result.files.single.path == null) return;
-    final path = result.files.single.path!;
-    if (!fileExistsSync(path)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('File not found: $path'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+
+    // On iOS / Android the file picker would land in the Files app — most
+    // user photos live in Photos. Use the gallery picker there and copy
+    // the chosen image into the app's documents directory so the saved
+    // path survives OS cache eviction.
+    String? path;
+    if (isPhotoLibraryHost) {
+      path = await pickFromPhotoLibrary(subdir: 'area_backgrounds');
+      if (path == null) return;
+    } else {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg'],
+      );
+      if (result == null || result.files.single.path == null) return;
+      path = result.files.single.path!;
+      if (!fileExistsSync(path)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('File not found: $path'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+        return;
       }
-      return;
     }
+
     unifiedConfig.addBackgroundForArea(_selectedArea!, path);
     ref.invalidate(backgroundImageProvider);
     setState(() {});

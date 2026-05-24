@@ -102,17 +102,22 @@ class DPad extends ConsumerWidget {
           if (pinnedAliases.isNotEmpty) ...[
             const SizedBox(width: 8),
 
-            // Pinned-alias column. Each button is labelled with the alias
-            // keyword and dispatches via the alias engine so any `$0`/`$1`
-            // substitutions are honoured (args expand to empty when fired
-            // from a quick slot — pin parameterless aliases for best UX).
+            // Pinned-alias column. Each button is labelled with the alias's
+            // description (falling back to the keyword if none is set) and
+            // dispatches via the alias engine so any `$0`/`$1` substitutions
+            // are honoured (args expand to empty when fired from a quick
+            // slot — pin parameterless aliases for best UX).
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 for (int i = 0; i < pinnedAliases.length; i++) ...[
                   if (i > 0) const SizedBox(height: 4),
                   _DPadButton(
-                    label: pinnedAliases[i].keyword,
+                    label: (pinnedAliases[i].description?.trim().isNotEmpty ??
+                            false)
+                        ? pinnedAliases[i].description!.trim()
+                        : pinnedAliases[i].keyword,
+                    width: 84,
                     onPressed: () => runAliasSlot(pinnedAliases[i]),
                   ),
                 ],
@@ -230,6 +235,7 @@ class _DPadButton extends StatelessWidget {
   final Widget? child;
   final VoidCallback onPressed;
   final bool compact;
+  final double? width;
 
   const _DPadButton({
     required this.label,
@@ -238,6 +244,7 @@ class _DPadButton extends StatelessWidget {
     this.child,
     required this.onPressed,
     this.compact = false,
+    this.width,
   });
 
   @override
@@ -256,13 +263,21 @@ class _DPadButton extends StatelessWidget {
     } else if (icon != null) {
       rendered = Icon(icon, size: 22, color: buttonColor);
     } else {
+      // Widen the box and ellipsise so longer captions (e.g. pinned-alias
+      // descriptions like "Get all from corpse") stay readable instead of
+      // bursting the button.
+      final wide = (width ?? 0) > 50;
       rendered = Text(
         label,
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontFamily: 'JetBrainsMono',
-          fontSize: compact ? 10 : 11,
+          fontSize: wide ? 9 : (compact ? 10 : 11),
           fontWeight: FontWeight.bold,
           color: buttonColor,
+          height: 1.05,
         ),
       );
     }
@@ -272,7 +287,7 @@ class _DPadButton extends StatelessWidget {
       child: Tooltip(
         message: label,
         child: SizedBox(
-          width: compact ? 40 : 44,
+          width: width ?? (compact ? 40 : 44),
           height: compact ? 36 : 44,
           child: Material(
             color: theme.colorScheme.surface,

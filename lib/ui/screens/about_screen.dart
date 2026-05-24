@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../widgets/common/escape_dismiss.dart';
 import 'support_screen.dart';
 
 /// About screen showing app info, credits, and license.
-class AboutScreen extends StatelessWidget {
+class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
+
+  @override
+  State<AboutScreen> createState() => _AboutScreenState();
+}
+
+class _AboutScreenState extends State<AboutScreen> {
+  late final Future<PackageInfo> _packageInfo = PackageInfo.fromPlatform();
 
   @override
   Widget build(BuildContext context) {
@@ -30,64 +38,39 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Ancient Anguish Client',
+                    "Chosen's MUD Client",
                     style: theme.textTheme.headlineSmall,
+                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
-                    'v6.13.0',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withAlpha(160),
+                    'for Ancient Anguish',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      color: theme.colorScheme.onSurface.withAlpha(180),
                     ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  FutureBuilder<PackageInfo>(
+                    future: _packageInfo,
+                    builder: (context, snapshot) {
+                      final label = snapshot.hasData
+                          ? 'v${snapshot.data!.version}'
+                          : '';
+                      return Text(
+                        label,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurface.withAlpha(160),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'A cross-platform MUD client for Ancient Anguish',
                     style: theme.textTheme.bodyMedium,
                     textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // ── Special Thanks ──
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.favorite,
-                        size: 20,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Special Thanks',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _CreditTile(
-                    name: 'Tuinn',
-                    role: 'Testing & feedback on Windows',
-                  ),
-                  const SizedBox(height: 8),
-                  _CreditTile(
-                    name: 'Bytre',
-                    role: 'Advanced Customization concept & design',
-                  ),
-                  const SizedBox(height: 8),
-                  _CreditTile(
-                    name: 'Jerusulum',
-                    role: 'Accessibility contributions',
                   ),
                 ],
               ),
@@ -137,6 +120,49 @@ class AboutScreen extends StatelessWidget {
                       icon: const Icon(Icons.arrow_forward, size: 16),
                       label: const Text('View tiers'),
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Special Thanks ──
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.favorite,
+                        size: 20,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Special Thanks',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _CreditTile(
+                    name: 'Tuinn',
+                    role: 'Testing & feedback on Windows',
+                  ),
+                  const SizedBox(height: 8),
+                  _CreditTile(
+                    name: 'Bytre',
+                    role: 'Advanced Customization concept & design',
+                  ),
+                  const SizedBox(height: 8),
+                  _CreditTile(
+                    name: 'Jerusulum',
+                    role: 'Accessibility contributions',
                   ),
                 ],
               ),

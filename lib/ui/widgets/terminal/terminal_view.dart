@@ -39,6 +39,7 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
       TerminalSelectionController();
   final FocusNode _focusNode = FocusNode();
   bool _autoScroll = true;
+  double? _lastMaxScrollExtent;
 
   // Pointer-based tap detection (replaces GestureDetector to avoid
   // competing with SelectionArea in the gesture arena).
@@ -479,23 +480,44 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
                   ),
                 ),
 
-              // Terminal output.
+              // Terminal output. The NotificationListener re-pins the view
+              // to the bottom whenever the scroll metrics change without a
+              // user scroll — e.g. the soft keyboard appears or the Area /
+              // Audio bars collapse, which shrinks the viewport and would
+              // otherwise leave the latest output scrolled off-screen.
               MouseRegion(
                 cursor: SystemMouseCursors.text,
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  cacheExtent: 2000,
-                  itemCount: lines.length,
-                  itemBuilder: (context, index) {
-                    return _TerminalLine(
-                      line: lines[index],
-                      lineIndex: index,
-                      selection: selection,
-                      fontSize: fontSize,
-                    );
+                child: NotificationListener<ScrollMetricsNotification>(
+                  onNotification: (notification) {
+                    final newMax = notification.metrics.maxScrollExtent;
+                    final oldMax = _lastMaxScrollExtent;
+                    _lastMaxScrollExtent = newMax;
+                    // Skip the very first metrics emission (initial layout)
+                    // and any redundant ones — only react when the scroll
+                    // extent actually moved, which is what indicates a
+                    // viewport or content size change.
+                    if (oldMax != null && oldMax != newMax && _autoScroll) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (_autoScroll) _scrollToBottom();
+                      });
+                    }
+                    return false;
                   },
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    cacheExtent: 2000,
+                    itemCount: lines.length,
+                    itemBuilder: (context, index) {
+                      return _TerminalLine(
+                        line: lines[index],
+                        lineIndex: index,
+                        selection: selection,
+                        fontSize: fontSize,
+                      );
+                    },
+                  ),
                 ),
               ),
 

@@ -63,6 +63,8 @@
 	  photo-add APIs that the app never actually invokes, but Apple's
 	  static analysis still requires a purpose string for each.
 	-->
+	<key>NSAppleMusicUsageDescription</key>
+	<string>Pick tracks from your Music library to use as area music or battle themes.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Pick a photo from your library to use as a background image for a MUD area.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/platform/file_utils.dart';
+import '../../services/platform/music_library_picker.dart';
 import '../../services/platform/photo_library_picker.dart';
 import '../../providers/audio_provider.dart';
 import '../../providers/background_image_provider.dart';
@@ -215,6 +216,18 @@ class _AreaConfigurationScreenState
                           onPressed: () => _pickAndAddMusic(unifiedConfig),
                         ),
                       ),
+                    if (isMusicLibraryHost) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.library_music, size: 18),
+                          label: const Text('Pick from Music app'),
+                          onPressed: () =>
+                              _pickFromMusicLibrary(unifiedConfig),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -355,6 +368,18 @@ class _AreaConfigurationScreenState
                         onPressed: () => _pickBattleTheme(audioNotifier),
                       ),
                     ),
+                  if (isMusicLibraryHost) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.library_music),
+                        label: const Text('Pick from Music app'),
+                        onPressed: () =>
+                            _pickBattleThemesFromMusicLibrary(audioNotifier),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -507,6 +532,84 @@ class _AreaConfigurationScreenState
     unifiedConfig.addBackgroundForArea(_selectedArea!, path);
     ref.invalidate(backgroundImageProvider);
     setState(() {});
+  }
+
+  Future<void> _pickFromMusicLibrary(dynamic unifiedConfig) async {
+    if (_selectedArea == null || unifiedConfig == null) return;
+    try {
+      final result = await pickFromMusicLibrary();
+      if (!mounted) return;
+      for (final track in result.tracks) {
+        unifiedConfig.addMusicForArea(_selectedArea!, track.path);
+      }
+      // Reload audio manager's track map so the new entries take effect
+      // without needing an app restart.
+      final manager = ref.read(areaAudioManagerProvider);
+      manager.loadUserTrackMap(unifiedConfig.userTrackMap);
+      setState(() {});
+      _reportMusicLibraryResult(result);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Music library picker failed: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _pickBattleThemesFromMusicLibrary(
+      AudioUiNotifier notifier) async {
+    try {
+      final result = await pickFromMusicLibrary();
+      if (!mounted) return;
+      for (final track in result.tracks) {
+        notifier.addBattleTheme(track.path);
+      }
+      _reportMusicLibraryResult(result);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Music library picker failed: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  /// Surfaces a snackbar summarising what came back from the picker so the
+  /// user knows whether their DRM-locked Apple Music selections got
+  /// quietly dropped vs. successfully exported.
+  void _reportMusicLibraryResult(MusicLibraryPickResult result) {
+    if (!mounted) return;
+    if (result.tracks.isEmpty && result.skipped.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (result.skipped.isNotEmpty) {
+      final names = result.skipped
+          .take(3)
+          .map((s) => s.title)
+          .join(', ');
+      final more = result.skipped.length > 3
+          ? ' (+${result.skipped.length - 3} more)'
+          : '';
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Added ${result.tracks.length} track(s); '
+            'skipped DRM-protected: $names$more',
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Added ${result.tracks.length} track(s)'),
+        ),
+      );
+    }
   }
 
   Future<void> _pickBattleTheme(AudioUiNotifier notifier) async {

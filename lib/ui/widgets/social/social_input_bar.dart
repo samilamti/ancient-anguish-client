@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/connection_provider.dart'
-    show connectionServiceProvider;
+    show connectionServiceProvider, scrollTerminalToBottomProvider;
 import '../../../providers/online_players_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_input_focus_provider.dart';
@@ -73,6 +73,7 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
       ref.read(tellHistoryProvider.notifier).add(text);
       ref.read(tellMessagesProvider.notifier).setLastRecipient(name);
     }
+    ref.read(scrollTerminalToBottomProvider.notifier).trigger();
     _controller.clear();
     _focusNode.requestFocus();
   }

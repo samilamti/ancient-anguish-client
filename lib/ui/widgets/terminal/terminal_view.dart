@@ -9,7 +9,8 @@ import '../../../core/constants.dart';
 import '../../../protocol/ansi/styled_span.dart';
 import '../../../providers/background_image_provider.dart';
 import '../../../providers/connection_provider.dart'
-    show terminalBufferProvider, inputFocusProvider;
+    show terminalBufferProvider, inputFocusProvider,
+    scrollTerminalToBottomProvider;
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
@@ -454,6 +455,19 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
           _scrollToBottom();
         });
       }
+    });
+
+    // Force-scroll to the bottom whenever the user sends a command, even if
+    // they had scrolled up. Re-pins auto-scroll so subsequent server output
+    // keeps following the bottom.
+    ref.listen<int>(scrollTerminalToBottomProvider, (previous, next) {
+      if (previous == next) return;
+      setState(() {
+        _autoScroll = true;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
     });
 
     return Focus(

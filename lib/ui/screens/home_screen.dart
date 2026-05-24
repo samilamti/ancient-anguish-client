@@ -607,6 +607,73 @@ class _SettingsDrawer extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
 
+            // ── Configuration ──
+            // On mobile, the Immersions / Aliases / Areas screens live here
+            // because the AppBar can't fit their buttons; on desktop they
+            // remain in the AppBar so this section just holds Advanced
+            // Customization.
+            _DrawerSectionHeader(
+                title: 'Configuration', icon: Icons.settings_applications),
+            const SizedBox(height: 4),
+
+            if (isMobile) ...[
+              _DrawerNavTile(
+                icon: const Text('🎨', style: TextStyle(fontSize: 18)),
+                title: 'Immersions',
+                onTap: () => _openScreen(
+                    context, const TriggerSettingsScreen()),
+              ),
+              _DrawerNavTile(
+                icon: const Text('🔡', style: TextStyle(fontSize: 18)),
+                title: 'Command Aliases',
+                onTap: () => _openScreen(
+                    context, const AliasSettingsScreen()),
+              ),
+              _DrawerNavTile(
+                icon: const Icon(Icons.landscape, size: 20),
+                title: 'Area Configuration',
+                onTap: () => _openScreen(
+                    context, const AreaConfigurationScreen()),
+              ),
+            ],
+
+            _DrawerNavTile(
+              icon: const Icon(Icons.tune, size: 20),
+              title: 'Advanced Customization',
+              subtitle: 'HUD stat visibility',
+              onTap: () => _openScreen(
+                  context, const AdvancedCustomizationScreen()),
+            ),
+
+            const Divider(height: 24),
+
+            // ── Support ──
+            _DrawerSectionHeader(title: 'Support', icon: Icons.favorite),
+            const SizedBox(height: 8),
+            Consumer(builder: (context, ref, _) {
+              final sub = ref.watch(subscriptionProvider);
+              final subtitle = sub.isActive
+                  ? 'Supporting: ${sub.activeTier!.displayName}'
+                  : 'Optional monthly tiers — nothing gated';
+              return ListTile(
+                leading: const Icon(Icons.favorite_border, size: 20),
+                title: const Text('Support Tiers'),
+                subtitle: Text(subtitle),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                dense: true,
+                onTap: () {
+                  Navigator.of(context).pop(); // close drawer
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SupportScreen(),
+                    ),
+                  );
+                },
+              );
+            }),
+
+            const Divider(height: 24),
+
             // ── Theme ──
             _DrawerSectionHeader(title: 'Theme', icon: Icons.palette),
             const SizedBox(height: 8),
@@ -787,73 +854,6 @@ class _SettingsDrawer extends ConsumerWidget {
                   : '${settings.inputWrapWidth}',
               onChanged: (v) => notifier.setInputWrapWidth(v.round()),
             ),
-
-            const Divider(height: 24),
-
-            // ── Configuration ──
-            // On mobile, the Immersions / Aliases / Areas screens live here
-            // because the AppBar can't fit their buttons; on desktop they
-            // remain in the AppBar so this section just holds Advanced
-            // Customization.
-            _DrawerSectionHeader(
-                title: 'Configuration', icon: Icons.settings_applications),
-            const SizedBox(height: 4),
-
-            if (isMobile) ...[
-              _DrawerNavTile(
-                icon: const Text('🎨', style: TextStyle(fontSize: 18)),
-                title: 'Immersions',
-                onTap: () => _openScreen(
-                    context, const TriggerSettingsScreen()),
-              ),
-              _DrawerNavTile(
-                icon: const Text('🔡', style: TextStyle(fontSize: 18)),
-                title: 'Command Aliases',
-                onTap: () => _openScreen(
-                    context, const AliasSettingsScreen()),
-              ),
-              _DrawerNavTile(
-                icon: const Icon(Icons.landscape, size: 20),
-                title: 'Area Configuration',
-                onTap: () => _openScreen(
-                    context, const AreaConfigurationScreen()),
-              ),
-            ],
-
-            _DrawerNavTile(
-              icon: const Icon(Icons.tune, size: 20),
-              title: 'Advanced Customization',
-              subtitle: 'HUD stat visibility',
-              onTap: () => _openScreen(
-                  context, const AdvancedCustomizationScreen()),
-            ),
-
-            const Divider(height: 24),
-
-            // ── Support ──
-            _DrawerSectionHeader(title: 'Support', icon: Icons.favorite),
-            const SizedBox(height: 8),
-            Consumer(builder: (context, ref, _) {
-              final sub = ref.watch(subscriptionProvider);
-              final subtitle = sub.isActive
-                  ? 'Supporting: ${sub.activeTier!.displayName}'
-                  : 'Optional monthly tiers — nothing gated';
-              return ListTile(
-                leading: const Icon(Icons.favorite_border, size: 20),
-                title: const Text('Support Tiers'),
-                subtitle: Text(subtitle),
-                trailing: const Icon(Icons.chevron_right, size: 18),
-                dense: true,
-                onTap: () {
-                  Navigator.of(context).pop(); // close drawer
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SupportScreen(),
-                    ),
-                  );
-                },
-              );
-            }),
           ],
         ),
         ),

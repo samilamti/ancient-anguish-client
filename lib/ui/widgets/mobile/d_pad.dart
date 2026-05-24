@@ -12,7 +12,7 @@ import 'quick_command_runner.dart';
 /// A compass-rose directional pad for mobile navigation, with floor-change
 /// buttons and the user's enabled quick commands stacked vertically beside it.
 ///
-/// Compass + Up/Down handle movement and the room re-render (center "look"),
+/// Compass + Up/Down handle movement and the center cell sends `enter door`,
 /// while the third column hosts whatever `QuickCommand`s the user has
 /// enabled (Kill, Loot, Inventory by default).
 class DPad extends ConsumerWidget {
@@ -167,7 +167,6 @@ class _CompassRose extends StatelessWidget {
             label: 'NW',
             emoji: '↖️',
             onPressed: () => onDirection('northwest'),
-            compact: true,
           ),
           _DPadButton(
             label: 'N',
@@ -178,7 +177,6 @@ class _CompassRose extends StatelessWidget {
             label: 'NE',
             emoji: '↗️',
             onPressed: () => onDirection('northeast'),
-            compact: true,
           ),
         ]),
         TableRow(children: [
@@ -188,9 +186,9 @@ class _CompassRose extends StatelessWidget {
             onPressed: () => onDirection('west'),
           ),
           _DPadButton(
-            label: 'Look',
-            icon: Icons.visibility,
-            onPressed: () => onDirection('look'),
+            label: 'Enter',
+            icon: Icons.meeting_room,
+            onPressed: () => onDirection('enter door'),
           ),
           _DPadButton(
             label: 'E',
@@ -203,7 +201,6 @@ class _CompassRose extends StatelessWidget {
             label: 'SW',
             emoji: '↙️',
             onPressed: () => onDirection('southwest'),
-            compact: true,
           ),
           _DPadButton(
             label: 'S',
@@ -214,7 +211,6 @@ class _CompassRose extends StatelessWidget {
             label: 'SE',
             emoji: '↘️',
             onPressed: () => onDirection('southeast'),
-            compact: true,
           ),
         ]),
       ],
@@ -234,7 +230,6 @@ class _DPadButton extends StatelessWidget {
   final String? emoji;
   final Widget? child;
   final VoidCallback onPressed;
-  final bool compact;
   final double? width;
 
   const _DPadButton({
@@ -243,7 +238,6 @@ class _DPadButton extends StatelessWidget {
     this.emoji,
     this.child,
     required this.onPressed,
-    this.compact = false,
     this.width,
   });
 
@@ -258,7 +252,7 @@ class _DPadButton extends StatelessWidget {
     } else if (emoji != null) {
       rendered = Text(
         emoji!,
-        style: TextStyle(fontSize: compact ? 18 : 22, height: 1.0),
+        style: const TextStyle(fontSize: 22, height: 1.0),
       );
     } else if (icon != null) {
       rendered = Icon(icon, size: 22, color: buttonColor);
@@ -274,7 +268,7 @@ class _DPadButton extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontFamily: 'JetBrainsMono',
-          fontSize: wide ? 9 : (compact ? 10 : 11),
+          fontSize: wide ? 9 : 11,
           fontWeight: FontWeight.bold,
           color: buttonColor,
           height: 1.05,
@@ -287,8 +281,8 @@ class _DPadButton extends StatelessWidget {
       child: Tooltip(
         message: label,
         child: SizedBox(
-          width: width ?? (compact ? 40 : 44),
-          height: compact ? 36 : 44,
+          width: width ?? 44,
+          height: 44,
           child: Material(
             color: theme.colorScheme.surface,
             shape: RoundedRectangleBorder(

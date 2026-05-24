@@ -7,15 +7,18 @@ A cross-platform MUD client for [Ancient Anguish](http://ancient.anguish.org), b
 - **Full telnet protocol** — RFC 854/855 implementation with automatic negotiation of NAWS, TTYPE, SGA, and ECHO. Recognizes GMCP, MCCP2/3, and other MUD extensions.
 - **ANSI color rendering** — 16-color, 256-color, and 24-bit truecolor support with bold, italic, underline, strikethrough, and inverse styles.
 - **Triggers** — Pattern-matched rules that highlight text, play sounds, or gag (suppress) lines. Triggers are client-side only and never auto-send commands (per Ancient Anguish rules).
-- **Aliases** — Short keywords that expand into longer commands with variable substitution (`$0`, `$1`, `$2`, ...) and semicolon command chaining. Ships with useful defaults (`k` for kill, `ga` for get all, etc.).
-- **Area detection & audio** — Determines the player's current area by coordinates or room description text patterns, then crossfades to area-specific background music.
+- **Aliases** — Short keywords that expand into longer commands with variable substitution (`$0`, `$1`, `$2`, ...) and semicolon command chaining. Ships with useful defaults (`k` for kill, `ga` for get all, etc.). Pin aliases to mobile D-Pad slots; long-press a slot to jump straight into editing.
+- **Text link rules** — Data-driven regex rules that promote matching MUD output to tappable command links. Tap a rendered link to send the templated command — e.g. `The dark door is closed.` becomes a tap that sends `open dark door`. Edit rules from Settings → Configuration with a live preview.
+- **Command history sheet** — On mobile, tap the history button on the input bar to re-send any of the last 5 commands, plus smart counterparts (`enter` ↔ `leave`, `open <dir>` ↔ `close <dir>` and the opposite-direction close).
+- **Auto-scroll on send** — Every user-sent command snaps the terminal to the bottom so the response is visible, regardless of where you had scrolled.
+- **Area detection & audio** — Determines the player's current area by coordinates or room description text patterns, then crossfades to area-specific background music. On iOS you can pick tracks (and battle themes) directly from the native Music app.
 - **Game state display** — Parses HP, SP, XP, coins, coordinates, class, and player name from the prompt and CLIENT line into a live status bar with vitals gauges.
 - **Advanced Customization** — Choose from 30+ MUD prompt values (combat stats, XP tracking, survival needs, world info, etc.) to build a personalized HUD with dynamic panels that appear based on your selections.
-- **Mobile controls** — D-Pad for directional movement and a quick-commands bar for common actions on touch devices.
+- **Mobile controls** — 8-direction D-Pad with a center cell that sends `enter door`, plus a quick-commands bar and pinned-alias slots for one-tap actions on touch devices.
 - **Themes** — Three built-in themes: RPG Dark (gold and parchment), Classic Dark (green-on-black terminal), and High Contrast (accessibility).
 - **Social windows** — Floating/dockable Chat and Tells panels with autocomplete recipient selection, lazy-loading message history, and alternating-row striping.
 - **Text selection** — Drag-to-select terminal text with auto-copy, Shift+click extend, and right-click context menu.
-- **Clickable links** — URLs in terminal output are detected and open in the system browser.
+- **Clickable links** — URLs in terminal output are detected and open in the system browser. Text link rules let any matched substring become a tap-to-send command link in addition.
 - **Web support** — Companion server (`server/`) provides a WebSocket-to-TCP proxy, per-user file storage, and JWT authentication for browser-based play.
 - **Scrollback buffer** — 5,000-line terminal history.
 
@@ -206,6 +209,27 @@ Aliases expand a short keyword into a longer command before it is sent to the se
 | `k`     | `kill $1`              | Kill a target (e.g., `k goblin`) |
 | `c`     | `cast $0`              | Cast a spell (e.g., `c fireball at goblin`) |
 
+**Pinned slots:** Star an alias in its settings row to give it a one-tap slot on the mobile D-Pad. Long-press the slot to jump straight into editing the underlying alias.
+
+### Text link rules
+
+Text link rules turn MUD output into tappable shortcuts. When a line matches a rule's regex, the matched text becomes a link; tapping it sends the templated command. Configure rules under **Settings → Configuration → Text Link Rules**.
+
+**Template syntax:**
+- `$0` — the whole match
+- `$1`, `$2`, ... — individual capture groups
+
+**Default rules:**
+
+| Pattern                            | Sends         | Description                       |
+|------------------------------------|---------------|-----------------------------------|
+| `You must be standing\.`           | `stand`       | Stand up before acting            |
+| `The (\w+) door is closed\.`       | `open $1 door` | Open the closed door by name      |
+
+The editor has a live preview pane — paste any MUD line to see what your rule would match and which command it would dispatch. Broken regexes are skipped silently rather than crashing the pipeline; rules can also be disabled without deleting.
+
+Like triggers, text link rules never *auto-fire*. The user must tap the rendered link to send the command — this preserves the Ancient Anguish no-automation rule.
+
 ### Prompt Setup
 
 The client automatically configures your in-game prompt on login. By default it requests HP, Max HP, SP, Max SP, and coordinates — the minimum needed for the status bar and area detection.
@@ -233,16 +257,20 @@ Three themes are available in Settings:
 
 ## Dependencies
 
-| Package              | Purpose                     |
-|----------------------|-----------------------------|
-| `flutter_riverpod`   | Reactive state management   |
-| `go_router`          | Navigation                  |
-| `just_audio`         | Audio playback              |
-| `audio_session`      | Audio session management    |
-| `hive_ce`            | Local persistence (NoSQL)   |
-| `json_annotation`    | JSON serialization          |
-| `path_provider`      | Platform-specific file paths|
-| `equatable`          | Value equality              |
+| Package              | Purpose                                 |
+|----------------------|-----------------------------------------|
+| `flutter_riverpod`   | Reactive state management               |
+| `go_router`          | Navigation                              |
+| `flutter_soloud`     | Audio playback (SoLoud C engine via FFI) |
+| `hive_ce`            | Local persistence (NoSQL)               |
+| `file_picker`        | Desktop / Android file picker           |
+| `image_picker`       | iOS Photos / Android gallery picker     |
+| `in_app_purchase`    | Support tier subscriptions              |
+| `package_info_plus`  | Runtime version string for About screen |
+| `url_launcher`       | Open URLs from terminal link spans      |
+| `path_provider`      | Platform-specific file paths            |
+| `json_annotation`    | JSON serialization                      |
+| `equatable`          | Value equality                          |
 
 Dev dependencies: `build_runner`, `riverpod_generator`, `json_serializable`, `hive_ce_generator`.
 

@@ -100,6 +100,9 @@ Terms for triggers and aliases that automate client-side behavior. See `lib/mode
 - **Variable substitution** — Placeholders in alias expansions: `$0` = all arguments after the keyword, `$1` = first argument, `$2` = second argument, etc.
 - **Command chaining** — Using semicolons in an alias expansion to send multiple commands in sequence.
 - **Recursion prevention** — Alias expansion enforces a maximum depth of 10 to prevent infinite loops.
+- **Pinned alias** — An alias starred for one-tap access from a slot on the mobile D-Pad. Persisted via `pinnedAliasIds` in app settings; long-pressing a slot opens the alias's edit screen.
+- **Text link rule** — A regex pattern paired with a command template that promotes matched MUD output to a tappable command link. Tapping the link sends the templated command (with `$0`/`$1`... substituted from capture groups). Defined in `lib/models/text_link_rule.dart`, applied by `TextLinkProcessor` in the buffer pipeline.
+- **Command counterpart** — A logically-opposite command derived from a recent user-sent command, surfaced in the input bar's history sheet. Pairs include `enter` ↔ `leave` and `open <dir>` ↔ `close <dir>` (plus the opposite-direction close for door pairs). Rules live in `lib/services/command_counterparts.dart`.
 
 ---
 
@@ -141,4 +144,4 @@ Terms describing the client's software architecture. See `lib/` directory struct
 - **Engine** — A core processing class that evaluates rules against input. The trigger engine matches patterns; the alias engine expands keywords. Found in `lib/services/trigger/` and `lib/services/alias/`.
 - **Parser** — A class that transforms raw data into structured output. Includes the ANSI parser (escape sequences to styled spans), output parser (bytes to lines), and prompt parser (game state extraction). Found in `lib/protocol/ansi/` and `lib/services/parser/`.
 - **Ring buffer** — A fixed-size circular buffer used for efficient scrollback storage. Defined in `lib/core/utils/ring_buffer.dart`.
-- **Output processing pipeline** — The chain of transformations applied to incoming data: raw TCP bytes → UTF-8 decode → line splitting → telnet command extraction → ANSI parsing → StyledLines for display.
+- **Output processing pipeline** — The chain of transformations applied to incoming data: raw TCP bytes → UTF-8 decode → line splitting → telnet command extraction → ANSI parsing → URL `LinkParser` → `TextLinkProcessor` → StyledLines for display.

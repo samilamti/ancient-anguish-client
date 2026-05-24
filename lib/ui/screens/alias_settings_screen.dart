@@ -10,11 +10,65 @@ import '../widgets/common/escape_dismiss.dart';
 ///
 /// Aliases expand short keywords into longer commands before
 /// they are sent to the MUD.
-class AliasSettingsScreen extends ConsumerWidget {
-  const AliasSettingsScreen({super.key});
+///
+/// Pass [focusAliasId] to land on a specific alias — the list scrolls to
+/// it, the row briefly flashes, and the edit screen opens automatically.
+/// Used by the D-Pad's long-press handler on pinned alias buttons so the
+/// user can jump straight from "this slot is wrong" to fixing it.
+class AliasSettingsScreen extends ConsumerStatefulWidget {
+  final String? focusAliasId;
+
+  const AliasSettingsScreen({super.key, this.focusAliasId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AliasSettingsScreen> createState() =>
+      _AliasSettingsScreenState();
+}
+
+class _AliasSettingsScreenState extends ConsumerState<AliasSettingsScreen> {
+  final ScrollController _scrollController = ScrollController();
+  String? _flashAliasId;
+
+  /// Rough per-tile height — used to estimate a scroll offset before the
+  /// ListView has laid out, since we can't measure unbuilt tiles. A bit
+  /// generous so the target row is comfortably on-screen.
+  static const double _approxTileHeight = 76.0;
+
+  @override
+  void initState() {
+    super.initState();
+    final id = widget.focusAliasId;
+    if (id == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final aliases = ref.read(aliasRulesProvider);
+      final index = aliases.indexWhere((a) => a.id == id);
+      if (index < 0) return;
+
+      if (_scrollController.hasClients) {
+        final target = (index * _approxTileHeight)
+            .clamp(0.0, _scrollController.position.maxScrollExtent);
+        _scrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+
+      setState(() => _flashAliasId = id);
+      _showEditDialog(context, ref, aliases[index]);
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final aliases = ref.watch(aliasRulesProvider);
     final pinnedIds = ref.watch(
         settingsProvider.select((s) => s.pinnedAliasIds));
@@ -62,6 +116,7 @@ class AliasSettingsScreen extends ConsumerWidget {
               ),
             )
           : ListView.builder(
+              controller: _scrollController,
               padding: const EdgeInsets.only(bottom: 80),
               itemCount: aliases.length,
               itemBuilder: (context, index) {
@@ -70,6 +125,12 @@ class AliasSettingsScreen extends ConsumerWidget {
                 return _AliasTile(
                   alias: alias,
                   isPinned: isPinned,
+                  isFlashing: _flashAliasId == alias.id,
+                  onFlashComplete: () {
+                    if (_flashAliasId == alias.id) {
+                      setState(() => _flashAliasId = null);
+                    }
+                  },
                   onToggle: () {
                     ref.read(aliasRulesProvider.notifier).toggleRule(alias.id);
                   },
@@ -147,28 +208,73 @@ class AliasSettingsScreen extends ConsumerWidget {
 }
 
 /// List tile for a single alias rule.
-class _AliasTile extends StatelessWidget {
+class _AliasTile extends StatefulWidget {
   final AliasRule alias;
   final bool isPinned;
+  final bool isFlashing;
   final VoidCallback onToggle;
   final VoidCallback onTogglePin;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onFlashComplete;
 
   const _AliasTile({
     required this.alias,
     required this.isPinned,
+    this.isFlashing = false,
     required this.onToggle,
     required this.onTogglePin,
     required this.onEdit,
     required this.onDelete,
+    this.onFlashComplete,
   });
+
+  @override
+  State<_AliasTile> createState() => _AliasTileState();
+}
+
+class _AliasTileState extends State<_AliasTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flashController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isFlashing) _startFlash();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AliasTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isFlashing && !oldWidget.isFlashing) _startFlash();
+  }
+
+  void _startFlash() {
+    _flashController.forward(from: 0).whenComplete(() {
+      if (mounted) widget.onFlashComplete?.call();
+    });
+  }
+
+  @override
+  void dispose() {
+    _flashController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final alias = widget.alias;
+    final isPinned = widget.isPinned;
+    final onToggle = widget.onToggle;
+    final onTogglePin = widget.onTogglePin;
+    final onEdit = widget.onEdit;
+    final onDelete = widget.onDelete;
 
-    return ListTile(
+    final tile = ListTile(
       leading: Icon(
         Icons.short_text,
         color: alias.enabled
@@ -246,6 +352,23 @@ class _AliasTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    // Flash background highlight when this tile is the long-press target,
+    // so the user's eye lands on the right row when the edit sheet closes.
+    return AnimatedBuilder(
+      animation: _flashController,
+      builder: (context, child) {
+        if (_flashController.isDismissed) return child!;
+        // Pulse from full → transparent over the animation's lifetime.
+        final t = _flashController.value;
+        final alpha = ((1.0 - t).clamp(0.0, 1.0) * 90).round();
+        return Container(
+          color: theme.colorScheme.primary.withAlpha(alpha),
+          child: child,
+        );
+      },
+      child: tile,
     );
   }
 }

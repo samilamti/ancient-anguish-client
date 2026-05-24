@@ -7,6 +7,7 @@ import '../../../providers/connection_provider.dart';
 import '../../../providers/game_state_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../utils/quick_command_icons.dart';
+import '../../screens/alias_settings_screen.dart';
 import 'quick_command_runner.dart';
 
 /// A compass-rose directional pad for mobile navigation, with floor-change
@@ -119,6 +120,18 @@ class DPad extends ConsumerWidget {
                         : pinnedAliases[i].keyword,
                     width: 84,
                     onPressed: () => runAliasSlot(pinnedAliases[i]),
+                    onLongPress: () {
+                      // Jump straight into editing this alias — saves the
+                      // user from hunting it down in the list when a pinned
+                      // slot needs a tweak.
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AliasSettingsScreen(
+                            focusAliasId: pinnedAliases[i].id,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ],
@@ -230,6 +243,7 @@ class _DPadButton extends StatelessWidget {
   final String? emoji;
   final Widget? child;
   final VoidCallback onPressed;
+  final VoidCallback? onLongPress;
   final double? width;
 
   const _DPadButton({
@@ -238,6 +252,7 @@ class _DPadButton extends StatelessWidget {
     this.emoji,
     this.child,
     required this.onPressed,
+    this.onLongPress,
     this.width,
   });
 
@@ -296,6 +311,12 @@ class _DPadButton extends StatelessWidget {
                 FocusManager.instance.primaryFocus?.unfocus();
                 onPressed();
               },
+              onLongPress: onLongPress == null
+                  ? null
+                  : () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      onLongPress!();
+                    },
               borderRadius: BorderRadius.circular(8),
               child: Center(child: rendered),
             ),

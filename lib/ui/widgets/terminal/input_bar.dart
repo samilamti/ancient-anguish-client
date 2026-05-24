@@ -11,6 +11,7 @@ import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
+import '../../../services/command_counterparts.dart';
 import '../../../services/parser/emoji_parser.dart';
 
 /// The command input bar at the bottom of the terminal.
@@ -333,6 +334,21 @@ class _InputBarState extends ConsumerState<InputBar> {
       ),
       child: Row(
         children: [
+          // History button — opens a sheet with the last few commands plus
+          // smart counterparts (enter↔leave, open/close ↔ opposite door).
+          // Tap an entry to re-send instantly. Replaces the old up-arrow
+          // chip on the right; keyboard ArrowUp still walks history for
+          // desktop users.
+          IconButton(
+            icon: Icon(
+              Icons.history,
+              color: theme.colorScheme.primary.withAlpha(200),
+            ),
+            onPressed: _showHistorySheet,
+            tooltip: 'Recent commands',
+            visualDensity: VisualDensity.compact,
+          ),
+
           // Command prompt indicator.
           Text(
             '>',
@@ -350,20 +366,6 @@ class _InputBarState extends ConsumerState<InputBar> {
             child: _buildTextField(fontSize, wrapWidth, autofocus),
           ),
 
-          // History chip — fills the input with the previous command on
-          // each tap, mirroring desktop's ArrowUp behaviour for mobile
-          // users who don't have a keyboard. Subsequent taps walk further
-          // back; typing anything resets the walk (see _onKeyEvent).
-          IconButton(
-            icon: Icon(
-              Icons.arrow_upward,
-              color: theme.colorScheme.primary.withAlpha(180),
-            ),
-            onPressed: _historyUp,
-            tooltip: 'Previous command',
-            visualDensity: VisualDensity.compact,
-          ),
-
           // Send button (mainly for mobile).
           IconButton(
             icon: Icon(
@@ -375,6 +377,176 @@ class _InputBarState extends ConsumerState<InputBar> {
             visualDensity: VisualDensity.compact,
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _showHistorySheet() async {
+    final history = ref.read(commandHistoryProvider);
+    final recent = history.take(5).toList();
+    // Counterparts derived from the same recent commands. Dedup against
+    // history so the user doesn't see "leave" twice when both legs are
+    // already in history.
+    final counterparts = <String>{};
+    for (final cmd in recent) {
+      counterparts.addAll(CommandCounterparts.counterpartsOf(cmd));
+    }
+    counterparts.removeAll(recent);
+
+    if (recent.isEmpty && counterparts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No command history yet'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => _HistorySheet(
+        recent: recent,
+        counterparts: counterparts.toList(),
+      ),
+    );
+
+    if (chosen == null || !mounted) return;
+    _sendCommandFromHistory(chosen);
+  }
+
+  /// Sends a command picked from the history sheet. Doesn't expand aliases
+  /// further (the history already stores the user's typed input, which the
+  /// regular send path will expand if appropriate via [_controller]).
+  void _sendCommandFromHistory(String command) {
+    _controller.text = command;
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
+    _send();
+  }
+}
+
+/// Bottom-sheet body for the History button. Two sections: literal recent
+/// commands (newest-first) and derived counterparts. Tapping a row pops
+/// the sheet with that command string.
+class _HistorySheet extends StatelessWidget {
+  final List<String> recent;
+  final List<String> counterparts;
+
+  const _HistorySheet({required this.recent, required this.counterparts});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (recent.isNotEmpty) ...[
+              _SectionLabel(
+                icon: Icons.history,
+                label: 'Recent',
+                theme: theme,
+              ),
+              for (final cmd in recent)
+                _CommandRow(command: cmd, theme: theme),
+            ],
+            if (counterparts.isNotEmpty) ...[
+              const Divider(height: 16),
+              _SectionLabel(
+                icon: Icons.swap_horiz,
+                label: 'Counterparts',
+                theme: theme,
+              ),
+              for (final cmd in counterparts)
+                _CommandRow(
+                  command: cmd,
+                  theme: theme,
+                  trailing: const Icon(Icons.subdirectory_arrow_right,
+                      size: 18),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final ThemeData theme;
+
+  const _SectionLabel({
+    required this.icon,
+    required this.label,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommandRow extends StatelessWidget {
+  final String command;
+  final ThemeData theme;
+  final Widget? trailing;
+
+  const _CommandRow({
+    required this.command,
+    required this.theme,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => Navigator.of(context).pop(command),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                command,
+                style: const TextStyle(
+                  fontFamily: 'JetBrainsMono',
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            if (trailing != null)
+              IconTheme(
+                data: IconThemeData(
+                  color: theme.colorScheme.onSurface.withAlpha(120),
+                ),
+                child: trailing!,
+              ),
+          ],
+        ),
       ),
     );
   }

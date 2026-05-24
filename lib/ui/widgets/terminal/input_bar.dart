@@ -276,6 +276,11 @@ class _InputBarState extends ConsumerState<InputBar> {
           contentPadding: EdgeInsets.symmetric(vertical: 8),
           filled: false,
         ),
+        // Soft-keyboard input doesn't route through _onKeyEvent, so the
+        // history walk has to be reset here instead. Programmatic
+        // controller updates (e.g. _historyUp) don't fire onChanged, so
+        // walking the chip back and forth stays consistent.
+        onChanged: (_) => _resetHistorySearch(),
         onSubmitted: (_) => _send(),
       ),
     );
@@ -343,6 +348,20 @@ class _InputBarState extends ConsumerState<InputBar> {
           // Text input field.
           Expanded(
             child: _buildTextField(fontSize, wrapWidth, autofocus),
+          ),
+
+          // History chip — fills the input with the previous command on
+          // each tap, mirroring desktop's ArrowUp behaviour for mobile
+          // users who don't have a keyboard. Subsequent taps walk further
+          // back; typing anything resets the walk (see _onKeyEvent).
+          IconButton(
+            icon: Icon(
+              Icons.arrow_upward,
+              color: theme.colorScheme.primary.withAlpha(180),
+            ),
+            onPressed: _historyUp,
+            tooltip: 'Previous command',
+            visualDensity: VisualDensity.compact,
           ),
 
           // Send button (mainly for mobile).

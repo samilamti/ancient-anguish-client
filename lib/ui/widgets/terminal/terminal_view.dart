@@ -9,7 +9,7 @@ import '../../../core/constants.dart';
 import '../../../protocol/ansi/styled_span.dart';
 import '../../../providers/background_image_provider.dart';
 import '../../../providers/connection_provider.dart'
-    show terminalBufferProvider, inputFocusProvider,
+    show connectionServiceProvider, terminalBufferProvider, inputFocusProvider,
     scrollTerminalToBottomProvider;
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
@@ -322,6 +322,14 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     _scrollToBottom();
   }
 
+  /// Dispatches a tap on a text-to-link span — sends the command to the
+  /// MUD and snaps the terminal to the bottom so the response is visible.
+  void _sendLinkCommand(String command) {
+    if (command.trim().isEmpty) return;
+    ref.read(connectionServiceProvider).sendCommand(command);
+    ref.read(scrollTerminalToBottomProvider.notifier).trigger();
+  }
+
   // ---------------------------------------------------------------------------
   // Keyboard shortcuts
   // ---------------------------------------------------------------------------
@@ -529,6 +537,7 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
                         lineIndex: index,
                         selection: selection,
                         fontSize: fontSize,
+                        onCommandTap: _sendLinkCommand,
                       );
                     },
                   ),
@@ -564,12 +573,14 @@ class _TerminalLine extends StatelessWidget {
   final int lineIndex;
   final TerminalSelection? selection;
   final double fontSize;
+  final void Function(String command)? onCommandTap;
 
   const _TerminalLine({
     required this.line,
     required this.lineIndex,
     this.selection,
     required this.fontSize,
+    this.onCommandTap,
   });
 
   @override
@@ -627,10 +638,12 @@ class _TerminalLine extends StatelessWidget {
             fontSize: fontSize,
             startCol: range.startCol,
             endCol: range.endCol,
+            onCommandTap: onCommandTap,
           )
         : line.toTextSpan(
             fontFamily: TerminalDefaults.fontFamily,
             fontSize: fontSize,
+            onCommandTap: onCommandTap,
           );
 
     return Padding(

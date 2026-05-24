@@ -20,6 +20,8 @@ import '../services/parser/emoji_parser.dart';
 import '../services/parser/link_parser.dart';
 import '../services/parser/map_emoji_transformer.dart';
 import '../services/parser/output_parser.dart';
+import '../services/parser/text_link_processor.dart';
+import 'text_link_rule_provider.dart';
 import '../models/social_message.dart';
 import '../services/command_history_service.dart';
 import '../services/platform/window_service.dart';
@@ -714,7 +716,12 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   }
 
   void _addLines(List<StyledLine> lines) {
-    final newState = [...state, ...lines.map(LinkParser.processLine)];
+    final TextLinkProcessor linkRules = ref.read(textLinkProcessorProvider);
+    final processed = lines.map((line) {
+      final urlised = LinkParser.processLine(line);
+      return linkRules.isEmpty ? urlised : linkRules.processLine(urlised);
+    });
+    final newState = [...state, ...processed];
     // Trim to max lines.
     if (newState.length > _maxLines) {
       final removedCount = newState.length - _maxLines;

@@ -27,6 +27,7 @@ import 'advanced_customization_screen.dart';
 import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
 import 'support_screen.dart';
+import 'text_link_rules_screen.dart';
 import 'trigger_settings_screen.dart';
 
 /// The main game screen – contains the terminal output, status bar,
@@ -643,6 +644,14 @@ class _SettingsDrawer extends ConsumerWidget {
               subtitle: 'HUD stat visibility',
               onTap: () => _openScreen(
                   context, const AdvancedCustomizationScreen()),
+            ),
+
+            _DrawerNavTile(
+              icon: const Icon(Icons.link, size: 20),
+              title: 'Text Link Rules',
+              subtitle: 'MUD output → tappable commands',
+              onTap: () =>
+                  _openScreen(context, const TextLinkRulesScreen()),
             ),
 
             const Divider(height: 24),

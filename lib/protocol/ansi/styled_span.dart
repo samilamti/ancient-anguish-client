@@ -19,6 +19,13 @@ class StyledSpan {
   final bool strikethrough;
   final Uri? link;
 
+  /// When non-null, tapping this span sends [command] to the MUD instead of
+  /// opening a URL. Set by the text-to-link rule pipeline so MUD output
+  /// like "The dark door is closed." can become a tappable "open dark door".
+  /// Mutually exclusive with [link] in practice — the rule pipeline only
+  /// promotes plain-text spans to command links.
+  final String? command;
+
   const StyledSpan({
     required this.text,
     this.foreground = TerminalColors.defaultForeground,
@@ -28,6 +35,7 @@ class StyledSpan {
     this.underline = false,
     this.strikethrough = false,
     this.link,
+    this.command,
   });
 
   /// Display text — strips http(s):// prefix for link spans.
@@ -40,12 +48,17 @@ class StyledSpan {
 
   /// Converts this styled span to a Flutter [TextSpan].
   ///
-  /// Uses [fontFamily] and [fontSize] for the base text style.
+  /// Uses [fontFamily] and [fontSize] for the base text style. Pass
+  /// [onCommandTap] so text-to-link rule spans can route their tap event
+  /// back through the connection service.
   TextSpan toTextSpan({
     required String fontFamily,
     required double fontSize,
+    void Function(String command)? onCommandTap,
   }) {
-    final isLink = link != null;
+    final isUrlLink = link != null;
+    final isCommandLink = command != null;
+    final isLink = isUrlLink || isCommandLink;
     return TextSpan(
       text: displayText,
       style: TextStyle(
@@ -62,10 +75,14 @@ class StyledSpan {
           Shadow(color: Color(0xFF000000), blurRadius: 1.0),
         ],
       ),
-      recognizer: isLink
+      recognizer: isCommandLink
           ? (TapGestureRecognizer()
-            ..onTap = () => launchUrl(link!, mode: LaunchMode.externalApplication))
-          : null,
+            ..onTap = () => onCommandTap?.call(command!))
+          : isUrlLink
+              ? (TapGestureRecognizer()
+                ..onTap = () =>
+                    launchUrl(link!, mode: LaunchMode.externalApplication))
+              : null,
       mouseCursor: isLink ? SystemMouseCursors.click : null,
     );
   }
@@ -96,13 +113,22 @@ class StyledLine {
   TextSpan toTextSpan({
     required String fontFamily,
     required double fontSize,
+    void Function(String command)? onCommandTap,
   }) {
     if (spans.length == 1) {
-      return spans.first.toTextSpan(fontFamily: fontFamily, fontSize: fontSize);
+      return spans.first.toTextSpan(
+        fontFamily: fontFamily,
+        fontSize: fontSize,
+        onCommandTap: onCommandTap,
+      );
     }
     return TextSpan(
       children: spans
-          .map((s) => s.toTextSpan(fontFamily: fontFamily, fontSize: fontSize))
+          .map((s) => s.toTextSpan(
+                fontFamily: fontFamily,
+                fontSize: fontSize,
+                onCommandTap: onCommandTap,
+              ))
           .toList(),
     );
   }
@@ -117,6 +143,7 @@ class StyledLine {
     required double fontSize,
     required int startCol,
     required int endCol,
+    void Function(String command)? onCommandTap,
   }) {
     final children = <TextSpan>[];
     var offset = 0;
@@ -130,6 +157,7 @@ class StyledLine {
         children.add(span.toTextSpan(
           fontFamily: fontFamily,
           fontSize: fontSize,
+          onCommandTap: onCommandTap,
         ));
       } else {
         // Partially or fully inside selection – split at boundaries.
@@ -203,6 +231,7 @@ class StyledLine {
           underline: span.underline,
           strikethrough: span.strikethrough,
           link: span.link,
+          command: span.command,
         ));
       }
       offset = spanEnd;
@@ -241,6 +270,7 @@ class StyledLine {
             underline: span.underline,
             strikethrough: span.strikethrough,
             link: span.link,
+            command: span.command,
           ));
         }
       }
@@ -271,6 +301,7 @@ class StyledLine {
           underline: span.underline,
           strikethrough: span.strikethrough,
           link: span.link,
+          command: span.command,
         ),
     ]);
   }

@@ -1,6 +1,7 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/gestures.dart';
-import 'package:flutter/painting.dart';
-import 'package:flutter/services.dart' show SystemMouseCursors;
+import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/terminal_colors.dart';
@@ -51,7 +52,12 @@ class StyledSpan {
   /// Uses [fontFamily] and [fontSize] for the base text style. Pass
   /// [onCommandTap] so text-to-link rule spans can route their tap event
   /// back through the connection service.
-  TextSpan toTextSpan({
+  ///
+  /// Command-bearing spans render as a [WidgetSpan] so they can carry a
+  /// [Tooltip] — hover on desktop, long-press on mobile reveals the
+  /// templated command and the Ctrl/Cmd+L keyboard shortcut. URL and
+  /// plain-text spans stay as cheap [TextSpan]s.
+  InlineSpan toTextSpan({
     required String fontFamily,
     required double fontSize,
     void Function(String command)? onCommandTap,
@@ -59,32 +65,62 @@ class StyledSpan {
     final isUrlLink = link != null;
     final isCommandLink = command != null;
     final isLink = isUrlLink || isCommandLink;
+    final style = TextStyle(
+      fontFamily: fontFamily,
+      fontSize: fontSize,
+      color: foreground,
+      backgroundColor:
+          background == TerminalColors.defaultBackground ? null : background,
+      fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+      fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+      decoration: isLink ? TextDecoration.underline : _textDecoration,
+      decorationColor: isLink ? foreground : null,
+      shadows: const [
+        Shadow(color: Color(0xFF000000), blurRadius: 1.0),
+      ],
+    );
+
+    if (isCommandLink) {
+      return WidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: Tooltip(
+          message: 'Send: $command   (${_shortcutHint()})',
+          waitDuration: const Duration(milliseconds: 400),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onCommandTap?.call(command!),
+              child: Text(displayText, style: style),
+            ),
+          ),
+        ),
+      );
+    }
+
     return TextSpan(
       text: displayText,
-      style: TextStyle(
-        fontFamily: fontFamily,
-        fontSize: fontSize,
-        color: foreground,
-        backgroundColor:
-            background == TerminalColors.defaultBackground ? null : background,
-        fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-        fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-        decoration: isLink ? TextDecoration.underline : _textDecoration,
-        decorationColor: isLink ? foreground : null,
-        shadows: const [
-          Shadow(color: Color(0xFF000000), blurRadius: 1.0),
-        ],
-      ),
-      recognizer: isCommandLink
+      style: style,
+      recognizer: isUrlLink
           ? (TapGestureRecognizer()
-            ..onTap = () => onCommandTap?.call(command!))
-          : isUrlLink
-              ? (TapGestureRecognizer()
-                ..onTap = () =>
-                    launchUrl(link!, mode: LaunchMode.externalApplication))
-              : null,
+            ..onTap = () =>
+                launchUrl(link!, mode: LaunchMode.externalApplication))
+          : null,
       mouseCursor: isLink ? SystemMouseCursors.click : null,
     );
+  }
+
+  /// Platform-appropriate keyboard hint shown in the command-link tooltip.
+  /// macOS/iOS users see the Cmd glyph; everyone else sees Ctrl+L.
+  static String _shortcutHint() {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.macOS:
+      case TargetPlatform.iOS:
+        return '⌘L';
+      default:
+        return 'Ctrl+L';
+    }
   }
 
   TextDecoration get _textDecoration {
@@ -109,8 +145,10 @@ class StyledLine {
 
   StyledLine(this.spans);
 
-  /// Converts this line to a Flutter [TextSpan] tree.
-  TextSpan toTextSpan({
+  /// Converts this line to a Flutter inline-span tree. Returns [InlineSpan]
+  /// rather than [TextSpan] because command-link spans now render as
+  /// [WidgetSpan]s carrying a [Tooltip].
+  InlineSpan toTextSpan({
     required String fontFamily,
     required double fontSize,
     void Function(String command)? onCommandTap,
@@ -133,19 +171,19 @@ class StyledLine {
     );
   }
 
-  /// Returns a [TextSpan] tree with inverse colors on the selected range.
+  /// Returns an inline-span tree with inverse colors on the selected range.
   ///
   /// Characters in `[startCol, endCol)` get their foreground and background
   /// swapped (the classic terminal "inverse video" selection highlight).
   /// Characters outside the range render normally.
-  TextSpan toSelectedTextSpan({
+  InlineSpan toSelectedTextSpan({
     required String fontFamily,
     required double fontSize,
     required int startCol,
     required int endCol,
     void Function(String command)? onCommandTap,
   }) {
-    final children = <TextSpan>[];
+    final children = <InlineSpan>[];
     var offset = 0;
 
     for (final span in spans) {
@@ -207,6 +245,7 @@ class StyledLine {
     if (children.length == 1) return children.first;
     return TextSpan(children: children);
   }
+
 
   /// Returns a new [StyledLine] with the first [startCol] characters removed.
   StyledLine subLine(int startCol) {

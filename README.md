@@ -221,14 +221,18 @@ Text link rules turn MUD output into tappable shortcuts. When a line matches a r
 
 **Default rules:**
 
-| Pattern                            | Sends         | Description                       |
-|------------------------------------|---------------|-----------------------------------|
-| `You must be standing\.`           | `stand`       | Stand up before acting            |
+| Pattern                            | Sends          | Description                       |
+|------------------------------------|----------------|-----------------------------------|
+| `You must be standing\.`           | `stand`        | Stand up before acting            |
 | `The (\w+) door is closed\.`       | `open $1 door` | Open the closed door by name      |
+| `'accept'`                         | `accept`       | Quoted prompts (membership, etc.) |
+| `'read rules'`                     | `read rules`   | Newbie rules prompt               |
 
 The editor has a live preview pane — paste any MUD line to see what your rule would match and which command it would dispatch. Broken regexes are skipped silently rather than crashing the pipeline; rules can also be disabled without deleting.
 
 Like triggers, text link rules never *auto-fire*. The user must tap the rendered link to send the command — this preserves the Ancient Anguish no-automation rule.
+
+**Keyboard shortcut:** Press **Ctrl+L** (Windows/Linux/Android) or **⌘L** (macOS) to fire the most recently rendered link without reaching for the mouse. Silent no-op when no link is currently in scrollback.
 
 ### Prompt Setup
 

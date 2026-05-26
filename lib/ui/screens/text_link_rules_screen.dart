@@ -64,26 +64,34 @@ class TextLinkRulesScreen extends ConsumerWidget {
                   ],
                 ),
               )
-            : ListView.builder(
-                padding: const EdgeInsets.only(bottom: 80),
-                itemCount: rules.length,
-                itemBuilder: (context, index) {
-                  final rule = rules[index];
-                  return _RuleTile(
-                    rule: rule,
-                    onToggle: () =>
-                        ref.read(textLinkRulesProvider.notifier).toggleRule(rule.id),
-                    onEdit: () => _openEditor(context, rule),
-                    onDelete: () {
-                      ref
-                          .read(textLinkRulesProvider.notifier)
-                          .removeRule(rule.id);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Deleted "${rule.name}"')),
-                      );
-                    },
-                  );
-                },
+            : Column(
+                children: [
+                  const _ShortcutHintBanner(),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 80),
+                      itemCount: rules.length,
+                      itemBuilder: (context, index) {
+                        final rule = rules[index];
+                        return _RuleTile(
+                          rule: rule,
+                          onToggle: () => ref
+                              .read(textLinkRulesProvider.notifier)
+                              .toggleRule(rule.id),
+                          onEdit: () => _openEditor(context, rule),
+                          onDelete: () {
+                            ref
+                                .read(textLinkRulesProvider.notifier)
+                                .removeRule(rule.id);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Deleted "${rule.name}"')),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
       ),
     );
@@ -149,6 +157,46 @@ class TextLinkRulesScreen extends ConsumerWidget {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One-line tip above the rules list reminding users that the keyboard
+/// shortcut exists. Material-styled so it inherits the theme without any
+/// extra config; shown only when the list is non-empty (the empty state
+/// already steals the screen).
+class _ShortcutHintBanner extends StatelessWidget {
+  const _ShortcutHintBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hint = (theme.platform == TargetPlatform.macOS ||
+            theme.platform == TargetPlatform.iOS)
+        ? '⌘L'
+        : 'Ctrl+L';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: theme.colorScheme.primary.withAlpha(20),
+      child: Row(
+        children: [
+          Icon(
+            Icons.keyboard,
+            size: 18,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Press $hint to fire the most recently rendered link.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withAlpha(200),
+              ),
+            ),
           ),
         ],
       ),

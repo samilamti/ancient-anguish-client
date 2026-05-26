@@ -242,6 +242,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               () => _focusSocialTab(ref, 3),
           const SingleActivator(LogicalKeyboardKey.digit4, meta: true):
               () => _focusSocialTab(ref, 3),
+          // Ctrl/Cmd + L → fire the most recently rendered text link.
+          const SingleActivator(LogicalKeyboardKey.keyL, control: true):
+              _invokeMostRecentLink,
+          const SingleActivator(LogicalKeyboardKey.keyL, meta: true):
+              _invokeMostRecentLink,
         },
         child: SafeArea(
         child: Stack(
@@ -298,6 +303,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
       ),
     );
+  }
+
+  /// Fires the command of the link most recently rendered into the
+  /// terminal — keyboard equivalent of tapping that link. Silent no-op if
+  /// no link is currently in scrollback, so the shortcut is always safe to
+  /// press. Bound to Ctrl/Cmd+L at the HomeScreen body level.
+  void _invokeMostRecentLink() {
+    final cmd = ref.read(terminalBufferProvider.notifier).mostRecentLinkCommand;
+    if (cmd == null) return;
+    ref.read(connectionServiceProvider).sendCommand(cmd);
   }
 
   /// Switches the SWC to the tab at [tabIndex] (0=Chat, 1=Tells, 2=Party,

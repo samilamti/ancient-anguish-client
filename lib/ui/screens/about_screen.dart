@@ -171,6 +171,60 @@ class _AboutScreenState extends State<AboutScreen> {
 
           const SizedBox(height: 16),
 
+          // ── Keyboard shortcuts ──
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.keyboard,
+                        size: 20,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Keyboard shortcuts',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _ShortcutRow(
+                    keys: _shortcutLabel(context, 'L'),
+                    description: 'Fire the most recently rendered text link',
+                  ),
+                  const SizedBox(height: 6),
+                  _ShortcutRow(
+                    keys: _shortcutLabel(context, '1 – 4'),
+                    description:
+                        'Focus Chat / Tells / Party / Notes in the Social Window Cluster',
+                  ),
+                  const SizedBox(height: 6),
+                  _ShortcutRow(
+                    keys: 'Esc',
+                    description: 'Dismiss the current sub-screen',
+                  ),
+                  const SizedBox(height: 6),
+                  _ShortcutRow(
+                    keys: '↑ / ↓',
+                    description: 'Cycle command history in the input bar',
+                  ),
+                  const SizedBox(height: 6),
+                  _ShortcutRow(
+                    keys: 'Tab',
+                    description: 'Complete the current word from history',
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
           // ── License ──
           Card(
             child: Padding(
@@ -204,6 +258,63 @@ class _AboutScreenState extends State<AboutScreen> {
         ],
       ),
       ),
+    );
+  }
+}
+
+/// Platform-aware shortcut label — macOS/iOS users see `⌘`, everyone else
+/// sees `Ctrl`. Returns just the modifier+key string, no surrounding
+/// formatting; the [_ShortcutRow] renders the chip.
+String _shortcutLabel(BuildContext context, String key) {
+  final platform = Theme.of(context).platform;
+  final isMacish =
+      platform == TargetPlatform.macOS || platform == TargetPlatform.iOS;
+  return isMacish ? '⌘$key' : 'Ctrl+$key';
+}
+
+/// One row in the keyboard-shortcuts list: a monospace chip on the left
+/// for the keys, a wrapping description on the right.
+class _ShortcutRow extends StatelessWidget {
+  const _ShortcutRow({required this.keys, required this.description});
+
+  final String keys;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer.withAlpha(140),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: theme.colorScheme.primary.withAlpha(60),
+            ),
+          ),
+          child: Text(
+            keys,
+            style: TextStyle(
+              fontFamily: 'JetBrainsMono',
+              fontSize: 12,
+              color: theme.colorScheme.onPrimaryContainer,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Text(
+              description,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

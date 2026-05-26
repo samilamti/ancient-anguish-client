@@ -19,7 +19,7 @@ void main() {
 
     test('toTextSpan with default styling', () {
       const span = StyledSpan(text: 'normal');
-      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0);
+      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0) as TextSpan;
       expect(ts.text, 'normal');
       expect(ts.style!.fontFamily, 'Mono');
       expect(ts.style!.fontSize, 14.0);
@@ -32,32 +32,32 @@ void main() {
 
     test('toTextSpan with bold', () {
       const span = StyledSpan(text: 'bold', bold: true);
-      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0);
+      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0) as TextSpan;
       expect(ts.style!.fontWeight, FontWeight.bold);
     });
 
     test('toTextSpan with italic', () {
       const span = StyledSpan(text: 'italic', italic: true);
-      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0);
+      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0) as TextSpan;
       expect(ts.style!.fontStyle, FontStyle.italic);
     });
 
     test('toTextSpan with underline', () {
       const span = StyledSpan(text: 'underline', underline: true);
-      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0);
+      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0) as TextSpan;
       expect(ts.style!.decoration, TextDecoration.underline);
     });
 
     test('toTextSpan with strikethrough', () {
       const span = StyledSpan(text: 'strike', strikethrough: true);
-      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0);
+      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0) as TextSpan;
       expect(ts.style!.decoration, TextDecoration.lineThrough);
     });
 
     test('toTextSpan with combined underline and strikethrough', () {
       const span =
           StyledSpan(text: 'both', underline: true, strikethrough: true);
-      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0);
+      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0) as TextSpan;
       expect(ts.style!.decoration,
           TextDecoration.combine([TextDecoration.underline, TextDecoration.lineThrough]));
     });
@@ -67,7 +67,7 @@ void main() {
         text: 'bg',
         background: TerminalColors.red,
       );
-      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0);
+      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0) as TextSpan;
       expect(ts.style!.backgroundColor, TerminalColors.red);
     });
 
@@ -76,7 +76,7 @@ void main() {
         text: 'default bg',
         background: TerminalColors.defaultBackground,
       );
-      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0);
+      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0) as TextSpan;
       expect(ts.style!.backgroundColor, isNull);
     });
 
@@ -85,7 +85,7 @@ void main() {
         text: 'colored',
         foreground: TerminalColors.brightGreen,
       );
-      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0);
+      final ts = span.toTextSpan(fontFamily: 'Mono', fontSize: 14.0) as TextSpan;
       expect(ts.style!.color, TerminalColors.brightGreen);
     });
 
@@ -118,7 +118,7 @@ void main() {
 
     test('toTextSpan with single span returns direct TextSpan', () {
       final line = StyledLine([const StyledSpan(text: 'single')]);
-      final ts = line.toTextSpan(fontFamily: 'Mono', fontSize: 14.0);
+      final ts = line.toTextSpan(fontFamily: 'Mono', fontSize: 14.0) as TextSpan;
       // Single span: returns the span directly, no children.
       expect(ts.text, 'single');
       expect(ts.children, isNull);
@@ -130,7 +130,7 @@ void main() {
         const StyledSpan(text: 'b'),
         const StyledSpan(text: 'c'),
       ]);
-      final ts = line.toTextSpan(fontFamily: 'Mono', fontSize: 14.0);
+      final ts = line.toTextSpan(fontFamily: 'Mono', fontSize: 14.0) as TextSpan;
       expect(ts.text, isNull);
       expect(ts.children, hasLength(3));
     });
@@ -161,7 +161,7 @@ void main() {
           fontSize: 14.0,
           startCol: 6,
           endCol: 11,
-        );
+        ) as TextSpan;
 
         // Should produce children: "Hello " (normal) + "World" (inverted).
         expect(ts.children, hasLength(2));
@@ -185,7 +185,7 @@ void main() {
           fontSize: 14.0,
           startCol: 0,
           endCol: 4,
-        );
+        ) as TextSpan;
 
         // Single child → returned directly.
         expect(ts.text, 'Full');
@@ -205,7 +205,7 @@ void main() {
           fontSize: 14.0,
           startCol: 2,
           endCol: 7,
-        );
+        ) as TextSpan;
 
         expect(ts.children, isNotNull);
         final texts = _extractTexts(ts);
@@ -222,7 +222,7 @@ void main() {
           fontSize: 14.0,
           startCol: 10,
           endCol: 15,
-        );
+        ) as TextSpan;
 
         // Selection beyond text → span is entirely outside.
         expect(ts.text, 'Hello');
@@ -238,7 +238,7 @@ void main() {
           fontSize: 14.0,
           startCol: 0,
           endCol: 4,
-        );
+        ) as TextSpan;
 
         expect(ts.children, hasLength(2));
         final selected = ts.children![0] as TextSpan;

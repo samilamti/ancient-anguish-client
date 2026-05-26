@@ -107,5 +107,17 @@ class DefaultTextLinkRules {
           pattern: r'The (\w+) door is closed\.',
           commandTemplate: r'open $1 door',
         ),
+        TextLinkRule(
+          id: 'tlr_default_accept',
+          name: 'Accept',
+          pattern: r"'accept'",
+          commandTemplate: 'accept',
+        ),
+        TextLinkRule(
+          id: 'tlr_default_read_rules',
+          name: 'Read rules',
+          pattern: r"'read rules'",
+          commandTemplate: 'read rules',
+        ),
       ];
 }

@@ -707,6 +707,22 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     }
   }
 
+  /// The command of the link most recently rendered into the buffer, or
+  /// `null` if no command-bearing span is currently in scrollback. Used by
+  /// the Ctrl/Cmd+L shortcut to fire the latest tappable rule without the
+  /// user having to reach for the mouse. Tail-first scan short-circuits on
+  /// the first hit, so the common case (last line has the link) is O(1).
+  String? get mostRecentLinkCommand {
+    for (var i = state.length - 1; i >= 0; i--) {
+      final spans = state[i].spans;
+      for (var j = spans.length - 1; j >= 0; j--) {
+        final cmd = spans[j].command;
+        if (cmd != null && cmd.isNotEmpty) return cmd;
+      }
+    }
+    return null;
+  }
+
   /// Extracts prompt values from text containing `@@...@@` markers.
   ///
   /// Uses the dynamic regex and element list from [promptConfigProvider]

@@ -34,18 +34,26 @@ class LoginComplete extends LoginState {
 
 // ── Saved alts ──
 
-/// A remembered character with name and password.
+/// A remembered character with name, password, and last-played timestamp.
 class SavedAlt {
   final String name;
   final String password;
-  const SavedAlt({required this.name, required this.password});
+  final DateTime? lastPlayed;
+  const SavedAlt({required this.name, required this.password, this.lastPlayed});
 
-  Map<String, dynamic> toJson() => {'name': name, 'password': password};
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'password': password,
+    if (lastPlayed != null) 'lastPlayed': lastPlayed!.toIso8601String(),
+  };
 
   factory SavedAlt.fromJson(Map<String, dynamic> json) => SavedAlt(
-        name: json['name'] as String,
-        password: json['password'] as String? ?? '',
-      );
+    name: json['name'] as String,
+    password: json['password'] as String? ?? '',
+    lastPlayed: json['lastPlayed'] is String
+        ? DateTime.tryParse(json['lastPlayed'] as String)
+        : null,
+  );
 }
 
 const _altsFileName = 'alts.json';
@@ -61,12 +69,12 @@ final savedAltsProvider = FutureProvider<List<SavedAlt>>((ref) async {
     if (list.isEmpty) return [];
     // Backwards compatibility: old format was ["Name1", "Name2"].
     if (list.first is String) {
-      return list.cast<String>().map((s) => SavedAlt(name: s, password: '')).toList();
+      return list
+          .cast<String>()
+          .map((s) => SavedAlt(name: s, password: ''))
+          .toList();
     }
-    return list
-        .cast<Map<String, dynamic>>()
-        .map(SavedAlt.fromJson)
-        .toList();
+    return list.cast<Map<String, dynamic>>().map(SavedAlt.fromJson).toList();
   } catch (e) {
     debugPrint('savedAltsProvider: parse error: $e');
     return [];
@@ -76,8 +84,9 @@ final savedAltsProvider = FutureProvider<List<SavedAlt>>((ref) async {
 // ── Login notifier ──
 
 /// Manages the login dialog lifecycle and credential submission.
-final loginProvider =
-    NotifierProvider<LoginNotifier, LoginState>(LoginNotifier.new);
+final loginProvider = NotifierProvider<LoginNotifier, LoginState>(
+  LoginNotifier.new,
+);
 
 class LoginNotifier extends Notifier<LoginState> {
   String? _pendingPassword;
@@ -98,9 +107,9 @@ class LoginNotifier extends Notifier<LoginState> {
     service.sendCommand(name);
     _pendingPassword = password;
     // Store character name for title bar display.
-    ref.read(gameStateProvider.notifier).setPlayerName(
-      name[0].toUpperCase() + name.substring(1).toLowerCase(),
-    );
+    ref
+        .read(gameStateProvider.notifier)
+        .setPlayerName(name[0].toUpperCase() + name.substring(1).toLowerCase());
     state = const LoginComplete();
 
     if (remember) {
@@ -171,7 +180,10 @@ class LoginNotifier extends Notifier<LoginState> {
       final json = jsonDecode(contents) as List;
       if (json.isEmpty) return [];
       if (json.first is String) {
-        return json.cast<String>().map((s) => SavedAlt(name: s, password: '')).toList();
+        return json
+            .cast<String>()
+            .map((s) => SavedAlt(name: s, password: ''))
+            .toList();
       }
       return json.cast<Map<String, dynamic>>().map(SavedAlt.fromJson).toList();
     } catch (e) {
@@ -190,12 +202,13 @@ class LoginNotifier extends Notifier<LoginState> {
 
   Future<void> _saveAlt(String name, String password) async {
     final alts = await _readAlts();
-    // Upsert: update password if name exists, else insert at front.
+    final now = DateTime.now();
+    // Upsert: update password + lastPlayed if name exists, else insert at front.
     final index = alts.indexWhere((a) => a.name == name);
     if (index >= 0) {
-      alts[index] = SavedAlt(name: name, password: password);
+      alts[index] = SavedAlt(name: name, password: password, lastPlayed: now);
     } else {
-      alts.insert(0, SavedAlt(name: name, password: password));
+      alts.insert(0, SavedAlt(name: name, password: password, lastPlayed: now));
     }
     await _writeAlts(alts);
   }

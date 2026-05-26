@@ -74,3 +74,9 @@ AppStore Connect Stuff for Ancient Anguish Client/
 
 # Android signing
 android/key.properties
+
+# ASC tooling working files — pre-mutation snapshots + composite raw inputs.
+# Final composites are saved into screenshots/{ios,macos}/ and tracked normally.
+screenshots/v*/raw/
+screenshots/v*/.snapshot-*.json
+.asc/

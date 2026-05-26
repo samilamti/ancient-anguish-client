@@ -118,11 +118,15 @@ class LoginNotifier extends Notifier<LoginState> {
 
   /// Called when "Password:" is detected and we have a pending password.
   ///
-  /// Sends the password, then triggers post-login actions.
+  /// Sends the password followed by an unconditional "yes" — if the MUD
+  /// responds with "You are already playing!" the "yes" answers the takeover
+  /// prompt; otherwise it lands as a harmless in-game command. Then runs
+  /// post-login setup.
   void onPasswordPromptDetected() {
     if (_pendingPassword == null) return;
     final service = ref.read(connectionServiceProvider);
     service.sendCommand(_pendingPassword!);
+    service.sendCommand('yes');
     _pendingPassword = null;
     _performPostLogin();
   }

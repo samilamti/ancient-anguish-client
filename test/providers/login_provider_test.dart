@@ -106,8 +106,11 @@ void main() {
       fakeService.sentCommands.clear();
 
       notifier.onPasswordPromptDetected();
-      // password + prompt cmd + qwho
-      expect(fakeService.sentCommands, hasLength(3));
+      // password + unconditional "yes" (handles "You are already playing!"
+      // takeover; harmless otherwise) + prompt cmd + qwho.
+      expect(fakeService.sentCommands, hasLength(4));
+      expect(fakeService.sentCommands[0], 'secret');
+      expect(fakeService.sentCommands[1], 'yes');
 
       fakeService.sentCommands.clear();
       notifier.onPasswordPromptDetected(); // Should be no-op now.

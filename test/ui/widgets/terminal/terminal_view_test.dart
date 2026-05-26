@@ -118,25 +118,21 @@ void main() {
     });
   });
 
-  group('TerminalView scroll behavior', () {
-    testWidgets('shows scroll-to-bottom FAB when scrolled away from bottom',
+  group('TerminalView tail-only layout', () {
+    testWidgets('renders ListView with reverse: true and no scroll physics',
         (tester) async {
-      // Create enough lines to require scrolling.
       final lines = createStyledLines(
         List.generate(100, (i) => 'Line $i with some extra text'),
       );
       await pumpTerminalView(tester, lines: lines);
       await tester.pumpAndSettle();
 
-      // Scroll down a tiny bit to trigger _onScroll while still far from bottom.
-      await tester.drag(find.byType(ListView), const Offset(0, -100));
-      await tester.pump();
-
-      // We're scrolled to position ~100, far from bottom — FAB should appear.
-      expect(find.byType(FloatingActionButton), findsOneWidget);
+      final listView = tester.widget<ListView>(find.byType(ListView));
+      expect(listView.reverse, isTrue);
+      expect(listView.physics, isA<NeverScrollableScrollPhysics>());
     });
 
-    testWidgets('scroll-to-bottom FAB scrolls to bottom when tapped',
+    testWidgets('drag gesture cannot scroll the view away from the tail',
         (tester) async {
       final lines = createStyledLines(
         List.generate(100, (i) => 'Line $i with some extra text'),
@@ -144,18 +140,22 @@ void main() {
       await pumpTerminalView(tester, lines: lines);
       await tester.pumpAndSettle();
 
-      // Scroll down a bit (away from bottom).
-      await tester.drag(find.byType(ListView), const Offset(0, -100));
+      // Attempting to drag should not move the scroll position — the
+      // ListView is configured with NeverScrollableScrollPhysics.
+      await tester.drag(find.byType(ListView), const Offset(0, -200));
       await tester.pump();
 
-      // FAB should be visible.
-      expect(find.byType(FloatingActionButton), findsOneWidget);
+      final scrollable = tester.widget<Scrollable>(find.byType(Scrollable));
+      expect(scrollable.controller?.offset ?? 0.0, 0.0);
+    });
 
-      // Tap the FAB.
-      await tester.tap(find.byType(FloatingActionButton));
+    testWidgets('no floating action button is present', (tester) async {
+      final lines = createStyledLines(
+        List.generate(100, (i) => 'Line $i'),
+      );
+      await pumpTerminalView(tester, lines: lines);
       await tester.pumpAndSettle();
 
-      // FAB should disappear (back at bottom).
       expect(find.byType(FloatingActionButton), findsNothing);
     });
   });

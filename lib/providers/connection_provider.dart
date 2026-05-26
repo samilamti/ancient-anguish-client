@@ -97,30 +97,6 @@ final inputControllerProvider = Provider<TextEditingController>((ref) {
   return controller;
 });
 
-/// Bumped whenever the user explicitly sends a command — the terminal
-/// view listens and snaps to the bottom regardless of the user's prior
-/// scroll position. Implemented as a monotonically-increasing counter so
-/// consumers can `ref.listen` and react to any state change. Use
-/// [bumpScrollToBottom] from each user-initiated send site.
-final scrollTerminalToBottomProvider =
-    NotifierProvider<ScrollTerminalToBottomNotifier, int>(
-        ScrollTerminalToBottomNotifier.new);
-
-class ScrollTerminalToBottomNotifier extends Notifier<int> {
-  @override
-  int build() => 0;
-  void trigger() => state = state + 1;
-}
-
-/// Convenience helper for user-initiated send sites: sends the command and
-/// bumps [scrollTerminalToBottomProvider] so the terminal snaps to the
-/// bottom. Use this instead of `service.sendCommand(...)` from widget code
-/// so the auto-scroll behaviour stays centralised.
-void sendUserCommand(WidgetRef ref, String command) {
-  ref.read(connectionServiceProvider).sendCommand(command);
-  ref.read(scrollTerminalToBottomProvider.notifier).trigger();
-}
-
 /// The terminal buffer – a list of styled lines representing all output.
 ///
 /// This is the core state that the terminal view renders.

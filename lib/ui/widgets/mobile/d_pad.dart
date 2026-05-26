@@ -32,22 +32,16 @@ class DPad extends ConsumerWidget {
     void send(String command) {
       ref.read(connectionServiceProvider).sendCommand(command);
       ref.read(gameStateProvider.notifier).recordDirectionalAttempt(command);
-      ref.read(scrollTerminalToBottomProvider.notifier).trigger();
     }
 
     void runAliasSlot(AliasRule rule) {
       final engine = ref.read(aliasEngineProvider);
       final service = ref.read(connectionServiceProvider);
       FocusManager.instance.primaryFocus?.unfocus();
-      var sent = false;
       for (final outgoing in engine.expand(rule.keyword)) {
         if (outgoing.isNotEmpty) {
           service.sendCommand(outgoing);
-          sent = true;
         }
-      }
-      if (sent) {
-        ref.read(scrollTerminalToBottomProvider.notifier).trigger();
       }
     }
 

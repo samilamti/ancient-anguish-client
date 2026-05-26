@@ -9,24 +9,23 @@ import '../../../core/constants.dart';
 import '../../../protocol/ansi/styled_span.dart';
 import '../../../providers/background_image_provider.dart';
 import '../../../providers/connection_provider.dart'
-    show connectionServiceProvider, terminalBufferProvider, inputFocusProvider,
-    scrollTerminalToBottomProvider;
+    show connectionServiceProvider, terminalBufferProvider, inputFocusProvider;
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
-import '../../../providers/framed_text_block_provider.dart';
-import '../../../providers/map_block_provider.dart';
 import '../../../services/platform/file_utils.dart';
-import 'framed_text_block_widget.dart';
-import 'map_block_widget.dart';
+import '../../screens/history_screen.dart';
+import 'terminal_line.dart';
 import 'terminal_selection.dart';
 import 'terminal_selection_controller.dart';
 
 /// The main terminal output widget.
 ///
-/// Displays the scrollback buffer as a scrollable list of styled text lines.
-/// Uses [ListView.builder] for efficient rendering of large buffers.
-/// Implements custom text selection with inverse-video highlighting.
+/// Renders the tail of the scrollback buffer pinned to the bottom of the
+/// viewport. Lines that don't fit are clipped off the top — there is no
+/// scrolling in this view. The full buffer remains accessible via the
+/// dedicated [HistoryScreen] (opened from the AppBar or by double-tapping
+/// the terminal).
 class TerminalView extends ConsumerStatefulWidget {
   const TerminalView({super.key});
 
@@ -35,12 +34,9 @@ class TerminalView extends ConsumerStatefulWidget {
 }
 
 class _TerminalViewState extends ConsumerState<TerminalView> {
-  final ScrollController _scrollController = ScrollController();
   final TerminalSelectionController _selectionController =
       TerminalSelectionController();
   final FocusNode _focusNode = FocusNode();
-  bool _autoScroll = true;
-  double? _lastMaxScrollExtent;
 
   // Pointer-based tap detection (replaces GestureDetector to avoid
   // competing with SelectionArea in the gesture arena).
@@ -50,7 +46,6 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   bool _pointerMoved = false;
   bool _primaryButtonDown = false;
   Timer? _tapTimer;
-  Timer? _autoScrollTimer;
 
   static const double _tapSlopSquared = 18.0 * 18.0;
   static const Duration _doubleTapTimeout = Duration(milliseconds: 300);
@@ -62,17 +57,8 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   double _measuredFontSize = 0;
 
   @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
   void dispose() {
     _tapTimer?.cancel();
-    _autoScrollTimer?.cancel();
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -90,27 +76,10 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
       textDirection: TextDirection.ltr,
     )..layout();
     _charWidth = painter.width;
-    // Line height = font metrics + vertical padding (0.5 top + 0.5 bottom).
     _lineHeight = painter.height + 1.0;
     painter.dispose();
     _fontMeasured = true;
     _measuredFontSize = fontSize;
-  }
-
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    final position = _scrollController.position;
-    final wasAutoScroll = _autoScroll;
-    _autoScroll = position.pixels >= position.maxScrollExtent - 50;
-    if (wasAutoScroll != _autoScroll) {
-      setState(() {});
-    }
-  }
-
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-    }
   }
 
   // ---------------------------------------------------------------------------
@@ -120,20 +89,30 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   TerminalPosition? _hitTest(Offset localPosition, List<StyledLine> lines) {
     if (_charWidth == 0 || _lineHeight == 0 || lines.isEmpty) return null;
 
-    final scrollOffset = _scrollController.hasClients
-        ? _scrollController.offset
-        : 0.0;
-    // Account for ListView padding (horizontal: 8, vertical: 4).
-    final adjustedY = localPosition.dy + scrollOffset - 4.0;
+    final box = context.findRenderObject() as RenderBox?;
+    final viewportHeight = box?.size.height ?? 0;
+    if (viewportHeight == 0) return null;
+
+    // ListView(reverse: true) anchors item 0 (the newest line) at the
+    // bottom of the viewport, minus the bottom padding (vertical: 4).
+    // Measure how far the pointer is from that anchor; divide by the
+    // uniform line height to get a "visual row from the bottom" index.
+    // Variable-height children (map blocks, framed text) will misalign
+    // this math — same imperfection as the previous implementation.
+    final distanceFromBottom = viewportHeight - localPosition.dy - 4.0;
     final adjustedX = localPosition.dx - 8.0;
 
-    final lineIndex = (adjustedY / _lineHeight).floor();
-    if (lineIndex < 0) return const TerminalPosition(0, 0);
-    if (lineIndex >= lines.length) {
+    if (distanceFromBottom < 0) {
       final last = lines.length - 1;
       return TerminalPosition(last, lines[last].plainText.length);
     }
 
+    final visualRow = (distanceFromBottom / _lineHeight).floor();
+    if (visualRow >= lines.length) {
+      return const TerminalPosition(0, 0);
+    }
+
+    final lineIndex = lines.length - 1 - visualRow;
     final lineLength = lines[lineIndex].plainText.length;
     final column = (adjustedX / _charWidth).round().clamp(0, lineLength);
     return TerminalPosition(lineIndex, column);
@@ -172,10 +151,8 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
             k == LogicalKeyboardKey.shiftRight);
 
     if (shiftHeld && _selectionController.hasSelection) {
-      // Shift+click extends selection.
       if (_selectionController.updateSelection(pos)) setState(() {});
     } else {
-      // Start a new selection anchor point (won't display until pointer moves).
       _selectionController.startSelection(pos);
     }
   }
@@ -197,29 +174,20 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     if (pos != null) {
       if (_selectionController.updateSelection(pos)) setState(() {});
     }
-
-    // Auto-scroll when dragging near edges.
-    _handleAutoScroll(localPos);
   }
 
   void _onPointerUp(PointerUpEvent event) {
     _primaryButtonDown = false;
-    _autoScrollTimer?.cancel();
-    _autoScrollTimer = null;
 
-    // Auto-copy when user finishes a drag-to-select gesture.
     if (_selectionController.hasSelection && _pointerMoved) {
-      // Ensure selection is non-trivial (anchor != focus).
       final sel = _selectionController.selection!;
       if (sel.anchor != sel.focus) {
         _selectionController.copyToClipboard(ref.read(terminalBufferProvider));
-        // Focus the terminal so Ctrl+C works for subsequent copies.
         _focusNode.requestFocus();
         return;
       }
     }
 
-    // --- Tap detection ---
     final timeSinceDown = DateTime.now().difference(_lastPointerDown);
     if (_pointerMoved || timeSinceDown > const Duration(milliseconds: 500)) {
       _resetTapState();
@@ -247,55 +215,6 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     }
   }
 
-  void _handleAutoScroll(Offset localPosition) {
-    const edgeThreshold = 40.0;
-    const scrollSpeed = 8.0;
-
-    final viewportHeight =
-        (context.findRenderObject() as RenderBox?)?.size.height ?? 0;
-
-    if (localPosition.dy < edgeThreshold) {
-      _autoScrollTimer ??= Timer.periodic(
-        const Duration(milliseconds: 16),
-        (_) {
-          if (!_scrollController.hasClients) return;
-          _scrollController.jumpTo(
-            (_scrollController.offset - scrollSpeed)
-                .clamp(0, _scrollController.position.maxScrollExtent),
-          );
-          // Update selection at new scroll position.
-          final box = context.findRenderObject() as RenderBox?;
-          if (box == null) return;
-          final pos = _hitTestAuto(Offset(localPosition.dx, 0));
-          if (pos != null && _selectionController.updateSelection(pos)) {
-            setState(() {});
-          }
-        },
-      );
-    } else if (localPosition.dy > viewportHeight - edgeThreshold) {
-      _autoScrollTimer ??= Timer.periodic(
-        const Duration(milliseconds: 16),
-        (_) {
-          if (!_scrollController.hasClients) return;
-          _scrollController.jumpTo(
-            (_scrollController.offset + scrollSpeed)
-                .clamp(0, _scrollController.position.maxScrollExtent),
-          );
-          final box = context.findRenderObject() as RenderBox?;
-          if (box == null) return;
-          final pos =
-              _hitTestAuto(Offset(localPosition.dx, viewportHeight));
-          if (pos != null && _selectionController.updateSelection(pos)) {
-            setState(() {});
-          }
-        },
-      );
-    } else {
-      _autoScrollTimer?.cancel();
-      _autoScrollTimer = null;
-    }
-  }
-
   void _resetTapState() {
     _tapCount = 0;
     _tapTimer?.cancel();
@@ -304,8 +223,6 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
 
   void _handleSingleTap() {
     final sel = _selectionController.selection;
-    // Only treat as "deselect" if there's a non-trivial selection
-    // (anchor != focus). A zero-width selection from pointer-down is not real.
     if (sel != null && sel.anchor != sel.focus) {
       _selectionController.clearSelection();
       setState(() {});
@@ -315,19 +232,20 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     ref.read(inputFocusProvider).requestFocus();
   }
 
+  /// Double-tap opens the dedicated history screen. The live terminal is
+  /// pinned to the bottom by construction, so the previous "snap to
+  /// bottom" gesture has nothing to do.
   void _handleDoubleTap() {
-    setState(() {
-      _autoScroll = true;
-    });
-    _scrollToBottom();
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const HistoryScreen()),
+    );
   }
 
   /// Dispatches a tap on a text-to-link span — sends the command to the
-  /// MUD and snaps the terminal to the bottom so the response is visible.
+  /// MUD. The tail is already pinned, so no scroll action is needed.
   void _sendLinkCommand(String command) {
     if (command.trim().isEmpty) return;
     ref.read(connectionServiceProvider).sendCommand(command);
-    ref.read(scrollTerminalToBottomProvider.notifier).trigger();
   }
 
   // ---------------------------------------------------------------------------
@@ -456,28 +374,6 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     final selection = _selectionController.selection;
     final bgImagePath = ref.watch(backgroundImageProvider);
 
-    // Auto-scroll when new lines arrive.
-    ref.listen<List<StyledLine>>(terminalBufferProvider, (previous, next) {
-      if (_autoScroll && next.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollToBottom();
-        });
-      }
-    });
-
-    // Force-scroll to the bottom whenever the user sends a command, even if
-    // they had scrolled up. Re-pins auto-scroll so subsequent server output
-    // keeps following the bottom.
-    ref.listen<int>(scrollTerminalToBottomProvider, (previous, next) {
-      if (previous == next) return;
-      setState(() {
-        _autoScroll = true;
-      });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
-    });
-
     return Focus(
       focusNode: _focusNode,
       onKeyEvent: _onKeyEvent,
@@ -502,155 +398,33 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
                   ),
                 ),
 
-              // Terminal output. The NotificationListener re-pins the view
-              // to the bottom whenever the scroll metrics change without a
-              // user scroll — e.g. the soft keyboard appears or the Area /
-              // Audio bars collapse, which shrinks the viewport and would
-              // otherwise leave the latest output scrolled off-screen.
+              // Tail-only terminal output. `reverse: true` anchors the
+              // newest line at the bottom and grows up; older lines clip
+              // off the top. `NeverScrollableScrollPhysics` makes the
+              // view truly fixed — no drag, no wheel, no jumps.
               MouseRegion(
                 cursor: SystemMouseCursors.text,
-                child: NotificationListener<ScrollMetricsNotification>(
-                  onNotification: (notification) {
-                    final newMax = notification.metrics.maxScrollExtent;
-                    final oldMax = _lastMaxScrollExtent;
-                    _lastMaxScrollExtent = newMax;
-                    // Skip the very first metrics emission (initial layout)
-                    // and any redundant ones — only react when the scroll
-                    // extent actually moved, which is what indicates a
-                    // viewport or content size change.
-                    if (oldMax != null && oldMax != newMax && _autoScroll) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (_autoScroll) _scrollToBottom();
-                      });
-                    }
-                    return false;
+                child: ListView.builder(
+                  reverse: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  itemCount: lines.length,
+                  itemBuilder: (context, i) {
+                    final lineIndex = lines.length - 1 - i;
+                    return TerminalLine(
+                      line: lines[lineIndex],
+                      lineIndex: lineIndex,
+                      selection: selection,
+                      fontSize: fontSize,
+                      onCommandTap: _sendLinkCommand,
+                    );
                   },
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    cacheExtent: 2000,
-                    itemCount: lines.length,
-                    itemBuilder: (context, index) {
-                      return _TerminalLine(
-                        line: lines[index],
-                        lineIndex: index,
-                        selection: selection,
-                        fontSize: fontSize,
-                        onCommandTap: _sendLinkCommand,
-                      );
-                    },
-                  ),
                 ),
               ),
-
-              // "Scroll to bottom" indicator when not auto-scrolling.
-              if (!_autoScroll)
-                Positioned(
-                  bottom: 8,
-                  right: 8,
-                  child: FloatingActionButton.small(
-                    onPressed: () {
-                      setState(() {
-                        _autoScroll = true;
-                      });
-                      _scrollToBottom();
-                    },
-                    child: const Icon(Icons.arrow_downward),
-                  ),
-                ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// A single line of styled terminal output.
-class _TerminalLine extends StatelessWidget {
-  final StyledLine line;
-  final int lineIndex;
-  final TerminalSelection? selection;
-  final double fontSize;
-  final void Function(String command)? onCommandTap;
-
-  const _TerminalLine({
-    required this.line,
-    required this.lineIndex,
-    this.selection,
-    required this.fontSize,
-    this.onCommandTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (line.spans.isEmpty) {
-      // Empty line – render as a space so it takes up space consistently.
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 0.5),
-        child: RichText(
-          text: TextSpan(
-            text: ' ',
-            style: TextStyle(
-              fontFamily: TerminalDefaults.fontFamily,
-              fontSize: fontSize,
-            ),
-          ),
-        ),
-      );
-    }
-
-    // Map-block sentinel line → render as a grid widget. The block data
-    // lives in [mapBlocksProvider], keyed by the id embedded in the line.
-    final blockId = tryParseBlockId(line.plainText);
-    if (blockId != null) {
-      return Consumer(
-        builder: (context, ref, _) {
-          final block = ref.watch(mapBlocksProvider)[blockId];
-          if (block == null) return const SizedBox.shrink();
-          return MapBlockWidget(block: block, fontSize: fontSize);
-        },
-      );
-    }
-
-    // Framed-text sentinel → render as a parchment card. Non-map `+---+`
-    // blocks (shop listings, info cards) land here.
-    final framedId = tryParseFramedBlockId(line.plainText);
-    if (framedId != null) {
-      return Consumer(
-        builder: (context, ref, _) {
-          final block = ref.watch(framedTextBlocksProvider)[framedId];
-          if (block == null) return const SizedBox.shrink();
-          return FramedTextBlockWidget(block: block, fontSize: fontSize);
-        },
-      );
-    }
-
-    final range = selection?.selectedRangeForLine(
-      lineIndex,
-      line.plainText.length,
-    );
-
-    final textSpan = range != null
-        ? line.toSelectedTextSpan(
-            fontFamily: TerminalDefaults.fontFamily,
-            fontSize: fontSize,
-            startCol: range.startCol,
-            endCol: range.endCol,
-            onCommandTap: onCommandTap,
-          )
-        : line.toTextSpan(
-            fontFamily: TerminalDefaults.fontFamily,
-            fontSize: fontSize,
-            onCommandTap: onCommandTap,
-          );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 0.5),
-      child: RichText(
-        text: textSpan,
-        softWrap: true,
       ),
     );
   }

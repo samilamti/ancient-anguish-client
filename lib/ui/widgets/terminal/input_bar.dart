@@ -5,8 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/alias_provider.dart';
 import '../../../providers/connection_provider.dart'
     show connectionServiceProvider, commandHistoryProvider, inputFocusProvider,
-    inputControllerProvider, scrollTerminalToBottomProvider,
-    terminalBufferProvider;
+    inputControllerProvider, terminalBufferProvider;
 import '../../../providers/game_state_provider.dart';
 import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
@@ -83,11 +82,6 @@ class _InputBarState extends ConsumerState<InputBar> {
           ? EmojiParser.reverseEmojis(cmd)
           : cmd;
       service.sendCommand(outgoing);
-    }
-    // Snap the terminal to the bottom so the user always sees the result of
-    // the command they just sent, regardless of where they had scrolled.
-    if (expanded.isNotEmpty) {
-      ref.read(scrollTerminalToBottomProvider.notifier).trigger();
     }
     history.add(command);
     _resetHistorySearch();

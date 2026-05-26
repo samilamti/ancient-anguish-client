@@ -26,6 +26,7 @@ import 'about_screen.dart';
 import 'advanced_customization_screen.dart';
 import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
+import 'history_screen.dart';
 import 'support_screen.dart';
 import 'text_link_rules_screen.dart';
 import 'trigger_settings_screen.dart';
@@ -183,6 +184,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   },
                   active: settings.socialWindowsEnabled,
                 ),
+              _ToolbarItem(
+                icon: Icons.history,
+                label: 'History',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const HistoryScreen(),
+                    ),
+                  );
+                },
+              ),
               _ToolbarItem(
                 emoji: '⌫',
                 label: 'Clear',

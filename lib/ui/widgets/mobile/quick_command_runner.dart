@@ -19,7 +19,6 @@ Future<void> runQuickCommand(
 
   if (!cmd.selectTarget) {
     service.sendCommand(cmd.command);
-    ref.read(scrollTerminalToBottomProvider.notifier).trigger();
     return;
   }
 
@@ -41,5 +40,4 @@ Future<void> runQuickCommand(
   );
   if (chosen == null || chosen.isEmpty) return;
   service.sendCommand('${cmd.command} $chosen');
-  ref.read(scrollTerminalToBottomProvider.notifier).trigger();
 }

@@ -208,6 +208,33 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
     );
   }
 
+  // ── Mobile open/close ──
+  //
+  // The SWC overlay on mobile covers the terminal fullscreen, so it needs
+  // an explicit open/close gate. [openMobileTab] forces tabbed mode + all
+  // panels visible (so the tabbed view renders) and activates the chosen
+  // tab. [closeMobile] flips the ephemeral `mobileOpen` flag back off
+  // without touching the per-panel visibility flags that desktop relies on.
+
+  void openMobileTab(int index) {
+    state = state.copyWith(
+      mobileOpen: true,
+      tabMode: PanelTabMode.tabbed,
+      chatPanel: state.chatPanel.copyWith(visible: true),
+      tellsPanel: state.tellsPanel.copyWith(visible: true),
+      partyPanel: state.partyPanel.copyWith(visible: true),
+      notesPanel: state.notesPanel.copyWith(visible: true),
+      activeTab: index,
+      chatHasUnread: index == 0 ? false : state.chatHasUnread,
+      tellsHasUnread: index == 1 ? false : state.tellsHasUnread,
+      partyHasUnread: index == 2 ? false : state.partyHasUnread,
+    );
+  }
+
+  void closeMobile() {
+    state = state.copyWith(mobileOpen: false);
+  }
+
   // ── Unread indicators ──
 
   void markChatUnread() {

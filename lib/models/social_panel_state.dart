@@ -55,6 +55,12 @@ class SocialWindowsState {
   final bool chatHasUnread;
   final bool tellsHasUnread;
   final bool partyHasUnread;
+  // Ephemeral mobile-only "is the SWC overlay currently shown?" flag.
+  // Desktop ignores this — visibility there is driven by panel.visible.
+  // On mobile the overlay covers the terminal fullscreen, so we need an
+  // explicit open/close gate independent of the per-panel visibility
+  // booleans (which default to true and persist across runs).
+  final bool mobileOpen;
 
   const SocialWindowsState({
     this.chatPanel = const SocialPanelState(
@@ -78,6 +84,7 @@ class SocialWindowsState {
     this.chatHasUnread = false,
     this.tellsHasUnread = false,
     this.partyHasUnread = false,
+    this.mobileOpen = false,
   });
 
   SocialWindowsState copyWith({
@@ -90,6 +97,7 @@ class SocialWindowsState {
     bool? chatHasUnread,
     bool? tellsHasUnread,
     bool? partyHasUnread,
+    bool? mobileOpen,
   }) {
     return SocialWindowsState(
       chatPanel: chatPanel ?? this.chatPanel,
@@ -101,6 +109,7 @@ class SocialWindowsState {
       chatHasUnread: chatHasUnread ?? this.chatHasUnread,
       tellsHasUnread: tellsHasUnread ?? this.tellsHasUnread,
       partyHasUnread: partyHasUnread ?? this.partyHasUnread,
+      mobileOpen: mobileOpen ?? this.mobileOpen,
     );
   }
 }

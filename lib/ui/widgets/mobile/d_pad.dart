@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/alias_rule.dart';
@@ -61,7 +62,10 @@ class DPad extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
-          // Floor navigation column.
+          // Floor navigation column + dismiss-keyboard button. The button's
+          // onTap already unfocuses the primary focus (see _DPadButton);
+          // we also poke SystemChannels so iOS reliably hides the soft
+          // keyboard rather than leaving it floating above the terminal.
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -75,6 +79,14 @@ class DPad extends ConsumerWidget {
                 label: 'Down',
                 emoji: '🔽',
                 onPressed: () => send('down'),
+              ),
+              const SizedBox(height: 4),
+              _DPadButton(
+                label: 'Hide keyboard',
+                icon: Icons.keyboard_hide,
+                onPressed: () {
+                  SystemChannels.textInput.invokeMethod('TextInput.hide');
+                },
               ),
             ],
           ),

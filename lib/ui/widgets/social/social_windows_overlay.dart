@@ -16,6 +16,14 @@ class SocialWindowsOverlay extends ConsumerWidget {
 
     final panelState = ref.watch(socialPanelProvider);
     final screenSize = MediaQuery.of(context).size;
+    final isMobile = screenSize.width < 768;
+
+    // On mobile the overlay is opt-in: the user taps a tab button in the
+    // AppBar to open it. Per-panel visibility defaults to true (desktop
+    // semantics) so we can't gate on that — `mobileOpen` is the explicit
+    // open/close flag.
+    if (isMobile && !panelState.mobileOpen) return const SizedBox.shrink();
+
     final widgets = <Widget>[];
 
     if (panelState.tabMode == PanelTabMode.tabbed &&
@@ -28,6 +36,7 @@ class SocialWindowsOverlay extends ConsumerWidget {
         _positionPanel(
           panelState.chatPanel,
           screenSize,
+          isMobile,
           const SocialPanel(panelType: SocialPanelType.tabbed),
         ),
       );
@@ -38,6 +47,7 @@ class SocialWindowsOverlay extends ConsumerWidget {
           _positionPanel(
             panelState.chatPanel,
             screenSize,
+            isMobile,
             const SocialPanel(panelType: SocialPanelType.chat),
           ),
         );
@@ -47,6 +57,7 @@ class SocialWindowsOverlay extends ConsumerWidget {
           _positionPanel(
             panelState.tellsPanel,
             screenSize,
+            isMobile,
             const SocialPanel(panelType: SocialPanelType.tells),
           ),
         );
@@ -56,6 +67,7 @@ class SocialWindowsOverlay extends ConsumerWidget {
           _positionPanel(
             panelState.partyPanel,
             screenSize,
+            isMobile,
             const SocialPanel(panelType: SocialPanelType.party),
           ),
         );
@@ -65,6 +77,7 @@ class SocialWindowsOverlay extends ConsumerWidget {
           _positionPanel(
             panelState.notesPanel,
             screenSize,
+            isMobile,
             const SocialPanel(panelType: SocialPanelType.notes),
           ),
         );
@@ -79,8 +92,14 @@ class SocialWindowsOverlay extends ConsumerWidget {
   Widget _positionPanel(
     SocialPanelState ps,
     Size screenSize,
+    bool isMobile,
     Widget child,
   ) {
+    if (isMobile) {
+      // Fullscreen on mobile regardless of dock/float state — the persisted
+      // 480-wide docked-right geometry doesn't fit a phone.
+      return Positioned.fill(child: child);
+    }
     if (ps.isDocked) {
       return _buildDockedPanel(ps, screenSize, child);
     }

@@ -176,6 +176,14 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
 
   void _close() {
     final notifier = ref.read(socialPanelProvider.notifier);
+    // On mobile, closing the (fullscreen) tabbed overlay just flips the
+    // ephemeral mobileOpen flag — leave the per-panel visibility flags
+    // alone so tapping a tab button reopens cleanly.
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    if (isMobile && widget.panelType == SocialPanelType.tabbed) {
+      notifier.closeMobile();
+      return;
+    }
     if (widget.panelType == SocialPanelType.tabbed) {
       notifier.separateFromTabs();
       notifier.toggleChatVisible();

@@ -78,17 +78,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       loading: () => false,
       error: (_, _) => false,
     );
-    final connectLabel = statusAsync.when(
-      data: (status) => switch (status) {
-        ConnectionStatus.connecting => 'Connecting…',
-        ConnectionStatus.disconnecting => 'Disconnecting…',
-        ConnectionStatus.connected => 'Disconnect',
-        ConnectionStatus.disconnected => 'Reconnect',
-        ConnectionStatus.error => 'Reconnect',
-      },
-      loading: () => 'Reconnect',
-      error: (_, _) => 'Reconnect',
-    );
     final isMobile = MediaQuery.of(context).size.width < 768;
     final keyboardHidesSecondaryBars =
         isMobile && MediaQuery.viewInsetsOf(context).bottom > 0;
@@ -123,18 +112,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           _OverflowToolbar(
             isMobile: isMobile,
             items: [
-              _ToolbarItem(
-                icon: isConnected ? Icons.link_off : Icons.link,
-                label: connectLabel,
-                onPressed: () {
-                  final service = ref.read(connectionServiceProvider);
-                  if (isConnected) {
-                    service.disconnect();
-                  } else {
-                    service.connect();
-                  }
-                },
-              ),
+              // Mobile-only social tab buttons. The fullscreen SWC overlay
+              // is opt-in on mobile (see `mobileOpen` flag), and these
+              // four buttons are the entry point — each opens the tabbed
+              // panel on the chosen tab and requests focus on its input.
+              if (isMobile) ...[
+                _ToolbarItem(
+                  icon: Icons.chat_bubble_outline,
+                  label: 'Chat',
+                  onPressed: () =>
+                      _focusSocialTab(ref, 0, forceMobileOpen: true),
+                ),
+                _ToolbarItem(
+                  icon: Icons.alternate_email,
+                  label: 'Tells',
+                  onPressed: () =>
+                      _focusSocialTab(ref, 1, forceMobileOpen: true),
+                ),
+                _ToolbarItem(
+                  icon: Icons.groups,
+                  label: 'Party',
+                  onPressed: () =>
+                      _focusSocialTab(ref, 2, forceMobileOpen: true),
+                ),
+                _ToolbarItem(
+                  icon: Icons.sticky_note_2_outlined,
+                  label: 'Notes',
+                  onPressed: () =>
+                      _focusSocialTab(ref, 3, forceMobileOpen: true),
+                ),
+              ],
               // Immersions / Aliases / Areas live in the AppBar on desktop;
               // on mobile they're relocated to the Settings drawer to free
               // toolbar space.
@@ -184,35 +191,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   },
                   active: settings.socialWindowsEnabled,
                 ),
-              _ToolbarItem(
-                icon: Icons.history,
-                label: 'History',
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const HistoryScreen(),
-                    ),
-                  );
-                },
-              ),
-              _ToolbarItem(
-                emoji: '⌫',
-                label: 'Clear',
-                onPressed: () {
-                  ref.read(terminalBufferProvider.notifier).clear();
-                },
-              ),
-              _ToolbarItem(
-                icon: Icons.info_outline,
-                label: 'About',
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const AboutScreen(),
-                    ),
-                  );
-                },
-              ),
+              // History + About live in the AppBar on desktop; on mobile
+              // they're relocated to the Settings drawer to free toolbar
+              // space for the social-tab focus buttons.
+              if (!isMobile) ...[
+                _ToolbarItem(
+                  icon: Icons.history,
+                  label: 'History',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const HistoryScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _ToolbarItem(
+                  icon: Icons.info_outline,
+                  label: 'About',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AboutScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ],
             // Settings is always pinned at the end.
             pinned: _ToolbarItem(
@@ -288,8 +293,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
 
-            // Social windows overlay (floating/docked panels).
-            if (!isMobile) const Positioned.fill(child: SocialWindowsOverlay()),
+            // Social windows overlay. On desktop, panels float/dock around
+            // the terminal; on mobile, the overlay is opt-in (gated by the
+            // SWC `mobileOpen` flag — see [SocialWindowsOverlay]) and
+            // covers the terminal fullscreen when the user taps a social
+            // tab button in the AppBar.
+            const Positioned.fill(child: SocialWindowsOverlay()),
 
             // Login dialog overlay.
             if (ref.watch(loginProvider) is LoginPromptDetected) ...[
@@ -322,26 +331,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// The focus request runs on the next microtask so the tab switch lands
   /// first — the target widget (e.g. `_NotesBody` or the `SocialInputBar`)
   /// may not yet be mounted when switching in from a different tab.
-  void _focusSocialTab(WidgetRef ref, int tabIndex) {
+  void _focusSocialTab(
+    WidgetRef ref,
+    int tabIndex, {
+    bool forceMobileOpen = false,
+  }) {
     final panelNotifier = ref.read(socialPanelProvider.notifier);
-    final panelState = ref.read(socialPanelProvider);
 
-    switch (tabIndex) {
-      case 0:
-        panelNotifier.showChat();
-        break;
-      case 1:
-        panelNotifier.showTells();
-        break;
-      case 2:
-        panelNotifier.showParty();
-        break;
-      case 3:
-        panelNotifier.showNotes();
-        break;
-    }
-    if (panelState.tabMode == PanelTabMode.tabbed) {
-      panelNotifier.setActiveTab(tabIndex);
+    if (forceMobileOpen) {
+      // Mobile tab-button path: re-enable SWC if it was switched off in
+      // settings, then open the fullscreen tabbed overlay with this tab
+      // active. openMobileTab forces tabbed + all-visible + activeTab.
+      final settings = ref.read(settingsProvider);
+      if (!settings.socialWindowsEnabled) {
+        ref.read(settingsProvider.notifier).toggleSocialWindows();
+      }
+      panelNotifier.openMobileTab(tabIndex);
+    } else {
+      switch (tabIndex) {
+        case 0:
+          panelNotifier.showChat();
+          break;
+        case 1:
+          panelNotifier.showTells();
+          break;
+        case 2:
+          panelNotifier.showParty();
+          break;
+        case 3:
+          panelNotifier.showNotes();
+          break;
+      }
+      final panelState = ref.read(socialPanelProvider);
+      if (panelState.tabMode == PanelTabMode.tabbed) {
+        panelNotifier.setActiveTab(tabIndex);
+      }
     }
 
     Future.microtask(() {
@@ -576,32 +600,51 @@ class _OverflowToolbar extends StatelessWidget {
   }
 }
 
-/// Small dot indicator showing connection status.
-class _ConnectionIndicator extends StatelessWidget {
+/// Small dot indicator showing connection status. Tap to connect/disconnect.
+class _ConnectionIndicator extends ConsumerWidget {
   final bool isConnected;
 
   const _ConnectionIndicator({required this.isConnected});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Tooltip(
-      message: isConnected ? 'Online' : 'Offline',
-      child: Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isConnected ? Colors.green : Colors.red,
-            boxShadow: [
-              BoxShadow(
-                color: (isConnected ? Colors.green : Colors.red)
-                    .withAlpha(100),
-                blurRadius: 4,
-                spreadRadius: 1,
+      message: isConnected
+          ? 'Online — tap to disconnect'
+          : 'Offline — tap to connect',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          final service = ref.read(connectionServiceProvider);
+          if (isConnected) {
+            service.disconnect();
+          } else {
+            service.connect();
+          }
+        },
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Center(
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isConnected ? Colors.green : Colors.red,
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isConnected ? Colors.green : Colors.red)
+                          .withAlpha(100),
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -662,6 +705,16 @@ class _SettingsDrawer extends ConsumerWidget {
                 title: 'Area Configuration',
                 onTap: () => _openScreen(
                     context, const AreaConfigurationScreen()),
+              ),
+              _DrawerNavTile(
+                icon: const Icon(Icons.history, size: 20),
+                title: 'Command History',
+                onTap: () => _openScreen(context, const HistoryScreen()),
+              ),
+              _DrawerNavTile(
+                icon: const Icon(Icons.info_outline, size: 20),
+                title: 'About',
+                onTap: () => _openScreen(context, const AboutScreen()),
               ),
             ],
 

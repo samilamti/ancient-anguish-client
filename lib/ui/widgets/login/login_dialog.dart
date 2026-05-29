@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/login_provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../providers/social_panel_provider.dart' show isDesktopPlatform;
 
 /// Overlay dialog for entering login credentials or choosing guest.
 class LoginDialog extends ConsumerStatefulWidget {
@@ -17,12 +19,17 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
   TextEditingController? _acController;
   final _passwordController = TextEditingController();
   final _passwordFocus = FocusNode();
+  // Holds focus for the number-key quick-login shortcuts so digits don't leak
+  // into a text field. See [build] for why it's grabbed explicitly.
+  final _dialogFocus = FocusNode();
+  bool _grabbedDialogFocus = false;
   bool _remember = true;
 
   @override
   void dispose() {
     _passwordController.dispose();
     _passwordFocus.dispose();
+    _dialogFocus.dispose();
     super.dispose();
   }
 
@@ -40,6 +47,33 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
     ref
         .read(loginProvider.notifier)
         .submitCredentials(alt.name, alt.password, true);
+  }
+
+  /// Number-key shortcuts (1-9) for the first nine saved characters, in the
+  /// order they're listed: press `1` to log in the first character, `2` the
+  /// second, and so on. Desktop quality-of-life. These only fire while no
+  /// text field in the dialog holds focus — a focused field consumes the
+  /// digit instead — which is why the dialog wraps its body in a [Focus] that
+  /// is given focus on desktop (see [build]).
+  Map<ShortcutActivator, VoidCallback> _altShortcuts(List<SavedAlt> alts) {
+    const digits = <LogicalKeyboardKey>[
+      LogicalKeyboardKey.digit1,
+      LogicalKeyboardKey.digit2,
+      LogicalKeyboardKey.digit3,
+      LogicalKeyboardKey.digit4,
+      LogicalKeyboardKey.digit5,
+      LogicalKeyboardKey.digit6,
+      LogicalKeyboardKey.digit7,
+      LogicalKeyboardKey.digit8,
+      LogicalKeyboardKey.digit9,
+    ];
+    final count = alts.length < digits.length ? alts.length : digits.length;
+    final bindings = <ShortcutActivator, VoidCallback>{};
+    for (var i = 0; i < count; i++) {
+      final alt = alts[i];
+      bindings[SingleActivator(digits[i])] = () => _quickLogin(alt);
+    }
+    return bindings;
   }
 
   String _formatRelative(DateTime ts) {
@@ -93,7 +127,22 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
     final alts = ref.watch(savedAltsProvider).value ?? <SavedAlt>[];
     final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
 
-    return Center(
+    // Number-key quick-login (1-9). For these to fire, the dialog's Focus —
+    // not a text field — must hold focus. Saved alts load asynchronously, so
+    // the name field (autofocus: alts.isEmpty) grabs focus on first build
+    // before they arrive; once they do, claim focus back to the dialog, once,
+    // so digits log in rather than typing into the field. With no saved alts
+    // we leave the name field focused for manual entry. Desktop-only: it's a
+    // hardware-keyboard feature, and skipping it on mobile avoids yanking the
+    // soft keyboard away from the name field.
+    if (alts.isNotEmpty && !_grabbedDialogFocus && isDesktopPlatform()) {
+      _grabbedDialogFocus = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _dialogFocus.requestFocus();
+      });
+    }
+
+    final body = Center(
       child: Material(
         elevation: 8,
         borderRadius: BorderRadius.circular(12),
@@ -130,7 +179,7 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          for (final alt in alts)
+                          for (final (i, alt) in alts.indexed)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Row(
@@ -151,10 +200,31 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
                                       onPressed: () => _quickLogin(alt),
                                       child: Row(
                                         children: [
-                                          Icon(
-                                            Icons.person,
-                                            size: 18,
-                                            color: theme.colorScheme.primary,
+                                          // First nine entries show their
+                                          // number-key shortcut (press 1-9);
+                                          // the rest fall back to a person icon.
+                                          SizedBox(
+                                            width: 18,
+                                            child: i < 9
+                                                ? Text(
+                                                    '${i + 1}',
+                                                    textAlign: TextAlign.center,
+                                                    style: TextStyle(
+                                                      fontFamily:
+                                                          'JetBrainsMono',
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: theme
+                                                          .colorScheme.primary,
+                                                    ),
+                                                  )
+                                                : Icon(
+                                                    Icons.person,
+                                                    size: 18,
+                                                    color: theme
+                                                        .colorScheme.primary,
+                                                  ),
                                           ),
                                           const SizedBox(width: 8),
                                           Expanded(
@@ -366,6 +436,11 @@ class _LoginDialogState extends ConsumerState<LoginDialog> {
           ),
         ),
       ),
+    );
+
+    return CallbackShortcuts(
+      bindings: _altShortcuts(alts),
+      child: Focus(focusNode: _dialogFocus, child: body),
     );
   }
 }

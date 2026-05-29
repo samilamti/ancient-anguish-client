@@ -7,6 +7,8 @@ import '../../../providers/connection_provider.dart'
     show connectionServiceProvider, commandHistoryProvider, inputFocusProvider,
     inputControllerProvider, terminalBufferProvider;
 import '../../../providers/game_state_provider.dart';
+import '../../../providers/login_provider.dart'
+    show loginProvider, LoginPromptDetected;
 import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
@@ -321,6 +323,20 @@ class _InputBarState extends ConsumerState<InputBar> {
     final fontSize = settings.fontSize;
     final wrapWidth = settings.inputWrapWidth;
     final autofocus = !_shouldHideKeyboard(settings);
+
+    // When the login dialog closes (character chosen, guest, or cancel),
+    // move keyboard focus here — the input bar is where the user drives the
+    // game from. Deferred one frame so the dialog is gone and its focus
+    // released first. Skipped when mobile keyboard-hiding is on, so we don't
+    // pop the soft keyboard against the user's preference.
+    ref.listen(loginProvider, (prev, next) {
+      if (prev is LoginPromptDetected && next is! LoginPromptDetected) {
+        if (_shouldHideKeyboard(ref.read(settingsProvider))) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _focusNode.requestFocus();
+        });
+      }
+    });
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

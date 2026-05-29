@@ -134,6 +134,12 @@ class WebConnectionService implements MudConnectionService {
   }
 
   @override
+  Future<void> reconnect([ConnectionInfo? info]) async {
+    await disconnect();
+    await connect(info);
+  }
+
+  @override
   void sendCommand(String command) {
     if (!isConnected || _channel == null) return;
     final bytes = utf8.encode('$command\r\n');

@@ -129,6 +129,14 @@ class TcpConnectionService implements MudConnectionService {
   }
 
   @override
+  Future<void> reconnect([
+    ConnectionInfo info = ConnectionInfo.ancientAnguish,
+  ]) async {
+    await disconnect();
+    await connect(info);
+  }
+
+  @override
   void sendCommand(String command) {
     if (!isConnected || _socket == null) return;
     try {

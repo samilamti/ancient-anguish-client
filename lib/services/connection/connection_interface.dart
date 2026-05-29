@@ -33,6 +33,13 @@ abstract class MudConnectionService {
   /// Disconnects from the server.
   Future<void> disconnect();
 
+  /// Drops any existing connection and connects again.
+  ///
+  /// Safe to call from any state: when already disconnected the inner
+  /// disconnect is a no-op, so this doubles as a plain connect. Backs the
+  /// Ctrl/Cmd+R "connect / reconnect" shortcut.
+  Future<void> reconnect([ConnectionInfo info]);
+
   /// Sends a user command to the MUD, terminated with CR+LF.
   void sendCommand(String command);
 

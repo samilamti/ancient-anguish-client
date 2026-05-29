@@ -252,6 +252,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               _invokeMostRecentLink,
           const SingleActivator(LogicalKeyboardKey.keyL, meta: true):
               _invokeMostRecentLink,
+          // Ctrl/Cmd + R → connect, or reconnect if already online.
+          const SingleActivator(LogicalKeyboardKey.keyR, control: true):
+              _connectOrReconnect,
+          const SingleActivator(LogicalKeyboardKey.keyR, meta: true):
+              _connectOrReconnect,
         },
         child: SafeArea(
         child: Stack(
@@ -322,6 +327,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final cmd = ref.read(terminalBufferProvider.notifier).mostRecentLinkCommand;
     if (cmd == null) return;
     ref.read(connectionServiceProvider).sendCommand(cmd);
+  }
+
+  /// Connects to the MUD, or drops and re-establishes the link when already
+  /// online — keyboard equivalent of the connection indicator. Bound to
+  /// Ctrl/Cmd+R at the HomeScreen body level so a stale connection can be
+  /// refreshed without reaching for the mouse.
+  void _connectOrReconnect() {
+    final service = ref.read(connectionServiceProvider);
+    if (service.isConnected) {
+      service.reconnect();
+    } else {
+      service.connect();
+    }
   }
 
   /// Switches the SWC to the tab at [tabIndex] (0=Chat, 1=Tells, 2=Party,

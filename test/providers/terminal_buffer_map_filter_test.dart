@@ -170,6 +170,9 @@ class _FakeConnectionService implements MudConnectionService {
   Future<void> disconnect() async {}
 
   @override
+  Future<void> reconnect([ConnectionInfo? info]) async {}
+
+  @override
   void sendCommand(String command) {}
 
   @override

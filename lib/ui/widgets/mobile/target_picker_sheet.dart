@@ -39,13 +39,34 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
     super.dispose();
   }
 
+  /// Pins whatever is currently typed in the filter field as a custom target,
+  /// then clears the field. Used by the add button and the keyboard submit.
+  void _addCurrentAsPinned() {
+    final text = _filterController.text.trim();
+    if (text.isEmpty) return;
+    ref.read(settingsProvider.notifier).addPinnedTarget(text);
+    _filterController.clear();
+    setState(() => _prefix = '');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final words = ref.watch(commonTargetsProvider);
+    final autoTargets = ref.watch(commonTargetsProvider);
+    final pinned = ref.watch(settingsProvider.select((s) => s.pinnedTargets));
     final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
-    final matches = completionsFor(words, _prefix).take(_maxResults).toList();
     final viewInsets = MediaQuery.of(context).viewInsets;
+
+    // Pinned targets sit at the top regardless of normal ordering; the
+    // auto-identified list follows with any pinned entries removed. Both honour
+    // the current filter; only the auto list is capped at [_maxResults].
+    final pinnedSet = pinned.toSet();
+    final pinnedMatches = completionsFor(pinned, _prefix).toList();
+    final otherMatches = completionsFor(autoTargets, _prefix)
+        .where((w) => !pinnedSet.contains(w))
+        .take(_maxResults)
+        .toList();
+    final totalCount = pinnedMatches.length + otherMatches.length;
 
     return Padding(
       padding: EdgeInsets.only(bottom: viewInsets.bottom),
@@ -68,7 +89,7 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
                     ),
                     const Spacer(),
                     Text(
-                      '${matches.length} match${matches.length == 1 ? '' : 'es'}',
+                      '$totalCount match${totalCount == 1 ? '' : 'es'}',
                       style: TextStyle(
                         fontSize: 12,
                         color: theme.colorScheme.onSurface.withAlpha(120),
@@ -79,25 +100,40 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: TextField(
-                  controller: _filterController,
-                  autofocus: false,
-                  autocorrect: mib.autocorrect,
-                  enableSuggestions: mib.enableSuggestions,
-                  smartDashesType: mib.smartDashesType,
-                  smartQuotesType: mib.smartQuotesType,
-                  decoration: const InputDecoration(
-                    hintText: 'Filter…',
-                    prefixIcon: Icon(Icons.search, size: 18),
-                    isDense: true,
-                  ),
-                  style: const TextStyle(fontFamily: 'JetBrainsMono'),
-                  onChanged: (value) => setState(() => _prefix = value.trim()),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _filterController,
+                        autofocus: false,
+                        textInputAction: TextInputAction.done,
+                        autocorrect: mib.autocorrect,
+                        enableSuggestions: mib.enableSuggestions,
+                        smartDashesType: mib.smartDashesType,
+                        smartQuotesType: mib.smartQuotesType,
+                        decoration: const InputDecoration(
+                          hintText: 'Filter or add target…',
+                          prefixIcon: Icon(Icons.search, size: 18),
+                          isDense: true,
+                        ),
+                        style: const TextStyle(fontFamily: 'JetBrainsMono'),
+                        onChanged: (value) =>
+                            setState(() => _prefix = value.trim()),
+                        onSubmitted: (_) => _addCurrentAsPinned(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      tooltip: 'Pin target',
+                      onPressed: _addCurrentAsPinned,
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 8),
               Flexible(
-                child: matches.isEmpty
+                child: totalCount == 0
                     ? Center(
                         child: Padding(
                           padding: const EdgeInsets.all(24),
@@ -112,28 +148,83 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
                           ),
                         ),
                       )
-                    : ListView.builder(
+                    : ListView(
                         shrinkWrap: true,
-                        itemCount: matches.length,
-                        itemBuilder: (context, index) {
-                          final word = matches[index];
-                          return ListTile(
-                            dense: true,
-                            title: Text(
-                              word,
-                              style: const TextStyle(
-                                fontFamily: 'JetBrainsMono',
-                              ),
+                        children: [
+                          for (final word in pinnedMatches)
+                            _PinnedTargetTile(
+                              word: word,
+                              theme: theme,
+                              onTap: () => Navigator.of(context).pop(word),
+                              onRemove: () => ref
+                                  .read(settingsProvider.notifier)
+                                  .removePinnedTarget(word),
                             ),
-                            onTap: () => Navigator.of(context).pop(word),
-                          );
-                        },
+                          if (pinnedMatches.isNotEmpty &&
+                              otherMatches.isNotEmpty)
+                            const Divider(height: 1),
+                          for (final word in otherMatches)
+                            ListTile(
+                              dense: true,
+                              title: Text(
+                                word,
+                                style: const TextStyle(
+                                  fontFamily: 'JetBrainsMono',
+                                ),
+                              ),
+                              onTap: () => Navigator.of(context).pop(word),
+                            ),
+                        ],
                       ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A pinned target row in the Kill picker. A pin icon and primary-coloured,
+/// semi-bold label mark it as user-pinned (distinct from auto-identified
+/// targets), with a trailing button to unpin it. Tapping the row chooses it.
+class _PinnedTargetTile extends StatelessWidget {
+  final String word;
+  final ThemeData theme;
+  final VoidCallback onTap;
+  final VoidCallback onRemove;
+
+  const _PinnedTargetTile({
+    required this.word,
+    required this.theme,
+    required this.onTap,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      dense: true,
+      leading: Icon(
+        Icons.push_pin,
+        size: 16,
+        color: theme.colorScheme.primary,
+      ),
+      title: Text(
+        word,
+        style: TextStyle(
+          fontFamily: 'JetBrainsMono',
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.close, size: 18),
+        tooltip: 'Unpin',
+        visualDensity: VisualDensity.compact,
+        onPressed: onRemove,
+      ),
+      onTap: onTap,
     );
   }
 }

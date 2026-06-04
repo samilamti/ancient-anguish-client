@@ -140,6 +140,62 @@ void main() {
     });
   });
 
+  group('SettingsNotifier - pinned targets', () {
+    test('defaults to empty', () {
+      expect(container.read(settingsProvider).pinnedTargets, isEmpty);
+    });
+
+    test('addPinnedTarget pins to the front, normalized', () {
+      notifier.addPinnedTarget('  Balrog  ');
+      expect(container.read(settingsProvider).pinnedTargets, ['balrog']);
+    });
+
+    test('newest pinned target goes to the top', () {
+      notifier.addPinnedTarget('orc');
+      notifier.addPinnedTarget('troll');
+      expect(container.read(settingsProvider).pinnedTargets, ['troll', 'orc']);
+    });
+
+    test('re-pinning an existing target moves it back to the top', () {
+      notifier.addPinnedTarget('orc');
+      notifier.addPinnedTarget('troll');
+      notifier.addPinnedTarget('orc');
+      expect(container.read(settingsProvider).pinnedTargets, ['orc', 'troll']);
+    });
+
+    test('collapses internal whitespace and lower-cases', () {
+      notifier.addPinnedTarget('Ancient   Dragon');
+      expect(
+          container.read(settingsProvider).pinnedTargets, ['ancient dragon']);
+    });
+
+    test('ignores blank input', () {
+      notifier.addPinnedTarget('   ');
+      expect(container.read(settingsProvider).pinnedTargets, isEmpty);
+    });
+
+    test('removePinnedTarget removes the entry', () {
+      notifier.addPinnedTarget('orc');
+      notifier.addPinnedTarget('troll');
+      notifier.removePinnedTarget('orc');
+      expect(container.read(settingsProvider).pinnedTargets, ['troll']);
+    });
+
+    test('removePinnedTarget is a no-op for unknown targets', () {
+      notifier.addPinnedTarget('orc');
+      notifier.removePinnedTarget('dragon');
+      expect(container.read(settingsProvider).pinnedTargets, ['orc']);
+    });
+
+    test('survives a JSON round-trip', () {
+      notifier.addPinnedTarget('orc');
+      notifier.addPinnedTarget('troll');
+      final json = container.read(settingsProvider).toJson();
+      final restored = AppSettings.fromJson(json);
+      expect(restored.pinnedTargets, ['troll', 'orc']);
+    });
+  });
+
   group('AppSettings - copyWith', () {
     test('preserves unspecified fields', () {
       const settings = AppSettings(fontSize: 16.0, themeMode: 'classic');

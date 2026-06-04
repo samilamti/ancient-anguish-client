@@ -31,6 +31,7 @@ class AppSettings {
   final bool emojiMapsEnabled; // swap ASCII map tiles for emoji
   final bool mobileAutoCorrectEnabled; // soft-keyboard autocorrect/suggestions
   final List<String> pinnedAliasIds; // up to 3 alias IDs shown as D-Pad quick slots
+  final List<String> pinnedTargets; // user-pinned targets shown atop the Kill picker
 
   /// Maximum number of alias rules that can be pinned to the D-Pad's
   /// quick-slot column at once.
@@ -69,6 +70,7 @@ class AppSettings {
     this.emojiMapsEnabled = false,
     this.mobileAutoCorrectEnabled = false,
     this.pinnedAliasIds = const [],
+    this.pinnedTargets = const [],
   });
 
   AppSettings copyWith({
@@ -92,6 +94,7 @@ class AppSettings {
     bool? emojiMapsEnabled,
     bool? mobileAutoCorrectEnabled,
     List<String>? pinnedAliasIds,
+    List<String>? pinnedTargets,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -120,6 +123,7 @@ class AppSettings {
       mobileAutoCorrectEnabled:
           mobileAutoCorrectEnabled ?? this.mobileAutoCorrectEnabled,
       pinnedAliasIds: pinnedAliasIds ?? this.pinnedAliasIds,
+      pinnedTargets: pinnedTargets ?? this.pinnedTargets,
     );
   }
 
@@ -147,6 +151,7 @@ class AppSettings {
         'emojiMapsEnabled': emojiMapsEnabled,
         'mobileAutoCorrectEnabled': mobileAutoCorrectEnabled,
         'pinnedAliasIds': pinnedAliasIds,
+        'pinnedTargets': pinnedTargets,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -184,6 +189,9 @@ class AppSettings {
           json['mobileAutoCorrectEnabled'] as bool? ?? false,
       pinnedAliasIds: json['pinnedAliasIds'] != null
           ? List<String>.from(json['pinnedAliasIds'] as List)
+          : const [],
+      pinnedTargets: json['pinnedTargets'] != null
+          ? List<String>.from(json['pinnedTargets'] as List)
           : const [],
     );
   }
@@ -328,6 +336,33 @@ class SettingsNotifier extends Notifier<AppSettings> {
     state = state.copyWith(pinnedAliasIds: List.unmodifiable(current));
     _saveSettings();
     return nowPinned;
+  }
+
+  /// Normalizes a free-text target name to a single lower-case keyword phrase
+  /// (trimmed, internal whitespace collapsed) so it can be appended to
+  /// `kill ` directly and compared consistently.
+  static String _normalizeTarget(String target) =>
+      target.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  /// Pins a manually-entered target to the top of the Kill picker, persisted
+  /// across sessions. Re-pinning an existing target moves it back to the top.
+  /// Blank input is ignored.
+  void addPinnedTarget(String target) {
+    final normalized = _normalizeTarget(target);
+    if (normalized.isEmpty) return;
+    final current = [...state.pinnedTargets]..remove(normalized);
+    current.insert(0, normalized);
+    state = state.copyWith(pinnedTargets: List.unmodifiable(current));
+    _saveSettings();
+  }
+
+  /// Removes [target] from the pinned-targets list, if present.
+  void removePinnedTarget(String target) {
+    final normalized = _normalizeTarget(target);
+    if (!state.pinnedTargets.contains(normalized)) return;
+    final current = [...state.pinnedTargets]..remove(normalized);
+    state = state.copyWith(pinnedTargets: List.unmodifiable(current));
+    _saveSettings();
   }
 
   void toggleMobileAutoCorrect() {

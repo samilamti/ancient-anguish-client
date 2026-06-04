@@ -9,11 +9,13 @@ import '../../../providers/connection_provider.dart'
 import '../../../providers/game_state_provider.dart';
 import '../../../providers/login_provider.dart'
     show loginProvider, LoginPromptDetected;
+import '../../../providers/completion_rules_provider.dart';
 import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
 import '../../../services/command_counterparts.dart';
+import '../../../services/command_loops.dart';
 import '../../../services/parser/emoji_parser.dart';
 
 /// The command input bar at the bottom of the terminal.
@@ -39,6 +41,11 @@ class _InputBarState extends ConsumerState<InputBar> {
   int _tabInsertStart = 0;
   int _tabCycleIndex = -1;
   List<String> _tabMatches = [];
+
+  /// How many recent commands the History ("Recent commands") sheet lists.
+  /// Mobile has the vertical room for a few more than the keyboard up-arrow
+  /// walk implies.
+  static const int _recentSheetCount = 8;
 
   @override
   void initState() {
@@ -75,17 +82,29 @@ class _InputBarState extends ConsumerState<InputBar> {
     // Expand aliases — may produce multiple commands (semicolons).
     final expanded = aliasEngine.expand(command);
     final settings = ref.read(settingsProvider);
+    // Break commands (e.g. `breakdo`) to drop into history after a loop
+    // command like `dotimes` is sent. Collected as a set so a multi-command
+    // line adds each break command only once.
+    final breakCommands = <String>{};
     for (final cmd in expanded) {
       // Suppress emoji parsing for map output so ASCII art renders cleanly.
       if (cmd.trim().toLowerCase() == 'read map') {
         ref.read(terminalBufferProvider.notifier).suppressEmojiUntilPrompt();
       }
+      final breakCmd = CommandLoops.breakCommandFor(cmd);
+      if (breakCmd != null) breakCommands.add(breakCmd);
       final outgoing = settings.emojiParsingEnabled
           ? EmojiParser.reverseEmojis(cmd)
           : cmd;
       service.sendCommand(outgoing);
     }
     history.add(command);
+    // After the sent command, add any loop-break commands so they become the
+    // most-recent history entries — one Up-arrow recalls `breakdo`. Added to
+    // history only; never sent automatically.
+    for (final breakCmd in breakCommands) {
+      history.add(breakCmd);
+    }
     _resetHistorySearch();
     ref.read(gameStateProvider.notifier).recordDirectionalAttempt(command);
     // Select all text so the user can resend with Enter or type to replace.
@@ -148,6 +167,17 @@ class _InputBarState extends ConsumerState<InputBar> {
     _tabPrefix = null;
     _tabCycleIndex = -1;
     _tabMatches = [];
+  }
+
+  /// Accepts a mobile auto-completion suggestion: replaces the input with
+  /// [completion] (trailing space preserved), parks the cursor at the end, and
+  /// keeps focus so the user can keep typing — mirroring desktop TAB accept.
+  void _applyCompletion(String completion) {
+    _resetTabCompletion();
+    _resetHistorySearch();
+    _controller.text = completion;
+    _controller.selection = TextSelection.collapsed(offset: completion.length);
+    _focusNode.requestFocus();
   }
 
   void _handleTab() {
@@ -323,6 +353,7 @@ class _InputBarState extends ConsumerState<InputBar> {
     final fontSize = settings.fontSize;
     final wrapWidth = settings.inputWrapWidth;
     final autofocus = !_shouldHideKeyboard(settings);
+    final isMobile = MediaQuery.of(context).size.width < 768;
 
     // When the login dialog closes (character chosen, guest, or cancel),
     // move keyboard focus here — the input bar is where the user drives the
@@ -338,7 +369,7 @@ class _InputBarState extends ConsumerState<InputBar> {
       }
     });
 
-    return Container(
+    final inputBar = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
@@ -395,11 +426,56 @@ class _InputBarState extends ConsumerState<InputBar> {
         ],
       ),
     );
+
+    // Desktop drives completion via the TAB key; mobile gets a tappable
+    // suggestion bar above the input instead.
+    if (!isMobile) return inputBar;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildSuggestionBar(theme, fontSize),
+        inputBar,
+      ],
+    );
+  }
+
+  /// A horizontal bar of tappable completion suggestions shown above the input
+  /// on mobile. Mirrors desktop TAB completion: when the typed text matches a
+  /// rule trigger, tapping a chip fills the completion. Renders nothing when
+  /// there is no match, so it takes no space.
+  Widget _buildSuggestionBar(ThemeData theme, double fontSize) {
+    final rules = ref.watch(completionRulesProvider);
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _controller,
+      builder: (context, value, _) {
+        final matches = matchCompletions(rules, value.text);
+        if (matches.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final m in matches)
+                  _CompletionChip(
+                    label: m.completion,
+                    fontSize: fontSize,
+                    theme: theme,
+                    onTap: () => _applyCompletion(m.completion),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _showHistorySheet() async {
     final history = ref.read(commandHistoryProvider);
-    final recent = history.take(5).toList();
+    final recent = history.take(_recentSheetCount).toList();
     // Counterparts derived from the same recent commands. Dedup against
     // history so the user doesn't see "leave" twice when both legs are
     // already in history.
@@ -562,6 +638,57 @@ class _CommandRow extends StatelessWidget {
                 child: trailing!,
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A tappable pill in the mobile auto-completion bar. Shows the completion
+/// text (trailing space trimmed for display) behind a small accept icon;
+/// tapping fills the full completion into the input.
+class _CompletionChip extends StatelessWidget {
+  final String label;
+  final double fontSize;
+  final ThemeData theme;
+  final VoidCallback onTap;
+
+  const _CompletionChip({
+    required this.label,
+    required this.fontSize,
+    required this.theme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: theme.colorScheme.primary.withAlpha(30),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.keyboard_tab,
+                size: 14,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label.trimRight(),
+                style: TextStyle(
+                  fontFamily: 'JetBrainsMono',
+                  fontSize: fontSize - 1,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

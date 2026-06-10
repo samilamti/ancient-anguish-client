@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../models/support_tier.dart';
 import '../../providers/settings_provider.dart';
@@ -386,19 +387,7 @@ class SettingsScreen extends ConsumerWidget {
           // ── About section ──
           _SectionHeader(title: 'About', icon: Icons.info_outline),
           const SizedBox(height: 8),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('Ancient Anguish Client'),
-            subtitle: const Text('v6.7\nA cross-platform MUD client for Ancient Anguish'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const AboutScreen(),
-                ),
-              );
-            },
-          ),
+          const _AboutTile(),
         ],
       ),
     );
@@ -503,6 +492,44 @@ class _ColorEditorTile extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// About list tile — app name, runtime version, and tagline; opens
+/// [AboutScreen].
+class _AboutTile extends StatefulWidget {
+  const _AboutTile();
+
+  @override
+  State<_AboutTile> createState() => _AboutTileState();
+}
+
+class _AboutTileState extends State<_AboutTile> {
+  late final Future<PackageInfo> _packageInfo = PackageInfo.fromPlatform();
+
+  static const _tagline = 'A cross-platform MUD client for Ancient Anguish';
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: _packageInfo,
+      builder: (context, snapshot) {
+        final subtitle = snapshot.hasData
+            ? 'v${snapshot.data!.version}\n$_tagline'
+            : _tagline;
+        return ListTile(
+          leading: const Icon(Icons.info_outline),
+          title: const Text('Ancient Anguish Client'),
+          subtitle: Text(subtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AboutScreen()),
+            );
+          },
+        );
+      },
     );
   }
 }

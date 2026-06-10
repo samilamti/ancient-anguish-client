@@ -1,0 +1,39 @@
+A modern client for Ancient Anguish — the text-based multiplayer fantasy world that's been running continuously since 1991 — built for Android.
+
+If you've played AA before, welcome home. If you haven't: a MUD (Multi-User Dungeon) is a text-driven online game where words do the work pictures do in most games. You read a room, decide what to do, and type a command. It's theatre of the mind, with thousands of other players writing the scenes with you.
+
+This client is a purpose-built front end for AA — a cockpit that knows how its prompt works, how its areas sound, and how its culture plays.
+
+WHAT'S INSIDE
+
+• A real terminal — Full telnet with automatic negotiation (NAWS, TTYPE, SGA, ECHO). GMCP- and MCCP-aware. ANSI 16/256/truecolor rendering with bold, italic, underline, strikethrough, inverse. 5,000-line scrollback with drag-to-select auto-copy and tappable URLs. Snaps to the bottom on every command you send.
+
+• Tap-to-send links — Data-driven text link rules turn matched MUD output into tappable shortcuts. "The dark door is closed." becomes a tap that sends "open dark door". Edit rules in Settings with a live preview. Display only: nothing fires until you tap.
+
+• Game-state HUD — 30+ configurable elements across vitals, combat (aim, attack, defend, wimpy), experience (lifetime and session XP-per-minute), character, wealth, world (game time, reboot countdown), and survival (hunger, thirst, drunk, poison, alignment, followers, and more). The client rebuilds your prompt and syncs it to the MUD.
+
+• Mobile-first input — Eight-direction D-Pad with a door action, customizable Quick Commands with an icon catalog, and a history chip that re-sends any of your last five commands plus smart counterparts (enter ↔ leave, open ↔ close). Star up to three aliases for one-tap mobile slots; long-press a slot to edit.
+
+• Triggers (Immersions) — Pattern-matched rules that highlight, gag, or play sounds on matching text. Display only — never auto-send. Respects Ancient Anguish's no-bots rule by design.
+
+• Aliases — Short keywords that expand into full commands with $0/$1/$2 variable substitution and ; chaining. Ships with sensible defaults. Recursion-safe.
+
+• Area-based ambient music — The client detects your location from coordinates or room descriptions and crossfades between tracks. Load your own audio files for area tracks and battle themes.
+
+• Chat, Tells, Party, and Notes — Floating, dockable, resizable social panels. Tabs or independent windows. Autocomplete for recipients. Optionally hidden from the main log so your adventure keeps its thread.
+
+• Themes & accessibility — RPG Dark (the default), Classic Dark, and High Contrast (built for low-vision players). Scalable fonts (8–32 pt), input-line wrap slider, and screen-reader-friendly output.
+
+PRIVACY
+
+No analytics. No tracking. No ads. No third-party SDKs. Credentials, aliases, triggers, and settings stay on your device. The only network traffic is your single connection to the MUD server — you control the host.
+
+NEW PLAYERS
+
+The MUD is free to play. Create a character, follow the newbie area, and type `newbie hello!` to say hi. The community is famously welcoming.
+
+This is an independent third-party client, developed in coordination with the AA team and promoted on the official Connect page at https://anguish.org/connect.php. The game has been continuously operated by its own team since 1991.
+
+Privacy Policy: https://ancient-anguish.duckdns.org/privacy.html
+
+Adventure awaits. See you in the realms.

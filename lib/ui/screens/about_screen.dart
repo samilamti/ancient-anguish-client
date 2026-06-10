@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../models/support_tier.dart';
 import '../widgets/common/escape_dismiss.dart';
 import 'support_screen.dart';
 
@@ -77,54 +78,55 @@ class _AboutScreenState extends State<AboutScreen> {
             ),
           ),
 
-          const SizedBox(height: 16),
-
-          // ── Support ──
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.favorite_border,
-                        size: 20,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Support',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Optional monthly support tiers — purely cosmetic, '
-                    'nothing gated.',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const SupportScreen(),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.arrow_forward, size: 16),
-                      label: const Text('View tiers'),
+          // ── Support ── (Apple stores only)
+          if (kSupportTiersAvailable) ...[
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.favorite_border,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Support',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Text(
+                      'Optional monthly support tiers — purely cosmetic, '
+                      'nothing gated.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SupportScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.arrow_forward, size: 16),
+                        label: const Text('View tiers'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
 
           const SizedBox(height: 16),
 

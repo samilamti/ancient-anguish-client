@@ -7,6 +7,7 @@ import '../widgets/common/escape_dismiss.dart';
 import '../widgets/social/social_message_list.dart' show SocialListType;
 
 import '../../models/connection_info.dart';
+import '../../models/support_tier.dart';
 import '../../providers/audio_provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/game_state_provider.dart';
@@ -754,32 +755,34 @@ class _SettingsDrawer extends ConsumerWidget {
 
             const Divider(height: 24),
 
-            // ── Support ──
-            _DrawerSectionHeader(title: 'Support', icon: Icons.favorite),
-            const SizedBox(height: 8),
-            Consumer(builder: (context, ref, _) {
-              final sub = ref.watch(subscriptionProvider);
-              final subtitle = sub.isActive
-                  ? 'Supporting: ${sub.activeTier!.displayName}'
-                  : 'Optional monthly tiers — nothing gated';
-              return ListTile(
-                leading: const Icon(Icons.favorite_border, size: 20),
-                title: const Text('Support Tiers'),
-                subtitle: Text(subtitle),
-                trailing: const Icon(Icons.chevron_right, size: 18),
-                dense: true,
-                onTap: () {
-                  Navigator.of(context).pop(); // close drawer
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SupportScreen(),
-                    ),
-                  );
-                },
-              );
-            }),
+            // ── Support ── (Apple stores only)
+            if (kSupportTiersAvailable) ...[
+              _DrawerSectionHeader(title: 'Support', icon: Icons.favorite),
+              const SizedBox(height: 8),
+              Consumer(builder: (context, ref, _) {
+                final sub = ref.watch(subscriptionProvider);
+                final subtitle = sub.isActive
+                    ? 'Supporting: ${sub.activeTier!.displayName}'
+                    : 'Optional monthly tiers — nothing gated';
+                return ListTile(
+                  leading: const Icon(Icons.favorite_border, size: 20),
+                  title: const Text('Support Tiers'),
+                  subtitle: Text(subtitle),
+                  trailing: const Icon(Icons.chevron_right, size: 18),
+                  dense: true,
+                  onTap: () {
+                    Navigator.of(context).pop(); // close drawer
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SupportScreen(),
+                      ),
+                    );
+                  },
+                );
+              }),
 
-            const Divider(height: 24),
+              const Divider(height: 24),
+            ],
 
             // ── Theme ──
             _DrawerSectionHeader(title: 'Theme', icon: Icons.palette),

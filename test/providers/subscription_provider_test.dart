@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -167,6 +168,10 @@ void main() {
   late _InMemoryStorage storage;
 
   setUp(() {
+    // flutter test reports TargetPlatform.android, where the notifier
+    // short-circuits (tiers are Apple-store only). Pin an Apple platform so
+    // the store init flow under test still runs.
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     fakeService = _FakeSubscriptionService()
       ..products = [
         _fakeProduct(SupportTier.small, 1.99),
@@ -185,6 +190,7 @@ void main() {
   tearDown(() {
     container.dispose();
     fakeService.dispose();
+    debugDefaultTargetPlatformOverride = null;
   });
 
   group('SubscriptionNotifier - init', () {

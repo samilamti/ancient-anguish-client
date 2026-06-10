@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/support_tier.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/subscription_provider.dart';
 import 'about_screen.dart';
@@ -357,28 +358,30 @@ class SettingsScreen extends ConsumerWidget {
 
           const Divider(height: 32),
 
-          // ── Support section ──
-          _SectionHeader(title: 'Support', icon: Icons.favorite),
-          const SizedBox(height: 8),
-          Consumer(builder: (context, ref, _) {
-            final sub = ref.watch(subscriptionProvider);
-            final subtitle = sub.isActive
-                ? 'Supporting: ${sub.activeTier!.displayName}'
-                : 'Optional monthly tiers — nothing gated';
-            return ListTile(
-              leading: const Icon(Icons.favorite_border),
-              title: const Text('Support Tiers'),
-              subtitle: Text(subtitle),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SupportScreen()),
-                );
-              },
-            );
-          }),
+          // ── Support section ── (Apple stores only)
+          if (kSupportTiersAvailable) ...[
+            _SectionHeader(title: 'Support', icon: Icons.favorite),
+            const SizedBox(height: 8),
+            Consumer(builder: (context, ref, _) {
+              final sub = ref.watch(subscriptionProvider);
+              final subtitle = sub.isActive
+                  ? 'Supporting: ${sub.activeTier!.displayName}'
+                  : 'Optional monthly tiers — nothing gated';
+              return ListTile(
+                leading: const Icon(Icons.favorite_border),
+                title: const Text('Support Tiers'),
+                subtitle: Text(subtitle),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SupportScreen()),
+                  );
+                },
+              );
+            }),
 
-          const Divider(height: 32),
+            const Divider(height: 32),
+          ],
 
           // ── About section ──
           _SectionHeader(title: 'About', icon: Icons.info_outline),

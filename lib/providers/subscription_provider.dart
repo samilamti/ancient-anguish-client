@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
@@ -38,7 +38,7 @@ class SubscriptionNotifier extends Notifier<SubscriptionState> {
       return _seedState();
     }
 
-    if (kIsWeb) {
+    if (!kSupportTiersAvailable) {
       return const SubscriptionState(
         loading: false,
         storeAvailable: false,

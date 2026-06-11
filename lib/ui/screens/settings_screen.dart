@@ -359,7 +359,7 @@ class SettingsScreen extends ConsumerWidget {
 
           const Divider(height: 32),
 
-          // ── Support section ── (Apple stores only)
+          // ── Support section ── (store-backed platforms only)
           if (kSupportTiersAvailable) ...[
             _SectionHeader(title: 'Support', icon: Icons.favorite),
             const SizedBox(height: 8),

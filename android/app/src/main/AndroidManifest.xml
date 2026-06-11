@@ -1,11 +1,6 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Required for TCP socket connections to MUD servers -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- in_app_purchase's Play Billing dependency merges this in, but Support
-         tiers are Apple-store only; strip it so Play does not require
-         in-app-product declarations. -->
-    <uses-permission android:name="com.android.vending.BILLING" tools:node="remove" />
     <application
         android:label="Chosen's MUD Client for Ancient Anguish"
         android:name="${applicationName}"

@@ -78,7 +78,7 @@ class _AboutScreenState extends State<AboutScreen> {
             ),
           ),
 
-          // ── Support ── (Apple stores only)
+          // ── Support ── (store-backed platforms only)
           if (kSupportTiersAvailable) ...[
             const SizedBox(height: 16),
             Card(

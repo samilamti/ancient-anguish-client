@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 
-/// Support tiers are sold through Apple's stores only (App Store / Mac App
-/// Store). Gates the provider's store I/O and every SupportScreen entry
-/// point on other platforms.
+/// Support tiers are sold through Apple's stores (App Store / Mac App
+/// Store) and Google Play. Gates the provider's store I/O and every
+/// SupportScreen entry point on storeless platforms (web, Windows, Linux).
 bool get kSupportTiersAvailable =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.macOS);
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.android);
 
 /// The three optional monthly supporter tiers. Product IDs match the
 /// subscriptions registered in App Store Connect.

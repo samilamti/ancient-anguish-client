@@ -168,9 +168,8 @@ void main() {
   late _InMemoryStorage storage;
 
   setUp(() {
-    // flutter test reports TargetPlatform.android, where the notifier
-    // short-circuits (tiers are Apple-store only). Pin an Apple platform so
-    // the store init flow under test still runs.
+    // Pin a concrete store-backed platform so the init flow under test runs
+    // deterministically regardless of the test host's default.
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     fakeService = _FakeSubscriptionService()
       ..products = [

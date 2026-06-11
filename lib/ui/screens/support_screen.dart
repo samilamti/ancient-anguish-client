@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -7,18 +8,26 @@ import '../../models/support_tier.dart';
 import '../../providers/subscription_provider.dart';
 import '../widgets/common/escape_dismiss.dart';
 
+/// Whether this build sells through Apple (App Store / Mac App Store)
+/// rather than Google Play. Drives store-specific URLs and legal copy.
+bool get _isAppleStore =>
+    defaultTargetPlatform == TargetPlatform.iOS ||
+    defaultTargetPlatform == TargetPlatform.macOS;
+
 /// Optional supporter-tier subscription screen.
 ///
 /// Tiers are purely cosmetic — no content gating — so the UI is
 /// straightforward: three cards, a restore button, a manage-subscription
-/// deep link, and the Apple-mandated auto-renewal disclosure.
+/// deep link, and the store-mandated auto-renewal disclosure.
 class SupportScreen extends ConsumerWidget {
   const SupportScreen({super.key});
 
-  static const String _manageUrl =
-      'https://apps.apple.com/account/subscriptions';
-  static const String _termsUrl =
-      'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+  static String get _manageUrl => _isAppleStore
+      ? 'https://apps.apple.com/account/subscriptions'
+      : 'https://play.google.com/store/account/subscriptions';
+  static String get _termsUrl => _isAppleStore
+      ? 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'
+      : 'https://play.google.com/about/play-terms/';
   static const String _privacyUrl =
       'https://ancient-anguish.duckdns.org/privacy.html';
 
@@ -56,7 +65,7 @@ class SupportScreen extends ConsumerWidget {
         const SizedBox(height: 12),
         Center(
           child: Text(
-            'Contacting App Store…',
+            'Contacting ${_isAppleStore ? 'App Store' : 'Google Play'}…',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
@@ -74,7 +83,7 @@ class SupportScreen extends ConsumerWidget {
     return [
       const _IntroCard(),
       const SizedBox(height: 12),
-      const _LegalLinksRow(
+      _LegalLinksRow(
         termsUrl: _termsUrl,
         privacyUrl: _privacyUrl,
       ),
@@ -112,7 +121,7 @@ class SupportScreen extends ConsumerWidget {
         ),
       ),
       const SizedBox(height: 24),
-      const _LegalFooter(
+      _LegalFooter(
         termsUrl: _termsUrl,
         privacyUrl: _privacyUrl,
       ),
@@ -471,12 +480,15 @@ class _LegalFooter extends StatelessWidget {
           'Support Tiers are optional monthly subscriptions that help fund '
           'client development.\n\n'
           '• Length: Monthly (auto-renewing)\n'
-          r'• Small $1.99 / Medium $3.99 / Large $5.99 per month (USD)'
+          '${_isAppleStore ? r'• Small $1.99 / Medium $3.99 / Large $5.99 per month (USD)' : '• Prices are shown on each tier card in your local currency'}'
           '\n'
-          '• Payment is charged to your Apple ID at confirmation of purchase.\n'
+          '• Payment is charged to your '
+          '${_isAppleStore ? 'Apple ID' : 'Google account'} at confirmation '
+          'of purchase.\n'
           '• Auto-renews unless cancelled at least 24 hours before the end of '
           'the current period.\n'
-          '• Manage or cancel anytime from your Apple ID subscription '
+          '• Manage or cancel anytime from your '
+          '${_isAppleStore ? 'Apple ID' : 'Google Play'} subscription '
           'settings.',
           style: style,
         ),

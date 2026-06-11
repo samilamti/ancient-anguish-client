@@ -755,7 +755,7 @@ class _SettingsDrawer extends ConsumerWidget {
 
             const Divider(height: 24),
 
-            // ── Support ── (Apple stores only)
+            // ── Support ── (store-backed platforms only)
             if (kSupportTiersAvailable) ...[
               _DrawerSectionHeader(title: 'Support', icon: Icons.favorite),
               const SizedBox(height: 8),

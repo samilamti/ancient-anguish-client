@@ -14,6 +14,7 @@ import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
+import '../../screens/alias_settings_screen.dart' show openAliasEditor;
 import '../../../services/command_counterparts.dart';
 import '../../../services/command_loops.dart';
 import '../../../services/parser/emoji_parser.dart';
@@ -43,9 +44,10 @@ class _InputBarState extends ConsumerState<InputBar> {
   List<String> _tabMatches = [];
 
   /// How many recent commands the History ("Recent commands") sheet lists.
-  /// Mobile has the vertical room for a few more than the keyboard up-arrow
-  /// walk implies.
-  static const int _recentSheetCount = 8;
+  /// Desktop has far more vertical room, so it shows the full retained history
+  /// (capped at [CommandHistoryService.maxEntries] = 20); mobile stays compact.
+  static const int _recentSheetCountMobile = 8;
+  static const int _recentSheetCountDesktop = 20;
 
   @override
   void initState() {
@@ -475,7 +477,10 @@ class _InputBarState extends ConsumerState<InputBar> {
 
   Future<void> _showHistorySheet() async {
     final history = ref.read(commandHistoryProvider);
-    final recent = history.take(_recentSheetCount).toList();
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    final count =
+        isMobile ? _recentSheetCountMobile : _recentSheetCountDesktop;
+    final recent = history.take(count).toList();
     // Counterparts derived from the same recent commands. Dedup against
     // history so the user doesn't see "leave" twice when both legs are
     // already in history.
@@ -495,9 +500,10 @@ class _InputBarState extends ConsumerState<InputBar> {
       return;
     }
 
-    final chosen = await showModalBottomSheet<String>(
+    final chosen = await showModalBottomSheet<_HistoryChoice>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) => _HistorySheet(
         recent: recent,
         counterparts: counterparts.toList(),
@@ -505,7 +511,12 @@ class _InputBarState extends ConsumerState<InputBar> {
     );
 
     if (chosen == null || !mounted) return;
-    _sendCommandFromHistory(chosen);
+    if (chosen.intent == _HistoryIntent.makeAlias) {
+      // Turn the picked command into a new alias, pre-filling its expansion.
+      openAliasEditor(context, initialExpansion: chosen.command);
+    } else {
+      _sendCommandFromHistory(chosen.command);
+    }
   }
 
   /// Sends a command picked from the history sheet. Doesn't expand aliases
@@ -520,9 +531,20 @@ class _InputBarState extends ConsumerState<InputBar> {
   }
 }
 
+/// What the user picked in the Recent-commands sheet: either re-send the
+/// command, or open the alias editor pre-filled with it as the expansion.
+enum _HistoryIntent { send, makeAlias }
+
+class _HistoryChoice {
+  final String command;
+  final _HistoryIntent intent;
+  const _HistoryChoice(this.command, this.intent);
+}
+
 /// Bottom-sheet body for the History button. Two sections: literal recent
-/// commands (newest-first) and derived counterparts. Tapping a row pops
-/// the sheet with that command string.
+/// commands (newest-first) and derived counterparts. Tapping a row's body
+/// pops the sheet to send that command; tapping its "+" pops to make an alias.
+/// Scrollable so the longer desktop list can't overflow the sheet.
 class _HistorySheet extends StatelessWidget {
   final List<String> recent;
   final List<String> counterparts;
@@ -533,10 +555,15 @@ class _HistorySheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      // Cap the sheet at ~60% of the window so the longer desktop list scrolls
+      // instead of pushing past the screen; shorter lists shrink-wrap.
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.6,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.only(bottom: 12),
           children: [
             if (recent.isNotEmpty) ...[
               _SectionLabel(
@@ -558,8 +585,7 @@ class _HistorySheet extends StatelessWidget {
                 _CommandRow(
                   command: cmd,
                   theme: theme,
-                  trailing: const Icon(Icons.subdirectory_arrow_right,
-                      size: 18),
+                  isCounterpart: true,
                 ),
             ],
           ],
@@ -605,20 +631,46 @@ class _SectionLabel extends StatelessWidget {
 class _CommandRow extends StatelessWidget {
   final String command;
   final ThemeData theme;
-  final Widget? trailing;
+
+  /// Marks a derived "counterpart" row: shows a trailing ↳ hint and no alias
+  /// button (only literal recent commands can be turned into aliases).
+  final bool isCounterpart;
 
   const _CommandRow({
     required this.command,
     required this.theme,
-    this.trailing,
+    this.isCounterpart = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Counterparts just mark themselves with a ↳; recent commands get a "+"
+    // that opens the alias editor pre-filled with the command as the expansion.
+    final Widget trailing = isCounterpart
+        ? Icon(
+            Icons.subdirectory_arrow_right,
+            size: 18,
+            color: theme.colorScheme.onSurface.withAlpha(120),
+          )
+        : IconButton(
+            icon: const Icon(Icons.add, size: 20),
+            color: theme.colorScheme.primary,
+            tooltip: 'Create alias from this command',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => Navigator.of(context)
+                .pop(_HistoryChoice(command, _HistoryIntent.makeAlias)),
+          );
+
     return InkWell(
-      onTap: () => Navigator.of(context).pop(command),
+      onTap: () => Navigator.of(context)
+          .pop(_HistoryChoice(command, _HistoryIntent.send)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        // Recent rows get their height from the "+" IconButton; counterpart
+        // rows have only a plain icon, so pad them to a comparable height.
+        padding: EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: isCounterpart ? 12 : 4,
+        ),
         child: Row(
           children: [
             Expanded(
@@ -630,13 +682,7 @@ class _CommandRow extends StatelessWidget {
                 ),
               ),
             ),
-            if (trailing != null)
-              IconTheme(
-                data: IconThemeData(
-                  color: theme.colorScheme.onSurface.withAlpha(120),
-                ),
-                child: trailing!,
-              ),
+            trailing,
           ],
         ),
       ),

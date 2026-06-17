@@ -198,13 +198,30 @@ class _AliasSettingsScreenState extends ConsumerState<AliasSettingsScreen> {
   }
 
   void _showEditDialog(BuildContext context, WidgetRef ref, AliasRule? existing) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => _AliasEditScreen(existing: existing),
-      ),
-    );
+    openAliasEditor(context, existing: existing);
   }
+}
+
+/// Opens the alias create/edit screen as a pushed route.
+///
+/// Pass [existing] to edit a rule, or [initialExpansion] to start a brand-new
+/// alias with the "Expands to" field pre-filled — used by the Recent-commands
+/// sheet's "+" button so the user can turn a command they just typed into an
+/// alias in one tap, then only has to name it.
+Future<void> openAliasEditor(
+  BuildContext context, {
+  AliasRule? existing,
+  String? initialExpansion,
+}) {
+  return Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => _AliasEditScreen(
+        existing: existing,
+        initialExpansion: initialExpansion,
+      ),
+    ),
+  );
 }
 
 /// List tile for a single alias rule.
@@ -377,7 +394,11 @@ class _AliasTileState extends State<_AliasTile>
 class _AliasEditScreen extends ConsumerStatefulWidget {
   final AliasRule? existing;
 
-  const _AliasEditScreen({this.existing});
+  /// Pre-fills the "Expands to" field for a new alias. Ignored when [existing]
+  /// is set (an edit always uses the rule's own expansion).
+  final String? initialExpansion;
+
+  const _AliasEditScreen({this.existing, this.initialExpansion});
 
   @override
   ConsumerState<_AliasEditScreen> createState() => _AliasEditScreenState();
@@ -395,7 +416,9 @@ class _AliasEditScreenState extends ConsumerState<_AliasEditScreen> {
     super.initState();
     final e = widget.existing;
     _keywordController = TextEditingController(text: e?.keyword ?? '');
-    _expansionController = TextEditingController(text: e?.expansion ?? '');
+    _expansionController = TextEditingController(
+      text: e?.expansion ?? widget.initialExpansion ?? '',
+    );
     _descriptionController = TextEditingController(text: e?.description ?? '');
     _testInputController = TextEditingController();
   }
@@ -489,9 +512,13 @@ class _AliasEditScreenState extends ConsumerState<_AliasEditScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Keyword field.
+          // Keyword field. When the expansion was pre-filled (from the
+          // Recent-commands "+" button), focus the keyword so the user can
+          // name the alias immediately.
           TextField(
             controller: _keywordController,
+            autofocus: widget.existing == null &&
+                widget.initialExpansion != null,
             autocorrect: mib.autocorrect,
             enableSuggestions: mib.enableSuggestions,
             smartDashesType: mib.smartDashesType,

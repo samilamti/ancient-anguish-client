@@ -607,6 +607,11 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         _markUnreadIfInactive(tabIndex: 1);
         _autoActivateTab(1);
         WindowService.requestAttention();
+      } else {
+        // Sending a tell: surface the Tells tab so the sent message is
+        // visible where the conversation lives — visual feedback that it
+        // went out, without stealing the OS window's attention.
+        _autoActivateTab(1);
       }
       return _SocialLineResult.captured;
     }

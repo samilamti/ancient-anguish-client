@@ -160,6 +160,22 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     _emojiSuppressed = true;
   }
 
+  /// Injects a client-generated line into the terminal output — local
+  /// feedback for things that never touched the MUD (e.g. confirming a `#al`
+  /// quick-alias was created). [isError] renders it red and bold.
+  void addLocalLine(String text, {bool isError = false}) {
+    _addLines([
+      StyledLine([
+        StyledSpan(
+          text: text,
+          foreground:
+              isError ? const Color(0xFFFF5555) : const Color(0xFF55AAFF),
+          bold: isError,
+        ),
+      ]),
+    ]);
+  }
+
   @override
   List<StyledLine> build() {
     _startListening();

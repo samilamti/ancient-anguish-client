@@ -15,6 +15,8 @@ import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
 import '../../screens/alias_settings_screen.dart' show openAliasEditor;
+import '../../../models/alias_rule.dart';
+import '../../../services/alias/alias_command.dart';
 import '../../../services/command_counterparts.dart';
 import '../../../services/command_loops.dart';
 import '../../../services/parser/emoji_parser.dart';
@@ -77,6 +79,16 @@ class _InputBarState extends ConsumerState<InputBar> {
 
   void _send() {
     final command = _controller.text;
+
+    // Quick alias creation: `#al <alias> <expansion>`. Handled entirely
+    // client-side and intercepted *before* alias expansion so semicolons in
+    // the expansion are stored verbatim rather than split into commands.
+    final aliasCommand = AliasCommand.parse(command);
+    if (aliasCommand != null) {
+      _handleAliasCommand(aliasCommand, command);
+      return;
+    }
+
     final service = ref.read(connectionServiceProvider);
     final history = ref.read(commandHistoryProvider.notifier);
     final aliasEngine = ref.read(aliasEngineProvider);
@@ -123,6 +135,54 @@ class _InputBarState extends ConsumerState<InputBar> {
     } else {
       _focusNode.requestFocus();
     }
+  }
+
+  /// Creates (or updates) an alias from a parsed `#al` command and echoes
+  /// local confirmation into the terminal. Never sends anything to the MUD.
+  void _handleAliasCommand(AliasCommand cmd, String raw) {
+    final buffer = ref.read(terminalBufferProvider.notifier);
+
+    if (!cmd.isValid) {
+      buffer.addLocalLine(cmd.error!, isError: true);
+    } else {
+      final keyword = cmd.keyword!;
+      final expansion = cmd.expansion!;
+      final notifier = ref.read(aliasRulesProvider.notifier);
+
+      // Overwrite an existing alias with the same keyword rather than create
+      // a duplicate (keeps the keyword unambiguous for the engine).
+      AliasRule? existing;
+      for (final rule in ref.read(aliasRulesProvider)) {
+        if (rule.keyword == keyword) {
+          existing = rule;
+          break;
+        }
+      }
+
+      if (existing != null) {
+        notifier.updateRule(
+          existing.copyWith(expansion: expansion, enabled: true),
+        );
+        buffer.addLocalLine('Alias updated: $keyword → $expansion');
+      } else {
+        notifier.addRule(AliasRule(
+          id: 'alias_${DateTime.now().millisecondsSinceEpoch}',
+          keyword: keyword,
+          expansion: expansion,
+        ));
+        buffer.addLocalLine('Alias created: $keyword → $expansion');
+      }
+    }
+
+    // Keep the raw `#al ...` line in history so it can be recalled/edited,
+    // then reselect the input for a quick follow-up.
+    ref.read(commandHistoryProvider.notifier).add(raw);
+    _resetHistorySearch();
+    _controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _controller.text.length,
+    );
+    _focusNode.requestFocus();
   }
 
   /// Whether mobile keyboard-hiding is active for the current layout.

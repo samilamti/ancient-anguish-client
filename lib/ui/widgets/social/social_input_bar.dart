@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/connection_provider.dart'
     show connectionServiceProvider;
 import '../../../providers/online_players_provider.dart';
+import '../../../providers/reply_request_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_input_focus_provider.dart';
 import '../../../providers/social_input_provider.dart';
@@ -146,6 +147,23 @@ class _SocialInputBarState extends ConsumerState<SocialInputBar> {
       if (lastRecipient != null && _nameController.text.isEmpty) {
         _nameController.text = lastRecipient;
       }
+
+      // Reply (Ctrl/Cmd+R): force the recipient to the latest tell's sender —
+      // even when the name field already holds a stale partner — and focus the
+      // message field so the user can type straight away.
+      ref.listen(replyRequestProvider, (previous, next) {
+        if (next == null || widget.type != SocialListType.tells) return;
+        final recipient = next.recipient;
+        if (recipient != null) {
+          _nameController.text = recipient;
+          _nameController.selection =
+              TextSelection.collapsed(offset: recipient.length);
+          ref.read(tellMessagesProvider.notifier).setLastRecipient(recipient);
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _focusNode.requestFocus();
+        });
+      });
     }
 
     final fontSize = ref.watch(settingsProvider).fontSize;

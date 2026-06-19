@@ -7,13 +7,16 @@ import '../widgets/common/escape_dismiss.dart';
 import '../widgets/social/social_message_list.dart' show SocialListType;
 
 import '../../models/connection_info.dart';
+import '../../models/social_message.dart';
 import '../../models/support_tier.dart';
 import '../../providers/audio_provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/game_state_provider.dart';
 import '../../providers/login_provider.dart';
 import '../../models/social_panel_state.dart';
+import '../../providers/reply_request_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/social_message_provider.dart';
 import '../../providers/social_panel_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../widgets/audio/audio_controls.dart';
@@ -253,11 +256,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               _invokeMostRecentLink,
           const SingleActivator(LogicalKeyboardKey.keyL, meta: true):
               _invokeMostRecentLink,
-          // Ctrl/Cmd + R → connect, or reconnect if already online.
+          // Ctrl/Cmd + R → reply to the latest received tell.
           const SingleActivator(LogicalKeyboardKey.keyR, control: true):
-              _connectOrReconnect,
+              _replyToLatestTell,
           const SingleActivator(LogicalKeyboardKey.keyR, meta: true):
-              _connectOrReconnect,
+              _replyToLatestTell,
         },
         child: SafeArea(
         child: Stack(
@@ -330,17 +333,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.read(connectionServiceProvider).sendCommand(cmd);
   }
 
-  /// Connects to the MUD, or drops and re-establishes the link when already
-  /// online — keyboard equivalent of the connection indicator. Bound to
-  /// Ctrl/Cmd+R at the HomeScreen body level so a stale connection can be
-  /// refreshed without reaching for the mouse.
-  void _connectOrReconnect() {
-    final service = ref.read(connectionServiceProvider);
-    if (service.isConnected) {
-      service.reconnect();
-    } else {
-      service.connect();
+  /// Replies to the most recent *received* tell — keyboard equivalent of
+  /// tapping a tell and typing back. Bound to Ctrl/Cmd+R at the HomeScreen
+  /// body level so it fires even while a text input is focused.
+  ///
+  /// Surfaces the Tells tab (which scrolls the list to the newest tell), then
+  /// fires a [replyRequestProvider] signal that pre-fills the sender in the
+  /// recipient field and focuses the message input. The signal is fired on the
+  /// next frame so the Tells input bar / message list are mounted and have
+  /// registered their listeners. Silent no-op-friendly when there are no
+  /// incoming tells: still opens the Tells tab so the user can compose one.
+  void _replyToLatestTell() {
+    final tells = ref.read(tellMessagesProvider);
+    String? sender;
+    for (var i = tells.length - 1; i >= 0; i--) {
+      if (tells[i].type == SocialMessageType.tellIncoming) {
+        sender = tells[i].sender;
+        break;
+      }
     }
+
+    _focusSocialTab(ref, 1);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(replyRequestProvider.notifier).reply(sender);
+    });
   }
 
   /// Switches the SWC to the tab at [tabIndex] (0=Chat, 1=Tells, 2=Party,

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/social_message.dart';
 import '../../../models/timestamp_mode.dart';
+import '../../../providers/reply_request_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_message_provider.dart';
 
@@ -118,6 +119,18 @@ class _SocialMessageListState extends ConsumerState<SocialMessageList> {
         }
       },
     );
+
+    // Reply (Ctrl/Cmd+R): snap the Tells list to the newest tell, even if the
+    // user had scrolled up while the tab was already active.
+    if (widget.type == SocialListType.tells) {
+      ref.listen(replyRequestProvider, (previous, next) {
+        if (next == null) return;
+        _autoScroll = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+      });
+    }
 
     if (messages.isEmpty) {
       return Center(

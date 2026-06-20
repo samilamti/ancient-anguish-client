@@ -141,11 +141,18 @@ void main() {
       await tester.pumpAndSettle();
 
       // Attempting to drag should not move the scroll position — the
-      // ListView is configured with NeverScrollableScrollPhysics.
+      // ListView is configured with NeverScrollableScrollPhysics. (The drag
+      // is interpreted as a text selection and pops the context menu, which
+      // brings its own Scrollable, so scope the check to the terminal list.)
       await tester.drag(find.byType(ListView), const Offset(0, -200));
       await tester.pump();
 
-      final scrollable = tester.widget<Scrollable>(find.byType(Scrollable));
+      final scrollable = tester.widget<Scrollable>(
+        find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        ),
+      );
       expect(scrollable.controller?.offset ?? 0.0, 0.0);
     });
 
@@ -157,6 +164,31 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(FloatingActionButton), findsNothing);
+    });
+  });
+
+  group('TerminalView selection context menu', () {
+    testWidgets(
+        'selecting text opens the context menu with a Create Text Link '
+        'Rule option', (tester) async {
+      final lines = createStyledLines(
+        List.generate(40, (i) => 'You must be standing.'),
+      );
+      await pumpTerminalView(tester, lines: lines);
+      await tester.pumpAndSettle();
+
+      // Drag horizontally across a line — starting near the left edge so the
+      // anchor and focus land on different columns — to make a real text
+      // selection. On pointer-up the terminal should surface its context menu.
+      final listRect = tester.getRect(find.byType(ListView));
+      await tester.dragFrom(
+        Offset(listRect.left + 12, listRect.center.dy),
+        const Offset(120, 0),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Create Text Link Rule'), findsOneWidget);
     });
   });
 

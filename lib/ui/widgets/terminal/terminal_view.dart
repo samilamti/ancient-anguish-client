@@ -15,6 +15,7 @@ import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
 import '../../../services/platform/file_utils.dart';
 import '../../screens/history_screen.dart';
+import '../../screens/text_link_rules_screen.dart';
 import 'terminal_line.dart';
 import 'terminal_selection.dart';
 import 'terminal_selection_controller.dart';
@@ -182,8 +183,10 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     if (_selectionController.hasSelection && _pointerMoved) {
       final sel = _selectionController.selection!;
       if (sel.anchor != sel.focus) {
-        _selectionController.copyToClipboard(ref.read(terminalBufferProvider));
+        // A real selection was made by dragging — surface the context menu so
+        // the user can copy it or turn it into a text link rule.
         _focusNode.requestFocus();
+        _showContextMenu(event.position);
         return;
       }
     }
@@ -336,6 +339,11 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
       items: [
         if (_selectionController.hasSelection)
           const PopupMenuItem(value: 'copy', child: Text('Copy')),
+        if (_selectionController.hasSelection)
+          const PopupMenuItem(
+            value: 'create_text_link_rule',
+            child: Text('Create Text Link Rule'),
+          ),
         if (hitPos != null)
           const PopupMenuItem(value: 'copy_line', child: Text('Copy Line')),
         const PopupMenuItem(value: 'select_all', child: Text('Select All')),
@@ -345,6 +353,12 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
       switch (value) {
         case 'copy':
           _selectionController.copyToClipboard(lines);
+        case 'create_text_link_rule':
+          final selected =
+              _selectionController.selection?.extractText(lines) ?? '';
+          if (selected.trim().isNotEmpty && mounted) {
+            openTextLinkRuleEditor(context, initialMatchText: selected);
+          }
         case 'copy_line':
           if (hitPos != null && hitPos.line < lines.length) {
             final lineText = lines[hitPos.line].plainText;

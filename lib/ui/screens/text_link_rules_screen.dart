@@ -98,11 +98,7 @@ class TextLinkRulesScreen extends ConsumerWidget {
   }
 
   void _openEditor(BuildContext context, TextLinkRule? existing) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _TextLinkRuleEditScreen(existing: existing),
-      ),
-    );
+    openTextLinkRuleEditor(context, existing: existing);
   }
 
   void _confirmResetDefaults(BuildContext context, WidgetRef ref) {
@@ -162,6 +158,29 @@ class TextLinkRulesScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Opens the text-link-rule create/edit screen as a pushed route.
+///
+/// Pass [existing] to edit a rule, or [initialMatchText] to start a brand-new
+/// rule seeded from a piece of MUD output — used by the terminal's
+/// "Create Text Link Rule" context-menu action. The seed's first line is
+/// regex-escaped into the Pattern field (so it matches literally by default)
+/// and dropped verbatim into the Test input so the live preview is ready as
+/// soon as the user fills in a command.
+Future<void> openTextLinkRuleEditor(
+  BuildContext context, {
+  TextLinkRule? existing,
+  String? initialMatchText,
+}) {
+  return Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => _TextLinkRuleEditScreen(
+        existing: existing,
+        initialMatchText: initialMatchText,
+      ),
+    ),
+  );
 }
 
 /// One-line tip above the rules list reminding users that the keyboard
@@ -301,7 +320,11 @@ class _RuleTile extends StatelessWidget {
 class _TextLinkRuleEditScreen extends ConsumerStatefulWidget {
   final TextLinkRule? existing;
 
-  const _TextLinkRuleEditScreen({this.existing});
+  /// Selected MUD-output text to seed a brand-new rule from. Ignored when
+  /// [existing] is set (editing an existing rule wins).
+  final String? initialMatchText;
+
+  const _TextLinkRuleEditScreen({this.existing, this.initialMatchText});
 
   @override
   ConsumerState<_TextLinkRuleEditScreen> createState() =>
@@ -322,11 +345,23 @@ class _TextLinkRuleEditScreenState
   void initState() {
     super.initState();
     final e = widget.existing;
+
+    // When creating a rule from selected MUD output, seed the Pattern with
+    // the regex-escaped first line (literal match by default) and the Test
+    // input with that same line so the preview lights up once a command is
+    // entered. Rules match per-line, so a multi-line selection is reduced to
+    // its first line.
+    final seed = e == null ? widget.initialMatchText : null;
+    final seedLine =
+        (seed != null && seed.trim().isNotEmpty) ? seed.split('\n').first : '';
+
     _nameController = TextEditingController(text: e?.name ?? '');
-    _patternController = TextEditingController(text: e?.pattern ?? '');
+    _patternController = TextEditingController(
+      text: e?.pattern ?? (seedLine.isEmpty ? '' : RegExp.escape(seedLine)),
+    );
     _commandController =
         TextEditingController(text: e?.commandTemplate ?? '');
-    _testController = TextEditingController();
+    _testController = TextEditingController(text: seedLine);
   }
 
   @override

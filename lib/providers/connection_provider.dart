@@ -917,7 +917,9 @@ class CommandHistoryNotifier extends Notifier<List<String>> {
 
   /// Adds a command to history (most recent first).
   void add(String command) {
-    if (command.trim().isEmpty) return;
+    // Only record commands of at least 4 characters; shorter commands
+    // (movement, abbreviations) clutter history with low-value entries.
+    if (command.trim().length < 4) return;
     // Remove duplicate if it's the same as the most recent.
     if (state.isNotEmpty && state.first == command) {
       _position = -1;

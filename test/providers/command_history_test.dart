@@ -33,6 +33,20 @@ void main() {
       expect(container.read(commandHistoryProvider), isEmpty);
     });
 
+    test('ignores commands shorter than 4 characters', () {
+      notifier.add('n');
+      notifier.add('go');
+      notifier.add('get');
+      notifier.add('  s '); // trimmed length 1
+      expect(container.read(commandHistoryProvider), isEmpty);
+    });
+
+    test('records commands of at least 4 characters', () {
+      notifier.add('look');
+      notifier.add('kill rat');
+      expect(container.read(commandHistoryProvider), ['kill rat', 'look']);
+    });
+
     test('deduplicates consecutive identical commands', () {
       notifier.add('look');
       notifier.add('look');

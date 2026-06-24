@@ -32,6 +32,8 @@ class AppSettings {
   final bool mobileAutoCorrectEnabled; // soft-keyboard autocorrect/suggestions
   final List<String> pinnedAliasIds; // up to 3 alias IDs shown as D-Pad quick slots
   final List<String> pinnedTargets; // user-pinned targets shown atop the Kill picker
+  final Map<String, List<String>>
+      killAliasSteps; // normalized target → ordered combat steps (Kill picker "Customise")
 
   /// Maximum number of alias rules that can be pinned to the D-Pad's
   /// quick-slot column at once.
@@ -40,6 +42,12 @@ class AppSettings {
   static const Set<String> defaultPromptElements = {
     'HP', 'MAXHP', 'SP', 'MAXSP', 'XCOORD', 'YCOORD',
   };
+
+  /// Normalizes a free-text target name to a single lower-case keyword phrase
+  /// (trimmed, internal whitespace collapsed) so it can be appended to
+  /// `kill ` directly and used as a stable key for pins and kill-alias steps.
+  static String normalizeTarget(String target) =>
+      target.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
   static const Map<String, int> defaultCustomColors = {
     'primary': 0xFFD4A057,
@@ -71,6 +79,7 @@ class AppSettings {
     this.mobileAutoCorrectEnabled = false,
     this.pinnedAliasIds = const [],
     this.pinnedTargets = const [],
+    this.killAliasSteps = const {},
   });
 
   AppSettings copyWith({
@@ -95,6 +104,7 @@ class AppSettings {
     bool? mobileAutoCorrectEnabled,
     List<String>? pinnedAliasIds,
     List<String>? pinnedTargets,
+    Map<String, List<String>>? killAliasSteps,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -124,6 +134,7 @@ class AppSettings {
           mobileAutoCorrectEnabled ?? this.mobileAutoCorrectEnabled,
       pinnedAliasIds: pinnedAliasIds ?? this.pinnedAliasIds,
       pinnedTargets: pinnedTargets ?? this.pinnedTargets,
+      killAliasSteps: killAliasSteps ?? this.killAliasSteps,
     );
   }
 
@@ -152,6 +163,7 @@ class AppSettings {
         'mobileAutoCorrectEnabled': mobileAutoCorrectEnabled,
         'pinnedAliasIds': pinnedAliasIds,
         'pinnedTargets': pinnedTargets,
+        'killAliasSteps': killAliasSteps,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -193,6 +205,11 @@ class AppSettings {
       pinnedTargets: json['pinnedTargets'] != null
           ? List<String>.from(json['pinnedTargets'] as List)
           : const [],
+      killAliasSteps: json['killAliasSteps'] != null
+          ? (json['killAliasSteps'] as Map).map(
+              (k, v) => MapEntry(k as String, List<String>.from(v as List)),
+            )
+          : const {},
     );
   }
 
@@ -338,17 +355,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     return nowPinned;
   }
 
-  /// Normalizes a free-text target name to a single lower-case keyword phrase
-  /// (trimmed, internal whitespace collapsed) so it can be appended to
-  /// `kill ` directly and compared consistently.
-  static String _normalizeTarget(String target) =>
-      target.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-
   /// Pins a manually-entered target to the top of the Kill picker, persisted
   /// across sessions. Re-pinning an existing target moves it back to the top.
   /// Blank input is ignored.
   void addPinnedTarget(String target) {
-    final normalized = _normalizeTarget(target);
+    final normalized = AppSettings.normalizeTarget(target);
     if (normalized.isEmpty) return;
     final current = [...state.pinnedTargets]..remove(normalized);
     current.insert(0, normalized);
@@ -358,10 +369,33 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   /// Removes [target] from the pinned-targets list, if present.
   void removePinnedTarget(String target) {
-    final normalized = _normalizeTarget(target);
+    final normalized = AppSettings.normalizeTarget(target);
     if (!state.pinnedTargets.contains(normalized)) return;
     final current = [...state.pinnedTargets]..remove(normalized);
     state = state.copyWith(pinnedTargets: List.unmodifiable(current));
+    _saveSettings();
+  }
+
+  /// Returns the saved combat steps for [target] (empty if none), using the
+  /// same normalization as pins so the Kill picker's "Customise" editor can
+  /// reliably round-trip its rows.
+  List<String> killAliasStepsFor(String target) {
+    final key = AppSettings.normalizeTarget(target);
+    return state.killAliasSteps[key] ?? const [];
+  }
+
+  /// Persists the ordered combat [steps] designed for [target]. An empty list
+  /// clears the entry. Keyed by the normalized target name.
+  void setKillAliasSteps(String target, List<String> steps) {
+    final key = AppSettings.normalizeTarget(target);
+    if (key.isEmpty) return;
+    final updated = Map<String, List<String>>.from(state.killAliasSteps);
+    if (steps.isEmpty) {
+      updated.remove(key);
+    } else {
+      updated[key] = List.unmodifiable(steps);
+    }
+    state = state.copyWith(killAliasSteps: Map.unmodifiable(updated));
     _saveSettings();
   }
 

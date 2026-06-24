@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/common_targets_provider.dart';
 import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../screens/kill_alias_designer_screen.dart';
 
 /// Modal bottom sheet listing recent MUD words for a quick-command target.
 ///
@@ -47,6 +48,11 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
     ref.read(settingsProvider.notifier).addPinnedTarget(text);
     _filterController.clear();
     setState(() => _prefix = '');
+  }
+
+  /// Opens the alias designer for [word]. Does not pin the target.
+  void _openCustomise(String word) {
+    openKillAliasDesigner(context, target: word);
   }
 
   @override
@@ -156,6 +162,7 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
                               word: word,
                               theme: theme,
                               onTap: () => Navigator.of(context).pop(word),
+                              onCustomise: () => _openCustomise(word),
                               onRemove: () => ref
                                   .read(settingsProvider.notifier)
                                   .removePinnedTarget(word),
@@ -171,6 +178,12 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
                                 style: const TextStyle(
                                   fontFamily: 'JetBrainsMono',
                                 ),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.tune, size: 18),
+                                tooltip: 'Customise',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _openCustomise(word),
                               ),
                               onTap: () => Navigator.of(context).pop(word),
                             ),
@@ -192,12 +205,14 @@ class _PinnedTargetTile extends StatelessWidget {
   final String word;
   final ThemeData theme;
   final VoidCallback onTap;
+  final VoidCallback onCustomise;
   final VoidCallback onRemove;
 
   const _PinnedTargetTile({
     required this.word,
     required this.theme,
     required this.onTap,
+    required this.onCustomise,
     required this.onRemove,
   });
 
@@ -218,11 +233,22 @@ class _PinnedTargetTile extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
-      trailing: IconButton(
-        icon: const Icon(Icons.close, size: 18),
-        tooltip: 'Unpin',
-        visualDensity: VisualDensity.compact,
-        onPressed: onRemove,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.tune, size: 18),
+            tooltip: 'Customise',
+            visualDensity: VisualDensity.compact,
+            onPressed: onCustomise,
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Unpin',
+            visualDensity: VisualDensity.compact,
+            onPressed: onRemove,
+          ),
+        ],
       ),
       onTap: onTap,
     );

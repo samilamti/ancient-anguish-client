@@ -22,19 +22,25 @@ class TextLinkRule {
   /// Whether this rule is currently active.
   final bool enabled;
 
+  /// Whether the pattern matches case-sensitively. Defaults to `true` to
+  /// preserve the behaviour of hand-written and default rules; generated
+  /// rules (e.g. the Kill picker's target links) opt into `false`.
+  final bool caseSensitive;
+
   const TextLinkRule({
     required this.id,
     required this.name,
     required this.pattern,
     required this.commandTemplate,
     this.enabled = true,
+    this.caseSensitive = true,
   });
 
   /// Lazily-compiled regex. Returns null if the pattern fails to compile so
   /// a broken rule degrades gracefully (skipped, not crash).
   RegExp? get regex {
     try {
-      return RegExp(pattern);
+      return RegExp(pattern, caseSensitive: caseSensitive);
     } catch (_) {
       return null;
     }
@@ -60,6 +66,7 @@ class TextLinkRule {
     String? pattern,
     String? commandTemplate,
     bool? enabled,
+    bool? caseSensitive,
   }) {
     return TextLinkRule(
       id: id ?? this.id,
@@ -67,6 +74,7 @@ class TextLinkRule {
       pattern: pattern ?? this.pattern,
       commandTemplate: commandTemplate ?? this.commandTemplate,
       enabled: enabled ?? this.enabled,
+      caseSensitive: caseSensitive ?? this.caseSensitive,
     );
   }
 
@@ -76,6 +84,7 @@ class TextLinkRule {
         'pattern': pattern,
         'commandTemplate': commandTemplate,
         'enabled': enabled,
+        'caseSensitive': caseSensitive,
       };
 
   factory TextLinkRule.fromJson(Map<String, dynamic> json) => TextLinkRule(
@@ -84,6 +93,7 @@ class TextLinkRule {
         pattern: json['pattern'] as String,
         commandTemplate: json['commandTemplate'] as String,
         enabled: json['enabled'] as bool? ?? true,
+        caseSensitive: json['caseSensitive'] as bool? ?? true,
       );
 
   @override

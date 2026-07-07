@@ -202,13 +202,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 _ToolbarItem(
                   icon: Icons.history,
                   label: 'History',
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const HistoryScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: () =>
+                      openSettingsDrawer(context, const HistoryScreen()),
                 ),
                 _ToolbarItem(
                   icon: Icons.info_outline,

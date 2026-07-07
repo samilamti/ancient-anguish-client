@@ -5,9 +5,11 @@ import '../../protocol/ansi/styled_span.dart';
 import '../../providers/connection_provider.dart'
     show connectionServiceProvider, terminalBufferProvider;
 import '../../providers/settings_provider.dart';
+import '../widgets/common/escape_dismiss.dart';
 import '../widgets/terminal/terminal_line.dart';
 
-/// Full-screen scrollback view of the terminal buffer.
+/// Scrollback view of the terminal buffer — a right-docked drawer panel
+/// on desktop, fullscreen on mobile.
 ///
 /// The live [TerminalView] is tail-only and doesn't scroll — this screen
 /// exists for the occasional "look back at what just happened" need.
@@ -34,7 +36,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: AppBar(
         title: const Text('History'),
       ),
@@ -61,5 +63,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         ),
       ),
     );
+    return EscapeDismiss(child: scaffold);
   }
 }

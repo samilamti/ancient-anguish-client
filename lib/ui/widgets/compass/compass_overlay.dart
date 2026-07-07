@@ -8,12 +8,12 @@ import '../../../providers/compass_provider.dart';
 import '../../../providers/game_state_provider.dart';
 
 /// Diameter of the compass disc.
-const double _kCompassSize = 216;
+const double _kCompassSize = 432;
 
 /// Markers are plotted between these radii: touching distance at the
 /// center, [kCompassRangeStadia] at the outer edge.
-const double _kMarkerMinRadius = 16;
-const double _kMarkerMaxRadius = 76;
+const double _kMarkerMinRadius = 32;
+const double _kMarkerMaxRadius = 152;
 
 /// At most this many nearby locations get an icon + name label; anything
 /// farther is still drawn as a small dot on the rose.
@@ -21,7 +21,7 @@ const int _kMaxLabeledMarkers = 6;
 
 /// Blender-rendered icons that exist under assets/images/compass/. Kinds
 /// not listed here fall back to an emoji glyph until their art lands.
-const Set<LocationKind> _kRenderedIconKinds = {};
+const Set<LocationKind> _kRenderedIconKinds = {...LocationKind.values};
 
 const Map<LocationKind, String> _kKindEmoji = {
   LocationKind.city: '🏰',
@@ -114,12 +114,12 @@ class _LocationMarker extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final offset = _markerOffset(entry);
-    const markerWidth = 72.0;
+    const markerWidth = 124.0;
     final center = _kCompassSize / 2;
 
     return Positioned(
       left: center + offset.dx - markerWidth / 2,
-      top: center + offset.dy - 10,
+      top: center + offset.dy - 18,
       width: markerWidth,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -132,7 +132,7 @@ class _LocationMarker extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: 'JetBrainsMono',
-              fontSize: 9,
+              fontSize: 12,
               height: 1.1,
               color: scheme.onSurface,
               shadows: const [
@@ -158,14 +158,14 @@ class _LocationIcon extends StatelessWidget {
     if (_kRenderedIconKinds.contains(kind)) {
       return Image.asset(
         'assets/images/compass/${kind.name}.png',
-        width: 22,
-        height: 22,
+        width: 40,
+        height: 40,
         filterQuality: FilterQuality.medium,
       );
     }
     return Text(
       _kKindEmoji[kind] ?? '📍',
-      style: const TextStyle(fontSize: 13, height: 1),
+      style: const TextStyle(fontSize: 24, height: 1),
     );
   }
 }
@@ -185,18 +185,18 @@ class _NearestChip extends StatelessWidget {
         distance == 0 ? 'here' : '$distance stadia ${nearest.direction}';
 
     return Container(
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
       decoration: BoxDecoration(
         color: scheme.surface.withAlpha(200),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: scheme.primary.withAlpha(60)),
       ),
       child: Text(
         '${nearest.location.shortName} · $where',
         style: TextStyle(
           fontFamily: 'JetBrainsMono',
-          fontSize: 10,
+          fontSize: 13,
           color: scheme.onSurface.withAlpha(220),
         ),
       ),
@@ -225,7 +225,7 @@ class _CompassRosePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
-    final ringRadius = size.width / 2 - 8;
+    final ringRadius = size.width / 2 - 12;
 
     // Disc + outer ring.
     canvas.drawCircle(
@@ -238,14 +238,14 @@ class _CompassRosePainter extends CustomPainter {
       ringRadius,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
+        ..strokeWidth = 2.5
         ..color = primary.withAlpha(130),
     );
 
     // Faint range rings at half range and full range.
     final rangePaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
+      ..strokeWidth = 1.4
       ..color = onSurface.withAlpha(24);
     final halfRadius = _kMarkerMinRadius +
         (_kMarkerMaxRadius - _kMarkerMinRadius) / 2;
@@ -256,13 +256,13 @@ class _CompassRosePainter extends CustomPainter {
     for (var i = 0; i < 16; i++) {
       final angle = i * math.pi / 8;
       final isMajor = i.isEven;
-      final inner = ringRadius - (isMajor ? 8 : 4);
+      final inner = ringRadius - (isMajor ? 15 : 8);
       final direction = Offset(math.sin(angle), -math.cos(angle));
       canvas.drawLine(
         center + direction * inner,
         center + direction * ringRadius,
         Paint()
-          ..strokeWidth = isMajor ? 1.6 : 1
+          ..strokeWidth = isMajor ? 2.6 : 1.6
           ..color = primary.withAlpha(isMajor ? 150 : 70),
       );
     }
@@ -271,13 +271,13 @@ class _CompassRosePainter extends CustomPainter {
     for (var i = 0; i < 4; i++) {
       final angle = i * math.pi / 2;
       final position = center +
-          Offset(math.sin(angle), -math.cos(angle)) * (ringRadius - 17);
+          Offset(math.sin(angle), -math.cos(angle)) * (ringRadius - 30);
       final painter = TextPainter(
         text: TextSpan(
           text: _cardinals[i],
           style: TextStyle(
             fontFamily: 'JetBrainsMono',
-            fontSize: 11,
+            fontSize: 17,
             fontWeight: FontWeight.bold,
             color: i == 0 ? primary : onSurface.withAlpha(150),
           ),
@@ -291,13 +291,13 @@ class _CompassRosePainter extends CustomPainter {
     }
 
     // Player dot at the center.
-    canvas.drawCircle(center, 3.5, Paint()..color = primary);
+    canvas.drawCircle(center, 5.5, Paint()..color = primary);
     canvas.drawCircle(
       center,
-      6,
+      10,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
+        ..strokeWidth = 1.4
         ..color = primary.withAlpha(90),
     );
 
@@ -305,7 +305,7 @@ class _CompassRosePainter extends CustomPainter {
     // sit on, and the only trace of locations beyond the label cap.
     final dotPaint = Paint()..color = primary.withAlpha(210);
     for (final entry in nearby) {
-      canvas.drawCircle(center + _markerOffset(entry), 2.4, dotPaint);
+      canvas.drawCircle(center + _markerOffset(entry), 3.6, dotPaint);
     }
   }
 

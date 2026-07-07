@@ -6,7 +6,7 @@ import 'game_state_provider.dart';
 
 /// A location is "nearby" (and appears on the navigation compass) when it
 /// lies within this many stadia of the player.
-const double kCompassRangeStadia = 10;
+const double kCompassRangeStadia = 5;
 
 /// Known locations within [kCompassRangeStadia] of the player's current
 /// position, sorted nearest first. Empty while coordinates are unknown

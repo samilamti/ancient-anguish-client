@@ -205,6 +205,20 @@ class SettingsScreen extends ConsumerWidget {
               ),
           ],
 
+          // Navigation compass (desktop only — needs a large screen).
+          if (defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.macOS ||
+              defaultTargetPlatform == TargetPlatform.linux)
+            SwitchListTile(
+              title: const Text('Navigation Compass'),
+              subtitle: const Text(
+                'Show nearby map locations around a compass rose',
+              ),
+              value: settings.compassEnabled,
+              onChanged: (_) => notifier.toggleCompass(),
+              secondary: const Icon(Icons.explore),
+            ),
+
           SwitchListTile(
             title: const Text('Emoji Parsing'),
             subtitle: const Text(

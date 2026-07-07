@@ -20,6 +20,7 @@ import '../../providers/social_message_provider.dart';
 import '../../providers/social_panel_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../widgets/audio/audio_controls.dart';
+import '../widgets/compass/compass_overlay.dart';
 import '../widgets/login/login_dialog.dart';
 import '../widgets/mobile/d_pad.dart';
 import '../widgets/social/social_windows_overlay.dart';
@@ -86,6 +87,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final keyboardHidesSecondaryBars =
         isMobile && MediaQuery.viewInsetsOf(context).bottom > 0;
     final playerName = gameState.playerName;
+
+    // Navigation compass floats over the terminal's top-right corner on
+    // large desktop screens only.
+    final showCompass =
+        !isMobile && isDesktopPlatform() && settings.compassEnabled;
+    final terminal = showCompass
+        ? const Stack(
+            children: [
+              TerminalView(),
+              Positioned(top: 8, right: 12, child: CompassOverlay()),
+            ],
+          )
+        : const TerminalView();
 
     return Scaffold(
       key: _scaffoldKey,
@@ -279,7 +293,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     const StatusBar(),
 
                   // Terminal output – takes all available space.
-                  const Expanded(child: TerminalView()),
+                  Expanded(child: terminal),
 
                   // Audio controls (shown when connected and audio is enabled).
                   // Also yields vertical space to the soft keyboard on mobile.

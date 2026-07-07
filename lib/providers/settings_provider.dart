@@ -29,6 +29,7 @@ class AppSettings {
   final bool hideKeyboardOnMobile; // suppress autofocus + dismiss after send
   final TimestampMode timestampMode; // HH:MM column in social message rows
   final bool emojiMapsEnabled; // swap ASCII map tiles for emoji
+  final bool compassEnabled; // desktop-only navigation compass overlay
   final bool mobileAutoCorrectEnabled; // soft-keyboard autocorrect/suggestions
   final List<String> pinnedAliasIds; // up to 3 alias IDs shown as D-Pad quick slots
   final List<String> pinnedTargets; // user-pinned targets shown atop the Kill picker
@@ -76,6 +77,7 @@ class AppSettings {
     this.hideKeyboardOnMobile = true,
     this.timestampMode = TimestampMode.show,
     this.emojiMapsEnabled = false,
+    this.compassEnabled = true,
     this.mobileAutoCorrectEnabled = false,
     this.pinnedAliasIds = const [],
     this.pinnedTargets = const [],
@@ -101,6 +103,7 @@ class AppSettings {
     bool? hideKeyboardOnMobile,
     TimestampMode? timestampMode,
     bool? emojiMapsEnabled,
+    bool? compassEnabled,
     bool? mobileAutoCorrectEnabled,
     List<String>? pinnedAliasIds,
     List<String>? pinnedTargets,
@@ -130,6 +133,7 @@ class AppSettings {
           hideKeyboardOnMobile ?? this.hideKeyboardOnMobile,
       timestampMode: timestampMode ?? this.timestampMode,
       emojiMapsEnabled: emojiMapsEnabled ?? this.emojiMapsEnabled,
+      compassEnabled: compassEnabled ?? this.compassEnabled,
       mobileAutoCorrectEnabled:
           mobileAutoCorrectEnabled ?? this.mobileAutoCorrectEnabled,
       pinnedAliasIds: pinnedAliasIds ?? this.pinnedAliasIds,
@@ -160,6 +164,7 @@ class AppSettings {
         'hideKeyboardOnMobile': hideKeyboardOnMobile,
         'timestampMode': timestampMode.storageKey,
         'emojiMapsEnabled': emojiMapsEnabled,
+        'compassEnabled': compassEnabled,
         'mobileAutoCorrectEnabled': mobileAutoCorrectEnabled,
         'pinnedAliasIds': pinnedAliasIds,
         'pinnedTargets': pinnedTargets,
@@ -197,6 +202,7 @@ class AppSettings {
       timestampMode:
           TimestampMode.fromStorageKey(json['timestampMode'] as String?),
       emojiMapsEnabled: json['emojiMapsEnabled'] as bool? ?? false,
+      compassEnabled: json['compassEnabled'] as bool? ?? true,
       mobileAutoCorrectEnabled:
           json['mobileAutoCorrectEnabled'] as bool? ?? false,
       pinnedAliasIds: json['pinnedAliasIds'] != null
@@ -305,6 +311,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void toggleEmojiMaps() {
     state = state.copyWith(emojiMapsEnabled: !state.emojiMapsEnabled);
+    _saveSettings();
+  }
+
+  void toggleCompass() {
+    state = state.copyWith(compassEnabled: !state.compassEnabled);
     _saveSettings();
   }
 

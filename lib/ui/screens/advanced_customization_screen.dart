@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/prompt_element.dart';
 import '../../providers/settings_provider.dart';
+import '../widgets/common/escape_dismiss.dart';
 
 /// Screen where players choose which MUD prompt values to receive,
 /// directly shaping the HUD panels shown during gameplay.
@@ -22,7 +23,7 @@ class AdvancedCustomizationScreen extends ConsumerWidget {
       byCategory.putIfAbsent(e.category, () => []).add(e);
     }
 
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: AppBar(title: const Text('Advanced Customization')),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -83,6 +84,7 @@ class AdvancedCustomizationScreen extends ConsumerWidget {
         ],
       ),
     );
+    return EscapeDismiss(child: scaffold);
   }
 }
 

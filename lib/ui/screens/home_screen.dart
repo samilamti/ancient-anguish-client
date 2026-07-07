@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/social_input_focus_provider.dart';
 import '../widgets/common/escape_dismiss.dart';
+import '../widgets/common/settings_drawer_route.dart';
 import '../widgets/social/social_message_list.dart' show SocialListType;
 
 import '../../models/connection_info.dart';
@@ -167,35 +168,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 _ToolbarItem(
                   emoji: '🎨',
                   label: 'Immersions',
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const TriggerSettingsScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: () => openSettingsDrawer(
+                      context, const TriggerSettingsScreen()),
                 ),
                 _ToolbarItem(
                   emoji: '🔡',
                   label: 'Aliases',
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const AliasSettingsScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: () => openSettingsDrawer(
+                      context, const AliasSettingsScreen()),
                 ),
                 _ToolbarItem(
                   icon: Icons.landscape,
                   label: 'Areas',
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const AreaConfigurationScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: () => openSettingsDrawer(
+                      context, const AreaConfigurationScreen()),
                 ),
               ],
               if (!isMobile)
@@ -912,6 +898,12 @@ class _SettingsDrawer extends ConsumerWidget {
                   value: settings.gagSocialFromTerminal,
                   onChanged: (_) => notifier.toggleGagSocial(),
                 ),
+              _DrawerToggle(
+                label: 'Navigation Compass',
+                icon: Icons.explore,
+                value: settings.compassEnabled,
+                onChanged: (_) => notifier.toggleCompass(),
+              ),
             ],
 
             _DrawerToggle(
@@ -1029,11 +1021,18 @@ class _DrawerSectionHeader extends StatelessWidget {
   }
 }
 
-/// Drawer entry that pushes a screen — closes the drawer first so the user
-/// returns to the game on pop rather than back to the open drawer.
+/// Drawer entry that opens a screen — closes the drawer first so the user
+/// returns to the game on dismiss rather than back to the open drawer.
+/// On wide layouts the screen opens as a right-docked drawer panel
+/// (matching the settings drawer); on mobile it pushes fullscreen.
 void _openScreen(BuildContext context, Widget screen) {
+  final isWide = MediaQuery.of(context).size.width >= 768;
   Navigator.of(context).pop();
-  Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  if (isWide) {
+    openSettingsDrawer(context, screen);
+  } else {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
 }
 
 class _DrawerNavTile extends StatelessWidget {

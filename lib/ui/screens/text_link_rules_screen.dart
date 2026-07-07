@@ -465,7 +465,7 @@ class _TextLinkRuleEditScreenState
     final isEditing = widget.existing != null;
     final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
 
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Text Link Rule' : 'New Text Link Rule'),
         actions: [
@@ -582,5 +582,6 @@ class _TextLinkRuleEditScreenState
         ],
       ),
     );
+    return EscapeDismiss(child: scaffold);
   }
 }

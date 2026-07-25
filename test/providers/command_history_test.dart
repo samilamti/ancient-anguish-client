@@ -54,11 +54,11 @@ void main() {
       expect(container.read(commandHistoryProvider), hasLength(1));
     });
 
-    test('allows non-consecutive duplicates', () {
+    test('re-running an older command moves it to the top, no duplicate', () {
       notifier.add('look');
       notifier.add('north');
       notifier.add('look');
-      expect(container.read(commandHistoryProvider), hasLength(3));
+      expect(container.read(commandHistoryProvider), ['look', 'north']);
     });
 
     test('caps history at ${CommandHistoryService.maxEntries} entries', () {

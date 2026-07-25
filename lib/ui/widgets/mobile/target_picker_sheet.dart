@@ -198,9 +198,11 @@ class _TargetPickerSheetState extends ConsumerState<TargetPickerSheet> {
   }
 }
 
-/// A pinned target row in the Kill picker. A pin icon and primary-coloured,
-/// semi-bold label mark it as user-pinned (distinct from auto-identified
-/// targets), with a trailing button to unpin it. Tapping the row chooses it.
+/// A pinned target row in the Kill picker. The primary-coloured, semi-bold
+/// label marks it as user-pinned (distinct from auto-identified targets).
+/// Tapping the row chooses the target; tapping the leading pin icon unpins
+/// it instead — the pin is a real button, not decoration that falls through
+/// to the row's tap.
 class _PinnedTargetTile extends StatelessWidget {
   final String word;
   final ThemeData theme;
@@ -220,10 +222,12 @@ class _PinnedTargetTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       dense: true,
-      leading: Icon(
-        Icons.push_pin,
-        size: 16,
+      leading: IconButton(
+        icon: const Icon(Icons.push_pin, size: 16),
         color: theme.colorScheme.primary,
+        tooltip: 'Unpin',
+        visualDensity: VisualDensity.compact,
+        onPressed: onRemove,
       ),
       title: Text(
         word,
@@ -233,22 +237,13 @@ class _PinnedTargetTile extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.tune, size: 18),
-            tooltip: 'Customise',
-            visualDensity: VisualDensity.compact,
-            onPressed: onCustomise,
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18),
-            tooltip: 'Unpin',
-            visualDensity: VisualDensity.compact,
-            onPressed: onRemove,
-          ),
-        ],
+      // Unpinning lives on the leading pin icon, so the trailing slot only
+      // carries "Customise" — matching the auto-identified rows.
+      trailing: IconButton(
+        icon: const Icon(Icons.tune, size: 18),
+        tooltip: 'Customise',
+        visualDensity: VisualDensity.compact,
+        onPressed: onCustomise,
       ),
       onTap: onTap,
     );

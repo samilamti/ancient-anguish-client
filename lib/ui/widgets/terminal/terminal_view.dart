@@ -48,6 +48,12 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   bool _primaryButtonDown = false;
   Timer? _tapTimer;
 
+  /// Whether a non-empty selection existed when the current gesture started.
+  /// Captured at pointer-down because [TerminalSelectionController.startSelection]
+  /// immediately collapses it — without this flag the tap handler can't tell
+  /// "dismiss the selection" from "focus the input".
+  bool _hadSelectionOnPointerDown = false;
+
   static const double _tapSlopSquared = 18.0 * 18.0;
   static const Duration _doubleTapTimeout = Duration(milliseconds: 300);
 
@@ -154,7 +160,15 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     if (shiftHeld && _selectionController.hasSelection) {
       if (_selectionController.updateSelection(pos)) setState(() {});
     } else {
-      _selectionController.startSelection(pos);
+      final existing = _selectionController.selection;
+      _hadSelectionOnPointerDown =
+          existing != null && existing.anchor != existing.focus;
+      // Repaint straight away when a real selection is being displaced, so
+      // the highlight disappears the instant the user touches the output.
+      if (_selectionController.startSelection(pos) &&
+          _hadSelectionOnPointerDown) {
+        setState(() {});
+      }
     }
   }
 
@@ -222,16 +236,17 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     _tapCount = 0;
     _tapTimer?.cancel();
     _tapTimer = null;
+    _hadSelectionOnPointerDown = false;
   }
 
+  /// A tap on the output always drops any selection. When it was dismissing
+  /// a real selection that's the whole job — the user is clearing, not asking
+  /// for the keyboard — so input focus is left alone.
   void _handleSingleTap() {
-    final sel = _selectionController.selection;
-    if (sel != null && sel.anchor != sel.focus) {
-      _selectionController.clearSelection();
-      setState(() {});
-      return;
-    }
-    _selectionController.clearSelection();
+    final dismissedSelection = _hadSelectionOnPointerDown;
+    _hadSelectionOnPointerDown = false;
+    if (_selectionController.clearSelection()) setState(() {});
+    if (dismissedSelection) return;
     ref.read(inputFocusProvider).requestFocus();
   }
 
@@ -246,9 +261,17 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
 
   /// Dispatches a tap on a text-to-link span — sends the command to the
   /// MUD. The tail is already pinned, so no scroll action is needed.
+  ///
+  /// On mobile layouts the soft keyboard is also dismissed: the user tapped
+  /// output rather than typing, so they want to *read* the result, not lose
+  /// half the screen to a keyboard. Desktop keeps input focus.
   void _sendLinkCommand(String command) {
     if (command.trim().isEmpty) return;
     ref.read(connectionServiceProvider).sendCommand(command);
+    if (MediaQuery.of(context).size.width < 768) {
+      ref.read(inputFocusProvider).unfocus();
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
+    }
   }
 
   // ---------------------------------------------------------------------------

@@ -47,8 +47,9 @@ class _InputBarState extends ConsumerState<InputBar> {
 
   /// How many recent commands the History ("Recent commands") sheet lists.
   /// Desktop has far more vertical room, so it shows the full retained history
-  /// (capped at [CommandHistoryService.maxEntries] = 20); mobile stays compact.
-  static const int _recentSheetCountMobile = 8;
+  /// (capped at [CommandHistoryService.maxEntries] = 20); mobile lists 16 and
+  /// scrolls the overflow inside the sheet.
+  static const int _recentSheetCountMobile = 16;
   static const int _recentSheetCountDesktop = 20;
 
   @override
@@ -501,17 +502,37 @@ class _InputBarState extends ConsumerState<InputBar> {
     );
   }
 
-  /// A horizontal bar of tappable completion suggestions shown above the input
-  /// on mobile. Mirrors desktop TAB completion: when the typed text matches a
-  /// rule trigger, tapping a chip fills the completion. Renders nothing when
-  /// there is no match, so it takes no space.
+  /// Accepts a mobile Hint. Complete commands go straight to the MUD;
+  /// partial templates (completions ending in a space, e.g. `dotimes 30 `)
+  /// fill the input instead so the user can finish typing.
+  void _applyHint(CompletionHint hint) {
+    if (!hint.sendsOnTap) {
+      _applyCompletion(hint.resolvedInput);
+      return;
+    }
+    _resetTabCompletion();
+    _resetHistorySearch();
+    _controller.text = hint.resolvedInput;
+    _send();
+  }
+
+  /// A horizontal bar of tappable Hints shown above the input on mobile —
+  /// the tap-able port of desktop TAB completion. Offers rule completions
+  /// (`po` → `powerup`) and recent-word prefix completions (`i t` → the
+  /// words TAB would cycle). Renders nothing when there is no match, so it
+  /// takes no space.
   Widget _buildSuggestionBar(ThemeData theme, double fontSize) {
     final rules = ref.watch(completionRulesProvider);
+    final recentWords = ref.watch(recentWordsProvider);
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: _controller,
       builder: (context, value, _) {
-        final matches = matchCompletions(rules, value.text);
-        if (matches.isEmpty) return const SizedBox.shrink();
+        final hints = buildCompletionHints(
+          rules: rules,
+          recentWords: recentWords,
+          input: value.text,
+        );
+        if (hints.isEmpty) return const SizedBox.shrink();
         return Padding(
           padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
           child: Align(
@@ -520,12 +541,17 @@ class _InputBarState extends ConsumerState<InputBar> {
               spacing: 8,
               runSpacing: 4,
               children: [
-                for (final m in matches)
+                for (final hint in hints)
                   _CompletionChip(
-                    label: m.completion,
+                    label: hint.label,
                     fontSize: fontSize,
                     theme: theme,
-                    onTap: () => _applyCompletion(m.completion),
+                    // A send-on-tap hint gets the send glyph; a partial
+                    // template keeps the "fills the input" tab glyph.
+                    icon: hint.sendsOnTap
+                        ? Icons.send_rounded
+                        : Icons.keyboard_tab,
+                    onTap: () => _applyHint(hint),
                   ),
               ],
             ),
@@ -625,17 +651,11 @@ class _HistorySheet extends StatelessWidget {
           shrinkWrap: true,
           padding: const EdgeInsets.only(bottom: 12),
           children: [
-            if (recent.isNotEmpty) ...[
-              _SectionLabel(
-                icon: Icons.history,
-                label: 'Recent',
-                theme: theme,
-              ),
-              for (final cmd in recent)
-                _CommandRow(command: cmd, theme: theme),
-            ],
+            // Counterparts lead: they're the short, situational follow-ups
+            // (leave/out, close the door you just opened) the user reaches
+            // for immediately, so they shouldn't be a scroll away below a
+            // 16-entry history.
             if (counterparts.isNotEmpty) ...[
-              const Divider(height: 16),
               _SectionLabel(
                 icon: Icons.swap_horiz,
                 label: 'Counterparts',
@@ -647,6 +667,16 @@ class _HistorySheet extends StatelessWidget {
                   theme: theme,
                   isCounterpart: true,
                 ),
+            ],
+            if (recent.isNotEmpty) ...[
+              if (counterparts.isNotEmpty) const Divider(height: 16),
+              _SectionLabel(
+                icon: Icons.history,
+                label: 'Recent',
+                theme: theme,
+              ),
+              for (final cmd in recent)
+                _CommandRow(command: cmd, theme: theme),
             ],
           ],
         ),
@@ -757,6 +787,7 @@ class _CompletionChip extends StatelessWidget {
   final String label;
   final double fontSize;
   final ThemeData theme;
+  final IconData icon;
   final VoidCallback onTap;
 
   const _CompletionChip({
@@ -764,6 +795,7 @@ class _CompletionChip extends StatelessWidget {
     required this.fontSize,
     required this.theme,
     required this.onTap,
+    this.icon = Icons.keyboard_tab,
   });
 
   @override
@@ -780,7 +812,7 @@ class _CompletionChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                Icons.keyboard_tab,
+                icon,
                 size: 14,
                 color: theme.colorScheme.primary,
               ),

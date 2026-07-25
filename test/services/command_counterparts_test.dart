@@ -10,14 +10,15 @@ void main() {
       expect(CommandCounterparts.counterpartsOf('kill goblin'), isEmpty);
     });
 
-    test('pairs enter ↔ leave', () {
-      expect(CommandCounterparts.counterpartsOf('enter'), ['leave']);
+    test('enter offers both leave and out', () {
+      expect(CommandCounterparts.counterpartsOf('enter'), ['leave', 'out']);
       expect(CommandCounterparts.counterpartsOf('leave'), ['enter']);
     });
 
     test('preserves tail tokens on enter / leave', () {
+      // `leave` mirrors the argument; bare `out` is offered alongside it.
       expect(CommandCounterparts.counterpartsOf('enter portal'),
-          ['leave portal']);
+          ['leave portal', 'out']);
       expect(CommandCounterparts.counterpartsOf('leave tower'),
           ['enter tower']);
     });
@@ -50,7 +51,7 @@ void main() {
               CommandCounterparts.counterpartsOf('OPEN N').sublist(1, 2));
       // Simpler explicit check:
       final result = CommandCounterparts.counterpartsOf('Enter');
-      expect(result, ['leave']);
+      expect(result, ['leave', 'out']);
     });
 
     test('handles diagonal directions', () {

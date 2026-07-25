@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart' show Color;
+
 import '../../models/text_link_rule.dart';
 import '../../protocol/ansi/styled_span.dart';
 
@@ -10,12 +12,18 @@ import '../../protocol/ansi/styled_span.dart';
 /// and the user can prioritise via list order).
 class TextLinkProcessor {
   final List<TextLinkRule> _rules;
+
+  /// When set, promoted spans are recoloured to this instead of inheriting
+  /// the ANSI foreground — used to give a whole category of generated links
+  /// its own tint (e.g. the reddish kill-target links).
+  final Color? linkColor;
+
   // Pre-compiled regexes paired with their owning rule. Patterns that fail
   // to compile are dropped at construction time so the hot path never has
   // to handle nulls.
   final List<_CompiledRule> _compiled;
 
-  TextLinkProcessor(this._rules)
+  TextLinkProcessor(this._rules, {this.linkColor})
       : _compiled = _rules
             .where((r) => r.enabled)
             .map((r) {
@@ -124,7 +132,8 @@ class TextLinkProcessor {
   StyledSpan _clone(StyledSpan src, String text, {String? command}) {
     return StyledSpan(
       text: text,
-      foreground: src.foreground,
+      foreground:
+          command != null && linkColor != null ? linkColor! : src.foreground,
       background: src.background,
       bold: src.bold,
       italic: src.italic,

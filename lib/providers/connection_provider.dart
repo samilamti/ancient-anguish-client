@@ -32,6 +32,7 @@ import 'battle_provider.dart';
 import 'game_state_provider.dart';
 import 'login_provider.dart';
 import 'framed_text_block_provider.dart';
+import 'kill_target_links_provider.dart';
 import 'map_block_provider.dart';
 import 'online_players_provider.dart';
 import 'prompt_config_provider.dart';
@@ -714,9 +715,16 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
   void _addLines(List<StyledLine> lines) {
     final TextLinkProcessor linkRules = ref.read(textLinkProcessorProvider);
+    // Kill-target links run last so the user's own rules claim a contested
+    // region first — the processor leaves spans that already carry a
+    // command or URL untouched.
+    final TextLinkProcessor killTargets =
+        ref.read(killTargetLinkProcessorProvider);
     final processed = lines.map((line) {
-      final urlised = LinkParser.processLine(line);
-      return linkRules.isEmpty ? urlised : linkRules.processLine(urlised);
+      var out = LinkParser.processLine(line);
+      if (!linkRules.isEmpty) out = linkRules.processLine(out);
+      if (!killTargets.isEmpty) out = killTargets.processLine(out);
+      return out;
     });
     final newState = [...state, ...processed];
     // Trim to max lines.
@@ -916,17 +924,21 @@ class CommandHistoryNotifier extends Notifier<List<String>> {
   }
 
   /// Adds a command to history (most recent first).
+  ///
+  /// Re-running a command already in history *refreshes its recency* — the
+  /// existing entry is removed and the command re-inserted at the top —
+  /// rather than leaving a stale duplicate further down the list.
   void add(String command) {
     // Only record commands of at least 4 characters; shorter commands
     // (movement, abbreviations) clutter history with low-value entries.
     if (command.trim().length < 4) return;
-    // Remove duplicate if it's the same as the most recent.
+    // Already the most recent entry — nothing to reorder.
     if (state.isNotEmpty && state.first == command) {
       _position = -1;
       _resetFilter();
       return;
     }
-    final newState = [command, ...state];
+    final newState = [command, ...state.where((c) => c != command)];
     if (newState.length > _maxHistory) {
       state = newState.sublist(0, _maxHistory);
     } else {

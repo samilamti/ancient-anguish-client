@@ -27,7 +27,10 @@ class CommandCounterparts {
   static final List<_Rule> _rules = [
     _Rule(
       RegExp(r'^enter(\s+.+)?$', caseSensitive: false),
-      (m) => ['leave${m.group(1) ?? ''}'],
+      // `leave` mirrors the argument (`enter portal` → `leave portal`);
+      // `out` is the bare movement command that also gets you back out, so
+      // it's offered regardless of the argument.
+      (m) => ['leave${m.group(1) ?? ''}', 'out'],
     ),
     _Rule(
       RegExp(r'^leave(\s+.+)?$', caseSensitive: false),

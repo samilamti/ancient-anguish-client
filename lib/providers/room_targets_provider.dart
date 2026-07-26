@@ -1,37 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/parser/room_line_classifier.dart';
+
 /// Targets detected by scanning the most-recently-rendered room block in
 /// the terminal stream. Used as the primary seed for the Kill picker so
 /// the player sees what's actually in front of them before falling back to
 /// the static `kCommonTargets` list.
 ///
 /// A "room block" starts on a line shaped like `Room Name (n,e,sw)` and
-/// continues until the next room header, prompt line, or blank line. NPC
-/// lines inside that block match `A|An|The|Some <words>.` — the last word
-/// before the period is taken as the target keyword (lowercased).
+/// continues until the next room header, prompt line, or blank line. The
+/// per-line shape tests live in [RoomLineClassifier] so the kill-target link
+/// renderer agrees with this detector about what counts as a creature.
 final roomTargetsProvider =
     NotifierProvider<RoomTargetsNotifier, List<String>>(
         RoomTargetsNotifier.new);
 
 class RoomTargetsNotifier extends Notifier<List<String>> {
-  static final RegExp _roomHeaderPattern = RegExp(
-    r'^[A-Z][^()\n]*\(([nsewud]{1,2}(,\s*[nsewud]{1,2})*)\)\s*$',
-  );
-
-  static final RegExp _npcLinePattern = RegExp(
-    r'^(A|An|The|Some)\s+\S+(\s+\S+){0,3}\.\s*$',
-  );
-
-  /// Words that almost always indicate a description line ("The grass is
-  /// damp.", "The path leads east.") rather than a discrete NPC. If any
-  /// of these appear as a whole word in the line, the line is skipped.
-  static final RegExp _descriptionGiveaway = RegExp(
-    r'\b(is|are|was|were|has|have|had|leads|goes|stands|sits|lies|hangs|smells|seems|appears|here|there)\b',
-    caseSensitive: false,
-  );
-
-  static final RegExp _promptShape = RegExp(r'^[<\[].*[>\]]\s*$');
-
   bool _inRoomBlock = false;
   final List<String> _pending = [];
 
@@ -41,29 +25,34 @@ class RoomTargetsNotifier extends Notifier<List<String>> {
   /// Feeds one plain-text MUD output line through the parser. Drives the
   /// state machine that captures NPC targets between a room header and the
   /// next prompt / new room.
-  void processLine(String plainText) {
+  ///
+  /// Returns the target this line announced, or `null` if it announced none.
+  /// The terminal buffer uses that return value to render the keyword as a
+  /// tappable `kill` link on the very line that introduced it — which is why
+  /// the answer has to come back per-line rather than only via [state], which
+  /// isn't published until the block ends.
+  String? processLine(String plainText) {
     final line = plainText.trimRight();
 
-    if (_roomHeaderPattern.hasMatch(line)) {
+    if (RoomLineClassifier.isRoomHeader(line)) {
       _commit();
       _inRoomBlock = true;
       _pending.clear();
-      return;
+      return null;
     }
 
-    if (!_inRoomBlock) return;
+    if (!_inRoomBlock) return null;
 
-    if (line.trim().isEmpty || _promptShape.hasMatch(line)) {
+    if (line.trim().isEmpty || RoomLineClassifier.isPromptShape(line)) {
       _commit();
       _inRoomBlock = false;
-      return;
+      return null;
     }
 
-    if (_npcLinePattern.hasMatch(line) &&
-        !_descriptionGiveaway.hasMatch(line)) {
-      final target = _extractTarget(line);
-      if (target != null && !_pending.contains(target)) _pending.add(target);
-    }
+    final target = RoomLineClassifier.npcKeywordIn(line);
+    if (target == null) return null;
+    if (!_pending.contains(target)) _pending.add(target);
+    return target;
   }
 
   /// Pushes the in-flight pending list into [state]. Called when the room
@@ -76,20 +65,6 @@ class RoomTargetsNotifier extends Notifier<List<String>> {
     }
     final next = List<String>.unmodifiable(_pending);
     state = next;
-  }
-
-  /// Returns the last whitespace-separated word with trailing `.` removed
-  /// and any parenthesised status marker (e.g. ` (fighting)`) stripped.
-  /// Lowercased so it can be appended to `kill ` directly.
-  static String? _extractTarget(String line) {
-    var s = line.trim();
-    final paren = s.indexOf('(');
-    if (paren > 0) s = s.substring(0, paren).trimRight();
-    if (s.endsWith('.')) s = s.substring(0, s.length - 1).trimRight();
-    if (s.isEmpty) return null;
-    final words = s.split(RegExp(r'\s+'));
-    if (words.length < 2) return null;
-    return words.last.toLowerCase();
   }
 
   /// Test hook: clears state and the in-flight buffer. Production code

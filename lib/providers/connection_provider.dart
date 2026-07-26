@@ -213,6 +213,12 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           final gameNotifier = ref.read(gameStateProvider.notifier);
           final battleNotifier = ref.read(battleStateProvider.notifier);
           final processedLines = <StyledLine>[];
+          // Announcement lines ("A giant eagle.") mapped to the target the
+          // room parser pulled out of them, so the kill-link renderer can
+          // link the head noun on the very line that introduced it. Keyed by
+          // identity rather than index — several branches below append to
+          // [processedLines], so positions wouldn't stay aligned.
+          final npcKeywords = <StyledLine, String>{};
 
           for (final line in newLines) {
             final plainText = line.plainText;
@@ -416,13 +422,18 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             ref.read(recentWordsProvider.notifier).extractFromLine(plainText);
 
             // Track NPCs in the most-recent room block so the Kill picker
-            // can seed targets from what's actually in the room.
-            ref.read(roomTargetsProvider.notifier).processLine(plainText);
+            // can seed targets from what's actually in the room. The return
+            // value is the target this line announced, if any.
+            final npcTarget =
+                ref.read(roomTargetsProvider.notifier).processLine(plainText);
 
             // Normal trigger processing.
             final result = triggerEngine.processLine(emojiLine);
             if (!result.gagged) {
               processedLines.add(result.styledLine);
+              if (npcTarget != null) {
+                npcKeywords[result.styledLine] = npcTarget;
+              }
             }
 
             // Feed to game state parser for HP/SP prompt detection.
@@ -434,7 +445,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           }
 
           if (processedLines.isNotEmpty) {
-            _addLines(processedLines);
+            _addLines(processedLines, npcKeywords: npcKeywords);
           }
         }
 
@@ -713,17 +724,25 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     }
   }
 
-  void _addLines(List<StyledLine> lines) {
+  /// Appends [lines] to the buffer after running them through the link
+  /// pipeline. [npcKeywords] maps a line to the creature the room parser
+  /// announced on it (see `RoomTargetsNotifier.processLine`); lines absent
+  /// from the map fall back to a plain catalogue scan.
+  void _addLines(
+    List<StyledLine> lines, {
+    Map<StyledLine, String>? npcKeywords,
+  }) {
     final TextLinkProcessor linkRules = ref.read(textLinkProcessorProvider);
     // Kill-target links run last so the user's own rules claim a contested
-    // region first — the processor leaves spans that already carry a
-    // command or URL untouched.
-    final TextLinkProcessor killTargets =
-        ref.read(killTargetLinkProcessorProvider);
+    // region first — the promoter leaves spans that already carry a command
+    // or URL untouched.
+    final killTargets = ref.read(killTargetLinkProcessorProvider);
     final processed = lines.map((line) {
       var out = LinkParser.processLine(line);
       if (!linkRules.isEmpty) out = linkRules.processLine(out);
-      if (!killTargets.isEmpty) out = killTargets.processLine(out);
+      if (!killTargets.isEmpty) {
+        out = killTargets.processLine(out, npcKeyword: npcKeywords?[line]);
+      }
       return out;
     });
     final newState = [...state, ...processed];

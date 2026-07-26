@@ -1,6 +1,7 @@
 import 'package:ancient_anguish_client/protocol/ansi/styled_span.dart';
 import 'package:ancient_anguish_client/providers/kill_target_links_provider.dart';
 import 'package:ancient_anguish_client/providers/room_targets_provider.dart';
+import 'package:ancient_anguish_client/services/parser/kill_target_link_processor.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,25 +14,110 @@ void main() {
           if (s.command != null) (s.text, s.command!),
       ];
 
-  group('kill-target links', () {
-    test('promotes a catalogue target to a kill link', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+  /// Runs [block] through the room parser the way the terminal does — one
+  /// line at a time, linking each as it arrives with whatever keyword the
+  /// parser extracted from it. Returns the links found on the last line.
+  List<(String, String)> linksAfterBlock(
+    ProviderContainer container,
+    List<String> block,
+  ) {
+    final rooms = container.read(roomTargetsProvider.notifier);
+    var result = <(String, String)>[];
+    for (final text in block) {
+      final keyword = rooms.processLine(text);
+      final processor = container.read(killTargetLinkProcessorProvider);
+      result = links(processor.processLine(plain(text), npcKeyword: keyword));
+    }
+    return result;
+  }
 
+  ProviderContainer freshContainer() {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    return container;
+  }
+
+  group("Sami's reported false positives", () {
+    test('a door is not a kill target', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Dusty Crossroads (n,e,sw)',
+          'A shimmering blue door.',
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('an urn is not a kill target', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Dusty Crossroads (n,e,sw)',
+          'A large white urn.',
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('a board is not a kill target', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Dusty Crossroads (n,e,sw)',
+          'The Paladin Board.',
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('a room header never contains kill targets', () {
+      expect(
+        linksAfterBlock(freshContainer(), ['West Gate (e,w)']),
+        isEmpty,
+      );
+    });
+
+    test('an announcement links the creature, not its adjective', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Light pine forest (n,e,s)',
+          'A giant eagle.',
+        ]),
+        [('eagle', 'kill eagle')],
+      );
+    });
+  });
+
+  group('room-target detection', () {
+    test('scenery never reaches the Kill picker either', () {
+      final container = freshContainer();
+      final rooms = container.read(roomTargetsProvider.notifier);
+      for (final line in [
+        'Dusty Crossroads (n,e,sw)',
+        'A shimmering blue door.',
+        'A large white urn.',
+        'The Paladin Board.',
+        'A grizzled mercenary.',
+        '',
+      ]) {
+        rooms.processLine(line);
+      }
+      expect(container.read(roomTargetsProvider), ['mercenary']);
+    });
+  });
+
+  group('catalogue scan (lines with no announcement keyword)', () {
+    test('promotes a catalogue target in prose', () {
+      final container = freshContainer();
       final out = container
           .read(killTargetLinkProcessorProvider)
-          .processLine(plain('A large goblin blocks the path.'));
-
+          .processLine(plain('The goblin hits you.'));
       expect(links(out), [('goblin', 'kill goblin')]);
     });
 
     test('tints the promoted span reddish and leaves the rest alone', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
+      final container = freshContainer();
       final out = container
           .read(killTargetLinkProcessorProvider)
-          .processLine(plain('An orc waits.'));
+          .processLine(plain('The orc snarls at you.'));
 
       final link = out.spans.firstWhere((s) => s.command != null);
       expect(link.foreground, killTargetLinkColor);
@@ -40,57 +126,33 @@ void main() {
       }
     });
 
-    test('matches case-insensitively but sends the word as written', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
+    test('matches case-insensitively and sends a lower-cased command', () {
+      final container = freshContainer();
       final out = container
           .read(killTargetLinkProcessorProvider)
-          .processLine(plain('Troll here.'));
+          .processLine(plain('Troll blocks your way.'));
+      expect(links(out), [('Troll', 'kill troll')]);
+    });
 
-      expect(links(out), [('Troll', 'kill Troll')]);
+    test('adjacent catalogue words collapse to the head noun', () {
+      // Both "giant" and "orc" are catalogue entries; only the noun links.
+      final container = freshContainer();
+      final out = container
+          .read(killTargetLinkProcessorProvider)
+          .processLine(plain('The giant orc swings wildly.'));
+      expect(links(out), [('orc', 'kill orc')]);
     });
 
     test('respects word boundaries', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      // "catalogue" contains "cat", "birdsong" contains "bird" — neither
-      // should become a link.
+      final container = freshContainer();
       final out = container
           .read(killTargetLinkProcessorProvider)
           .processLine(plain('The catalogue hums with birdsong.'));
-
       expect(links(out), isEmpty);
     });
 
-    test('picks up NPCs detected in the current room', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      // Drive the room parser: header, an NPC line, then a blank line to
-      // commit the block.
-      final rooms = container.read(roomTargetsProvider.notifier);
-      for (final line in [
-        'Dusty Crossroads (n,e,sw)',
-        'A grizzled mercenary.',
-        '',
-      ]) {
-        rooms.processLine(line);
-      }
-      expect(container.read(roomTargetsProvider), contains('mercenary'));
-
-      final out = container
-          .read(killTargetLinkProcessorProvider)
-          .processLine(plain('The mercenary spits.'));
-
-      expect(links(out), [('mercenary', 'kill mercenary')]);
-    });
-
     test('leaves a span that already carries a command untouched', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
+      final container = freshContainer();
       final preLinked = StyledLine([
         const StyledSpan(text: 'The '),
         const StyledSpan(text: 'goblin', command: 'greet goblin'),
@@ -99,8 +161,25 @@ void main() {
       final out = container
           .read(killTargetLinkProcessorProvider)
           .processLine(preLinked);
-
       expect(links(out), [('goblin', 'greet goblin')]);
+    });
+
+    test('a prompt line is never scanned', () {
+      final container = freshContainer();
+      final out = container
+          .read(killTargetLinkProcessorProvider)
+          .processLine(plain('[HP: 120/140 SP: 80/90 orc]'));
+      expect(links(out), isEmpty);
+    });
+  });
+
+  group('KillTargetLinkProcessor with no catalogue', () {
+    test('is empty and still links an announcement keyword', () {
+      final processor = KillTargetLinkProcessor(const []);
+      expect(processor.isEmpty, isTrue);
+      final out =
+          processor.processLine(plain('A giant eagle.'), npcKeyword: 'eagle');
+      expect(links(out), [('eagle', 'kill eagle')]);
     });
   });
 }

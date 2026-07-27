@@ -185,8 +185,6 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// live. Used by `AA_DEMO` builds; never called in a normal session.
   void seedDemoLines(List<String> ansiLines) {
     final parser = AnsiParser();
-    final lines = <StyledLine>[];
-    final npcKeywords = <StyledLine, String>{};
 
     for (final ansi in ansiLines) {
       final line = StyledLine(parser.parse(ansi));
@@ -197,11 +195,15 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           ref.read(roomTargetsProvider.notifier).processLine(plainText);
       ref.read(gameStateProvider.notifier).processLine(plainText);
 
-      lines.add(line);
-      if (npcTarget != null) npcKeywords[line] = npcTarget;
+      // Flushed one line at a time on purpose. Batching the whole transcript
+      // would link every line against the room-target set as it stands at the
+      // *end* — so a walk through three rooms would render the first two rooms'
+      // combat against the last room's creatures.
+      _addLines(
+        [line],
+        npcKeywords: npcTarget == null ? null : {line: npcTarget},
+      );
     }
-
-    _addLines(lines, npcKeywords: npcKeywords);
   }
 
   @override

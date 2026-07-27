@@ -256,6 +256,18 @@ class SettingsNotifier extends Notifier<AppSettings> {
     state = AppSettings.fromJson(json);
   }
 
+  /// Screenshot/demo hook: forces the presentation settings a store capture
+  /// depends on, without persisting them. The capturing device may carry
+  /// months-old settings (a different theme, the compass switched off), and
+  /// shots taken across macOS / iPhone / iPad / Android have to match.
+  ///
+  /// Safe to call synchronously after startup: settings are loaded by
+  /// `appInitProvider` before `home:` builds, so there is no in-flight read
+  /// to clobber this the way there is for command history and link rules.
+  void applyDemoPresentation() {
+    state = state.copyWith(themeMode: 'rpg', compassEnabled: true);
+  }
+
   void setFontSize(double size) {
     state = state.copyWith(fontSize: size.clamp(8.0, 32.0));
     _saveSettings();

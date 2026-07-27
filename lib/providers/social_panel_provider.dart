@@ -30,6 +30,19 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
   @override
   SocialWindowsState build() => const SocialWindowsState();
 
+  /// Screenshot/demo hook: hides every social panel so a capture shows the
+  /// terminal rather than an empty "No chat messages yet" pane. Panel
+  /// visibility persists per device, so a simulator with an old install
+  /// otherwise opens with whatever was left on screen months ago.
+  void hideAllForDemo() {
+    state = state.copyWith(
+      chatPanel: state.chatPanel.copyWith(visible: false),
+      tellsPanel: state.tellsPanel.copyWith(visible: false),
+      partyPanel: state.partyPanel.copyWith(visible: false),
+      notesPanel: state.notesPanel.copyWith(visible: false),
+    );
+  }
+
   // ── Visibility ──
 
   void toggleChatVisible() {

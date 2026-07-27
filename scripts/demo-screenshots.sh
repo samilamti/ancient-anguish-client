@@ -6,12 +6,21 @@
 # Scenes: terminal | hints | kill | recent | rules
 #
 # Usage:
-#   bash scripts/demo-screenshots.sh macos [scene ...]
-#   bash scripts/demo-screenshots.sh ios <device-udid> [scene ...]
+#   bash scripts/demo-screenshots.sh macos                 [scene ...]
+#   bash scripts/demo-screenshots.sh ios     <device-udid> [scene ...]
+#   bash scripts/demo-screenshots.sh ipad    <device-udid> [scene ...]
+#   bash scripts/demo-screenshots.sh android [serial]      [scene ...]
 #
-# With no scenes listed, all five are captured. Output lands in
-# screenshots/{macos,ios}/<ts>-demo-<scene>-<slot>.png at the exact
-# App Store pixel sizes (macOS 2880x1800, iPhone 6.5 1284x2778).
+# With no scenes listed, every scene valid for that platform is captured —
+# `hints` is skipped on macOS and iPad, whose widths (>=768) get the desktop
+# layout, where TAB drives completion and the Hints bar doesn't render.
+#
+# Output lands in screenshots/{macos,ios,android}/<ts>-demo-<scene>-<slot>.png
+# at the exact store pixel sizes:
+#   macOS      2880x1800  (App Store APP_DESKTOP)
+#   iPhone 6.5 1284x2778  (App Store APP_IPHONE_65)
+#   iPad 13"   2064x2752  (App Store APP_IPAD_PRO_3GEN_129)
+#   Android    1080x2400  (Play phone screenshots, 9:20)
 set -euo pipefail
 
 export LANG="${LANG:-en_US.UTF-8}"
@@ -24,15 +33,37 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MAC_PROC="ancient_anguish_client"
 MAC_APP="$ROOT/build/macos/Build/Products/Debug/ancient_anguish_client.app"
 ALL_SCENES=(terminal hints kill recent rules)
+# Wide layouts (>=768pt) render the desktop UI, which has no Hints bar.
+WIDE_SCENES=(terminal kill recent rules)
+ADB="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}/platform-tools/adb"
+ANDROID_APP_ID="org.ancientanguish.ancient_anguish_client"
 
 # Seconds to wait after launch before capturing. The demo seeder waits ~0.9s
 # post-frame before opening its sheet, so give the app comfortably longer.
 SETTLE=10
 
 usage() {
-  echo "Usage: $0 macos [scene ...]" >&2
-  echo "       $0 ios <device-udid> [scene ...]" >&2
+  echo "Usage: $0 macos                 [scene ...]" >&2
+  echo "       $0 ios     <device-udid> [scene ...]" >&2
+  echo "       $0 ipad    <device-udid> [scene ...]" >&2
+  echo "       $0 android [serial]      [scene ...]" >&2
   exit 1
+}
+
+# Waits for `flutter run` to report the app is up, rather than guessing a
+# build time. Args: <log-path> <pid>
+wait_for_flutter_run() {
+  local log="$1" runpid="$2" waited=0
+  while ! grep -q "Flutter run key commands\|Syncing files" "$log" 2>/dev/null; do
+    sleep 5
+    waited=$((waited + 5))
+    if [[ $waited -ge 900 ]]; then
+      echo "    timed out waiting for flutter run; see $log" >&2
+      kill "$runpid" 2>/dev/null || true
+      return 1
+    fi
+  done
+  return 0
 }
 
 capture_macos() {
@@ -67,35 +98,51 @@ AS
   echo "    $out"
 }
 
-capture_ios() {
-  local udid="$1" scene="$2"
-  local ts out
+# Shared iOS/iPadOS capture. Args: <udid> <scene> <slot> <want-w> <want-h>
+capture_simulator() {
+  local udid="$1" scene="$2" slot="$3" want_w="$4" want_h="$5"
+  local ts out log
   ts="$(date +%Y%m%d-%H%M%S)"
-  out="$ROOT/screenshots/ios/${ts}-demo-${scene}-iphone-6.5.png"
+  out="$ROOT/screenshots/ios/${ts}-demo-${scene}-${slot}.png"
+  log="/tmp/aa-demo-${slot}-${scene}.log"
   mkdir -p "$(dirname "$out")"
 
-  echo "==> iOS / $scene: building + installing"
+  echo "==> $slot / $scene: building + installing"
   # `flutter run` is the only path that applies --dart-define and installs in
   # one step; it is backgrounded and killed once the shot is taken.
   (cd "$ROOT" && flutter run -d "$udid" --dart-define="AA_DEMO=$scene" \
-      >/tmp/aa-demo-$scene.log 2>&1) &
+      >"$log" 2>&1) &
   local runpid=$!
-
-  # Wait for the app to appear on screen rather than guessing a build time.
-  local waited=0
-  while ! grep -q "Flutter run key commands\|Syncing files" /tmp/aa-demo-$scene.log 2>/dev/null; do
-    sleep 5
-    waited=$((waited + 5))
-    if [[ $waited -ge 600 ]]; then
-      echo "    timed out waiting for flutter run; see /tmp/aa-demo-$scene.log" >&2
-      kill $runpid 2>/dev/null || true
-      return 1
-    fi
-  done
+  wait_for_flutter_run "$log" $runpid || return 1
   sleep "$SETTLE"
 
-  xcrun simctl io "$udid" screenshot "$out"
-  verify "$out" 1284 2778
+  xcrun simctl io "$udid" screenshot "$out" >/dev/null 2>&1
+  verify "$out" "$want_w" "$want_h"
+  echo "    $out"
+
+  kill $runpid 2>/dev/null || true
+  wait $runpid 2>/dev/null || true
+}
+
+capture_android() {
+  local serial="$1" scene="$2"
+  local ts out log
+  ts="$(date +%Y%m%d-%H%M%S)"
+  out="$ROOT/screenshots/android/${ts}-demo-${scene}-android.png"
+  log="/tmp/aa-demo-android-${scene}.log"
+  mkdir -p "$(dirname "$out")"
+
+  echo "==> android / $scene: building + installing"
+  (cd "$ROOT" && flutter run -d "$serial" --dart-define="AA_DEMO=$scene" \
+      >"$log" 2>&1) &
+  local runpid=$!
+  wait_for_flutter_run "$log" $runpid || return 1
+  sleep "$SETTLE"
+
+  # `exec-out` keeps the PNG binary-clean; plain `shell screencap` mangles
+  # it with CRLF translation on some adb/emulator combinations.
+  "$ADB" -s "$serial" exec-out screencap -p > "$out"
+  verify "$out" 1080 2400
   echo "    $out"
 
   kill $runpid 2>/dev/null || true
@@ -116,7 +163,7 @@ verify() {
 case "$PLATFORM" in
   macos)
     scenes=("$@")
-    [[ ${#scenes[@]} -eq 0 ]] && scenes=("${ALL_SCENES[@]}")
+    [[ ${#scenes[@]} -eq 0 ]] && scenes=("${WIDE_SCENES[@]}")
     for scene in "${scenes[@]}"; do capture_macos "$scene"; done
     ;;
   ios)
@@ -124,7 +171,36 @@ case "$PLATFORM" in
     [[ -z "$UDID" ]] && usage
     scenes=("$@")
     [[ ${#scenes[@]} -eq 0 ]] && scenes=("${ALL_SCENES[@]}")
-    for scene in "${scenes[@]}"; do capture_ios "$UDID" "$scene"; done
+    for scene in "${scenes[@]}"; do
+      capture_simulator "$UDID" "$scene" "iphone-6.5" 1284 2778
+    done
+    ;;
+  ipad)
+    UDID="${1:-}"; shift || true
+    [[ -z "$UDID" ]] && usage
+    scenes=("$@")
+    [[ ${#scenes[@]} -eq 0 ]] && scenes=("${WIDE_SCENES[@]}")
+    for scene in "${scenes[@]}"; do
+      capture_simulator "$UDID" "$scene" "ipad-13" 2064 2752
+    done
+    ;;
+  android)
+    # Serial is optional: with one emulator running, resolve it ourselves.
+    SERIAL=""
+    if [[ "${1:-}" == emulator-* || "${1:-}" == *:* ]]; then
+      SERIAL="$1"; shift
+    else
+      SERIAL="$("$ADB" devices | awk '/\tdevice$/ {print $1; exit}')"
+    fi
+    if [[ -z "$SERIAL" ]]; then
+      echo "No Android device/emulator attached. Boot one with:" >&2
+      echo "  bash scripts/run-android-emu.sh Medium_Phone" >&2
+      exit 1
+    fi
+    echo "Using Android device: $SERIAL"
+    scenes=("$@")
+    [[ ${#scenes[@]} -eq 0 ]] && scenes=("${ALL_SCENES[@]}")
+    for scene in "${scenes[@]}"; do capture_android "$SERIAL" "$scene"; done
     ;;
   *) usage ;;
 esac

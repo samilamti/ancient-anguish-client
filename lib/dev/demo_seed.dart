@@ -5,6 +5,8 @@ import '../providers/connection_provider.dart'
     show commandHistoryProvider, inputControllerProvider, terminalBufferProvider;
 import '../models/text_link_rule.dart';
 import '../providers/game_state_provider.dart';
+import '../providers/settings_provider.dart';
+import '../providers/social_panel_provider.dart';
 import '../providers/text_link_rule_provider.dart';
 import '../ui/screens/home_screen.dart';
 import '../ui/screens/text_link_rules_screen.dart';
@@ -36,6 +38,21 @@ bool get kIsDemoSeeded => kDemoScene.isNotEmpty;
 /// `A wild boar.` become red `kill` links on their head noun, while
 /// `A shimmering blue door.` — same sentence shape, but scenery — stays plain.
 const List<String> _transcript = [
+  // Preamble. Scrolls off the top on phones and laptops, but a 13" iPad is
+  // ~1366pt tall and looks abandoned without it. The kill on the way in also
+  // gives the `You killed` text-link rule something to fire on.
+  '\x1B[1;33mMuddy track (n,e,s,w)\x1B[0m',
+  '\x1B[37mCart ruts brim with rainwater. The track runs east toward a creek.\x1B[0m',
+  '\x1B[32mAn orc sentry.\x1B[0m',
+  '',
+  '\x1B[37mYou attack the orc sentry.\x1B[0m',
+  '\x1B[33mYou hit the orc sentry very hard.\x1B[0m',
+  '\x1B[31mThe orc sentry slashes at you and misses.\x1B[0m',
+  '\x1B[1;32mYou killed the orc sentry!\x1B[0m',
+  '\x1B[37mYou receive 240 experience points.\x1B[0m',
+  '',
+  '\x1B[37mYou go east.\x1B[0m',
+  '',
   '\x1B[1;33mSnag creek bridge (n,e,w)\x1B[0m',
   '\x1B[37mThe planks creak underfoot. Below, the creek runs brown and fast\x1B[0m',
   '\x1B[37mafter the night\'s rain.\x1B[0m',
@@ -132,7 +149,12 @@ const List<TextLinkRule> _textLinkRules = [
 /// Fills every provider the screenshot scenes depend on. Idempotent enough
 /// for a single post-frame call; never invoked outside `AA_DEMO` builds.
 void seedDemoState(WidgetRef ref) {
-  // Rules first: the transcript is linked against them as it is added.
+  // Presentation first, so every platform's shots match regardless of what
+  // the capturing device had persisted.
+  ref.read(settingsProvider.notifier).applyDemoPresentation();
+  ref.read(socialPanelProvider.notifier).hideAllForDemo();
+
+  // Rules next: the transcript is linked against them as it is added.
   ref.read(textLinkRulesProvider.notifier).seedDemoRules(_textLinkRules);
   ref.read(terminalBufferProvider.notifier).seedDemoLines(_transcript);
 

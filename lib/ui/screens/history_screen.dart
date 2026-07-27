@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../protocol/ansi/styled_span.dart';
-import '../../providers/connection_provider.dart'
-    show connectionServiceProvider, terminalBufferProvider;
+import '../../providers/connection_provider.dart' show terminalBufferProvider;
+import '../../providers/link_command_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../widgets/common/escape_dismiss.dart';
 import '../widgets/terminal/terminal_line.dart';
@@ -54,7 +54,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 fontSize: _fontSize,
                 onCommandTap: (cmd) {
                   if (cmd.trim().isEmpty) return;
-                  ref.read(connectionServiceProvider).sendCommand(cmd);
+                  ref.read(linkCommandSenderProvider)(cmd);
                   Navigator.of(context).pop();
                 },
               );

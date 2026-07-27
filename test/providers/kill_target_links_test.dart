@@ -108,6 +108,105 @@ void main() {
     });
   });
 
+  group('article announcements — `A/An <adjectives> <target>`', () {
+    /// The three shapes Sami reported. All arrive *without* a trailing
+    /// period, which is how Ancient Anguish prints most short descriptions.
+    test('A forest Hare → hare', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Light pine forest (n,e,s)',
+          'A forest Hare',
+        ]),
+        [('Hare', 'kill hare')],
+      );
+    });
+
+    test('A giant eagle → eagle', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Light pine forest (n,e,s)',
+          'A giant eagle',
+        ]),
+        [('eagle', 'kill eagle')],
+      );
+    });
+
+    test('An ugly-looking fierce Troll → troll', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Dark cavern (n,e)',
+          'An ugly-looking fierce Troll',
+        ]),
+        [('Troll', 'kill troll')],
+      );
+    });
+
+    test('adjectives are not capped — a five-word phrase still resolves', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Dark cavern (n,e)',
+          'An ugly-looking fierce mountain Troll',
+        ]),
+        [('Troll', 'kill troll')],
+      );
+    });
+
+    test('a comma between adjectives does not derail the head noun', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Dusty Crossroads (n,e,sw)',
+          'A tall, thin man',
+        ]),
+        [('man', 'kill man')],
+      );
+    });
+  });
+
+  group('article announcements that are really sentences', () {
+    test('a trailing verb is not a target', () {
+      // Before the verb guard this rendered a red `kill arrives` link.
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Light pine forest (n,e,s)',
+          'A goblin arrives.',
+        ]),
+        // `goblin` is in the static catalogue, so the line still offers the
+        // creature — just never the verb.
+        [('goblin', 'kill goblin')],
+      );
+    });
+
+    test('a prepositional phrase is not a target', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Light pine forest (n,e,s)',
+          'A wolf howls in the distance',
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('an adverb is not a target', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Light pine forest (n,e,s)',
+          'The eagle circles overhead slowly',
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('scenery still loses even without a trailing period', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Snag creek bridge (n,e,w)',
+          'A weathered signpost',
+        ]),
+        isEmpty,
+      );
+    });
+  });
+
   group('room-target detection', () {
     test('scenery never reaches the Kill picker either', () {
       final container = freshContainer();

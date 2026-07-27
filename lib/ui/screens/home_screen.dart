@@ -13,6 +13,7 @@ import '../../models/support_tier.dart';
 import '../../providers/audio_provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/game_state_provider.dart';
+import '../../providers/link_command_provider.dart';
 import '../../providers/login_provider.dart';
 import '../../models/social_panel_state.dart';
 import '../../providers/reply_request_provider.dart';
@@ -325,7 +326,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void _invokeMostRecentLink() {
     final cmd = ref.read(terminalBufferProvider.notifier).mostRecentLinkCommand;
     if (cmd == null) return;
-    ref.read(connectionServiceProvider).sendCommand(cmd);
+    ref.read(linkCommandSenderProvider)(cmd);
   }
 
   /// Replies to the most recent *received* tell — keyboard equivalent of

@@ -9,7 +9,8 @@ import '../../../core/constants.dart';
 import '../../../protocol/ansi/styled_span.dart';
 import '../../../providers/background_image_provider.dart';
 import '../../../providers/connection_provider.dart'
-    show connectionServiceProvider, terminalBufferProvider, inputFocusProvider;
+    show terminalBufferProvider, inputFocusProvider;
+import '../../../providers/link_command_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
@@ -265,9 +266,11 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   /// On mobile layouts the soft keyboard is also dismissed: the user tapped
   /// output rather than typing, so they want to *read* the result, not lose
   /// half the screen to a keyboard. Desktop keeps input focus.
+  /// Fires a tapped link. Goes through [linkCommandSenderProvider] so the
+  /// command is alias-expanded exactly as typed input would be.
   void _sendLinkCommand(String command) {
     if (command.trim().isEmpty) return;
-    ref.read(connectionServiceProvider).sendCommand(command);
+    ref.read(linkCommandSenderProvider)(command);
     if (MediaQuery.of(context).size.width < 768) {
       ref.read(inputFocusProvider).unfocus();
       SystemChannels.textInput.invokeMethod('TextInput.hide');

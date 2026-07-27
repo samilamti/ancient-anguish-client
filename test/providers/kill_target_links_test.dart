@@ -75,6 +75,28 @@ void main() {
       );
     });
 
+    test('a signpost is not a kill target', () {
+      // Found while shooting the demo scene: `sign` was blocked but the
+      // compound `signpost` sailed through and rendered a red kill link.
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Snag creek bridge (n,e,w)',
+          'A weathered signpost.',
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('a corpse is not a kill target', () {
+      expect(
+        linksAfterBlock(freshContainer(), [
+          'Snag creek bridge (n,e,w)',
+          'The rotting corpse.',
+        ]),
+        isEmpty,
+      );
+    });
+
     test('an announcement links the creature, not its adjective', () {
       expect(
         linksAfterBlock(freshContainer(), [

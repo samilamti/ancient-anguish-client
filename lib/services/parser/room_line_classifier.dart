@@ -43,8 +43,9 @@ class RoomLineClassifier {
     'door', 'doors', 'gate', 'gates', 'portal', 'portals', 'entrance', 'exit',
     'exits', 'archway', 'arch', 'hatch', 'trapdoor', 'window', 'windows',
     // Signage and readables.
-    'sign', 'signs', 'board', 'boards', 'notice', 'plaque', 'poster',
-    'placard', 'scroll', 'note', 'letter', 'map', 'book', 'tome',
+    'sign', 'signs', 'signpost', 'signposts', 'post', 'pole', 'board',
+    'boards', 'notice', 'plaque', 'poster', 'placard', 'scroll', 'note',
+    'letter', 'map', 'book', 'tome', 'banner', 'flag',
     // Containers and furniture.
     'urn', 'urns', 'chest', 'chests', 'box', 'crate', 'barrel', 'sack', 'bag',
     'pouch', 'table', 'tables', 'chair', 'chairs', 'bench', 'stool', 'bed',
@@ -52,14 +53,22 @@ class RoomLineClassifier {
     'well', 'pool', 'pillar', 'column', 'throne', 'cauldron', 'brazier',
     'torch', 'lantern', 'lamp', 'candle', 'mirror', 'painting', 'tapestry',
     'rug', 'carpet', 'ladder', 'stairs', 'staircase', 'steps', 'bridge',
-    'rope', 'chain', 'lever', 'button', 'switch',
+    'rope', 'chain', 'lever', 'button', 'switch', 'bucket', 'trough',
+    'anvil', 'forge', 'furnace', 'cart', 'wagon', 'boat', 'raft', 'ship',
+    // What's left of something already killed.
+    'corpse', 'corpses', 'body', 'remains', 'carcass', 'bones', 'skull',
+    'grave', 'tombstone', 'gravestone',
     // Terrain and weather.
     'path', 'paths', 'road', 'roads', 'trail', 'track', 'wall', 'walls',
     'floor', 'ceiling', 'roof', 'ground', 'grass', 'tree', 'trees', 'bush',
     'bushes', 'rock', 'rocks', 'boulder', 'stone', 'stones', 'river',
     'stream', 'water', 'sand', 'snow', 'ice', 'fire', 'smoke', 'mist', 'fog',
     'air', 'sky', 'sun', 'moon', 'light', 'darkness', 'shadow', 'shadows',
-    'clearing', 'cave', 'tunnel', 'hill', 'slope', 'forest',
+    'clearing', 'cave', 'tunnel', 'hill', 'slope', 'forest', 'pit', 'hole',
+    'ledge', 'cliff', 'waterfall', 'pond', 'lake', 'sea', 'ocean', 'beach',
+    'shore', 'field', 'meadow', 'garden', 'hedge', 'fence', 'flowers',
+    'moss', 'vines', 'roots', 'branch', 'log', 'stump', 'leaves', 'dirt',
+    'mud', 'dust', 'ash', 'gravel', 'pebbles',
     // Directions.
     'north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast',
     'southwest', 'up', 'down', 'inside', 'outside',

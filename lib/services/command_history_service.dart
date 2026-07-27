@@ -35,15 +35,31 @@ class CommandHistoryService {
     }
   }
 
+  /// Serialises the read-modify-write cycles below. Two appends racing on
+  /// the same file interleave their read and write halves and shred the
+  /// contents — commands come back as fragments ("open north door" →
+  /// "orth door", "rth"). Chaining keeps each cycle atomic with respect to
+  /// the others; failures are swallowed inside [appendCommand], so the chain
+  /// never breaks.
+  static Future<void> _writeQueue = Future<void>.value();
+
   /// Appends a single command to the history file, enforcing the max entry cap.
   ///
   /// An earlier occurrence of the same command is dropped rather than left
   /// behind, so re-running a command refreshes its recency instead of
   /// creating a duplicate — mirroring `CommandHistoryNotifier.add`.
+  ///
+  /// The returned future completes when *this* command has been written;
+  /// writes are queued, so a burst of commands lands in order.
   static Future<void> appendCommand(
     StorageService storage,
     String command,
-  ) async {
+  ) {
+    _writeQueue = _writeQueue.then((_) => _append(storage, command));
+    return _writeQueue;
+  }
+
+  static Future<void> _append(StorageService storage, String command) async {
     try {
       final lines = await storage.readFileLines(_fileName);
       final commands =

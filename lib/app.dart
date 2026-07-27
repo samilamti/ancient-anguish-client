@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
+import 'dev/demo_seed.dart';
 import 'models/auth_state.dart';
 import 'models/subscription_state.dart';
 import 'providers/app_init_provider.dart';
@@ -66,9 +67,13 @@ class AncientAnguishApp extends ConsumerWidget {
           title: 'Ancient Anguish',
           theme: theme,
           debugShowCheckedModeBanner: false,
-          home: kIsSubscriptionSeeded
-              ? const SupportScreen()
-              : const HomeScreen(),
+          home: switch (true) {
+            // Screenshot builds: AA_SUB_SEED lands on the Support screen,
+            // AA_DEMO lands on a scripted session (see `dev/demo_seed.dart`).
+            _ when kIsSubscriptionSeeded => const SupportScreen(),
+            _ when kIsDemoSeeded => const DemoHomeScreen(),
+            _ => const HomeScreen(),
+          },
         );
       },
     );

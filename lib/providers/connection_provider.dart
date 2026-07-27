@@ -10,6 +10,7 @@ import '../models/prompt_element.dart';
 import '../models/auth_state.dart';
 import '../models/connection_info.dart';
 import '../models/social_panel_state.dart';
+import '../protocol/ansi/ansi_parser.dart';
 import '../protocol/ansi/styled_span.dart';
 import '../protocol/telnet/telnet_events.dart';
 import '../services/connection/connection_interface.dart';
@@ -175,6 +176,32 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         ),
       ]),
     ]);
+  }
+
+  /// Screenshot/demo hook: replays [ansiLines] as if they had arrived from
+  /// the MUD, running the same per-line side effects the socket path does —
+  /// recent-word capture, room-target detection, prompt/coordinate parsing —
+  /// so kill links, the compass and the HUD populate exactly as they would
+  /// live. Used by `AA_DEMO` builds; never called in a normal session.
+  void seedDemoLines(List<String> ansiLines) {
+    final parser = AnsiParser();
+    final lines = <StyledLine>[];
+    final npcKeywords = <StyledLine, String>{};
+
+    for (final ansi in ansiLines) {
+      final line = StyledLine(parser.parse(ansi));
+      final plainText = line.plainText;
+
+      ref.read(recentWordsProvider.notifier).extractFromLine(plainText);
+      final npcTarget =
+          ref.read(roomTargetsProvider.notifier).processLine(plainText);
+      ref.read(gameStateProvider.notifier).processLine(plainText);
+
+      lines.add(line);
+      if (npcTarget != null) npcKeywords[line] = npcTarget;
+    }
+
+    _addLines(lines, npcKeywords: npcKeywords);
   }
 
   @override
@@ -921,6 +948,10 @@ class CommandHistoryNotifier extends Notifier<List<String>> {
   /// Indices into [state] that match [_filterPrefix].
   List<int> _filteredIndices = [];
 
+  /// Set by [seedDemoHistory] so the in-flight disk read can't merge the
+  /// capturing machine's real command history into a store screenshot.
+  bool _demoSeeded = false;
+
   /// Current position within [_filteredIndices].
   int _filteredPosition = -1;
 
@@ -934,12 +965,31 @@ class CommandHistoryNotifier extends Notifier<List<String>> {
     try {
       final storage = ref.read(storageServiceProvider);
       final commands = await CommandHistoryService.loadHistory(storage);
-      if (commands.isNotEmpty) {
-        state = commands;
-      }
+      if (commands.isEmpty || _demoSeeded) return;
+      // Anything already in state was entered while the read was in flight,
+      // so it is newer than everything on disk — merge it on top instead of
+      // replacing it, or those commands vanish from recall the moment the
+      // load resolves.
+      final merged = [
+        ...state,
+        ...commands.where((c) => !state.contains(c)),
+      ];
+      state = merged.length > _maxHistory
+          ? merged.sublist(0, _maxHistory)
+          : merged;
     } catch (e) {
       debugPrint('CommandHistoryNotifier._loadFromDisk: $e');
     }
+  }
+
+  /// Screenshot/demo hook: replaces history with [commands] (newest last)
+  /// without touching the persisted file, so an `AA_DEMO` capture shows a
+  /// scripted list rather than whatever the machine happens to have on disk.
+  void seedDemoHistory(List<String> commands) {
+    _demoSeeded = true;
+    state = commands.reversed.toList(growable: false);
+    _position = -1;
+    _resetFilter();
   }
 
   /// Adds a command to history (most recent first).

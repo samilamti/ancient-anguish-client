@@ -45,13 +45,6 @@ class _InputBarState extends ConsumerState<InputBar> {
   int _tabCycleIndex = -1;
   List<String> _tabMatches = [];
 
-  /// How many recent commands the History ("Recent commands") sheet lists.
-  /// Desktop has far more vertical room, so it shows the full retained history
-  /// (capped at [CommandHistoryService.maxEntries] = 20); mobile lists 16 and
-  /// scrolls the overflow inside the sheet.
-  static const int _recentSheetCountMobile = 16;
-  static const int _recentSheetCountDesktop = 20;
-
   @override
   void initState() {
     super.initState();
@@ -562,42 +555,9 @@ class _InputBarState extends ConsumerState<InputBar> {
   }
 
   Future<void> _showHistorySheet() async {
-    final history = ref.read(commandHistoryProvider);
-    final isMobile = MediaQuery.of(context).size.width < 768;
-    final count =
-        isMobile ? _recentSheetCountMobile : _recentSheetCountDesktop;
-    final recent = history.take(count).toList();
-    // Counterparts derived from the same recent commands. Dedup against
-    // history so the user doesn't see "leave" twice when both legs are
-    // already in history.
-    final counterparts = <String>{};
-    for (final cmd in recent) {
-      counterparts.addAll(CommandCounterparts.counterpartsOf(cmd));
-    }
-    counterparts.removeAll(recent);
-
-    if (recent.isEmpty && counterparts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No command history yet'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-
-    final chosen = await showModalBottomSheet<_HistoryChoice>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (ctx) => _HistorySheet(
-        recent: recent,
-        counterparts: counterparts.toList(),
-      ),
-    );
-
+    final chosen = await showRecentCommandsSheet(context, ref);
     if (chosen == null || !mounted) return;
-    if (chosen.intent == _HistoryIntent.makeAlias) {
+    if (chosen.intent == HistoryIntent.makeAlias) {
       // Turn the picked command into a new alias, pre-filling its expansion.
       openAliasEditor(context, initialExpansion: chosen.command);
     } else {
@@ -619,12 +579,64 @@ class _InputBarState extends ConsumerState<InputBar> {
 
 /// What the user picked in the Recent-commands sheet: either re-send the
 /// command, or open the alias editor pre-filled with it as the expansion.
-enum _HistoryIntent { send, makeAlias }
+enum HistoryIntent { send, makeAlias }
 
-class _HistoryChoice {
+class HistoryChoice {
   final String command;
-  final _HistoryIntent intent;
-  const _HistoryChoice(this.command, this.intent);
+  final HistoryIntent intent;
+  const HistoryChoice(this.command, this.intent);
+}
+
+/// How many recent commands the sheet lists at a given width. Mobile lists
+/// 16 and scrolls the overflow; desktop shows the full retained history
+/// (`CommandHistoryService.maxEntries` = 20).
+const int _recentSheetCountMobile = 16;
+const int _recentSheetCountDesktop = 20;
+
+/// Presents the Recent-commands sheet and resolves with the user's pick, or
+/// null if they dismissed it (or there was nothing to show — in which case a
+/// snackbar explains why).
+///
+/// Public so callers other than the input bar's History button can open it —
+/// notably `AA_DEMO` screenshot builds, which need the sheet on screen
+/// without a synthetic tap. Mirrors `openAliasEditor` /
+/// `openTextLinkRuleEditor`.
+Future<HistoryChoice?> showRecentCommandsSheet(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final history = ref.read(commandHistoryProvider);
+  final isMobile = MediaQuery.of(context).size.width < 768;
+  final count = isMobile ? _recentSheetCountMobile : _recentSheetCountDesktop;
+  final recent = history.take(count).toList();
+  // Counterparts derived from the same recent commands. Dedup against
+  // history so the user doesn't see "leave" twice when both legs are
+  // already in history.
+  final counterparts = <String>{};
+  for (final cmd in recent) {
+    counterparts.addAll(CommandCounterparts.counterpartsOf(cmd));
+  }
+  counterparts.removeAll(recent);
+
+  if (recent.isEmpty && counterparts.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('No command history yet'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    return null;
+  }
+
+  return showModalBottomSheet<HistoryChoice>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (ctx) => _HistorySheet(
+      recent: recent,
+      counterparts: counterparts.toList(),
+    ),
+  );
 }
 
 /// Bottom-sheet body for the History button. Two sections: literal recent
@@ -748,12 +760,12 @@ class _CommandRow extends StatelessWidget {
             tooltip: 'Create alias from this command',
             visualDensity: VisualDensity.compact,
             onPressed: () => Navigator.of(context)
-                .pop(_HistoryChoice(command, _HistoryIntent.makeAlias)),
+                .pop(HistoryChoice(command, HistoryIntent.makeAlias)),
           );
 
     return InkWell(
       onTap: () => Navigator.of(context)
-          .pop(_HistoryChoice(command, _HistoryIntent.send)),
+          .pop(HistoryChoice(command, HistoryIntent.send)),
       child: Padding(
         // Recent rows get their height from the "+" IconButton; counterpart
         // rows have only a plain icon, so pad them to a comparable height.

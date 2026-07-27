@@ -28,6 +28,10 @@ class TextLinkRulesNotifier extends Notifier<List<TextLinkRule>> {
   late final StorageService _storage;
   static const _fileName = 'Text Link Rules.json';
 
+  /// Set by [seedDemoRules]. The disk read is already in flight by then, so
+  /// the flag is what stops it landing on top of the seeded list.
+  bool _demoSeeded = false;
+
   @override
   List<TextLinkRule> build() {
     _storage = ref.read(storageServiceProvider);
@@ -44,6 +48,7 @@ class TextLinkRulesNotifier extends Notifier<List<TextLinkRule>> {
         await _saveToDisk();
         return;
       }
+      if (_demoSeeded) return;
       final decoded = jsonDecode(contents);
       if (decoded is! List) return;
       final rules = decoded
@@ -64,6 +69,15 @@ class TextLinkRulesNotifier extends Notifier<List<TextLinkRule>> {
     } catch (e) {
       debugPrint('TextLinkRulesNotifier._saveToDisk: $e');
     }
+  }
+
+  /// Screenshot/demo hook: replaces the rule list in memory only, never
+  /// touching `Text Link Rules.json`. An `AA_DEMO` capture must show a
+  /// curated set — the machine taking the shot has the developer's own
+  /// personal rules on disk, and those have no business in a store listing.
+  void seedDemoRules(List<TextLinkRule> rules) {
+    _demoSeeded = true;
+    state = List.unmodifiable(rules);
   }
 
   void addRule(TextLinkRule rule) {

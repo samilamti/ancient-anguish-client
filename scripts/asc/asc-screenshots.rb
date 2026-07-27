@@ -99,13 +99,16 @@ end
 
 BASE = "https://api.appstoreconnect.apple.com"
 
-def api(method, path, body = nil, host: BASE, content_type: "application/json")
-  uri = URI("#{host}#{path}")
+# NB: positional args only. Under Ruby 2.6 (what macOS ships) a trailing
+# symbol-keyed hash is folded into keyword parameters, so an `api(..., {data:
+# ...})` call would be parsed as `data:` keyword and blow up.
+def api(method, path, body = nil)
+  uri = URI("#{BASE}#{path}")
   klass = { get: Net::HTTP::Get, post: Net::HTTP::Post,
             patch: Net::HTTP::Patch, delete: Net::HTTP::Delete }.fetch(method)
   req = klass.new(uri)
   req["Authorization"] = "Bearer #{bearer}"
-  req["Content-Type"] = content_type
+  req["Content-Type"] = "application/json"
   req.body = body.is_a?(String) ? body : JSON.dump(body) if body
   res = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }
   warn "  #{method.to_s.upcase} #{path} -> #{res.code}" if $VERBOSE_HTTP
@@ -133,7 +136,16 @@ def localizations_for(version_id)
 end
 
 def screenshot_sets_for(localization_id)
-  api(:get, "/v1/appStoreVersionLocalizations/#{localization_id}/appScreenshotSets?limit=200&include=appScreenshots")
+  api(:get, "/v1/appStoreVersionLocalizations/#{localization_id}/appScreenshotSets?limit=200")
+end
+
+# The screenshots in a set, queried through the set's own relationship.
+# Reading them from an `include=appScreenshots` sidecar does NOT work: the
+# included resources don't carry the owning-set relationship, so grouping by
+# it silently yields zero — which is how a "0 on store" set turned out to
+# already hold Apple's maximum of ten.
+def screenshots_in(set_id)
+  api(:get, "/v1/appScreenshotSets/#{set_id}/appScreenshots?limit=200")["data"] || []
 end
 
 # Newest capture per scene, ordered by SCENE_ORDER.
@@ -145,7 +157,8 @@ def local_shots(dir, suffix)
     next if scene.nil?
     by_scene[scene] = path # sorted ascending, so the last wins = newest
   end
-  SCENE_ORDER.filter_map { |s| by_scene[s] }
+  # `map { }.compact` rather than filter_map — macOS ships Ruby 2.6.
+  SCENE_ORDER.map { |s| by_scene[s] }.compact
 end
 
 # ---- Upload ----------------------------------------------------------------
@@ -208,16 +221,16 @@ versions.each do |version|
     locale = loc.dig("attributes", "locale")
     puts "  locale #{locale}"
     sets = screenshot_sets_for(loc["id"])
-    existing = (sets["data"] || []).to_h do |s|
-      [s.dig("attributes", "screenshotDisplayType"), s["id"]]
+    existing = {}
+    (sets["data"] || []).each do |s|
+      existing[s.dig("attributes", "screenshotDisplayType")] = s["id"]
     end
-    counts = (sets["included"] || []).group_by { |i| i.dig("relationships", "appScreenshotSet", "data", "id") }
 
     slots.each do |slot|
       files = local_shots(slot[:dir], slot[:suffix])
       set_id = existing[slot[:type]]
-      have = set_id ? (counts[set_id] || []).size : 0
-      puts "    #{slot[:type]}: #{have} on store -> #{files.size} local"
+      current = set_id ? screenshots_in(set_id) : []
+      puts "    #{slot[:type]}: #{current.size} on store -> #{files.size} local"
       files.each { |f| puts "        #{File.basename(f)}" }
       next unless options[:apply]
       if files.empty?
@@ -226,10 +239,13 @@ versions.each do |version|
       end
 
       if set_id
-        # Clear the old shots so ordering is exactly the local ordering.
-        (counts[set_id] || []).each do |shot|
+        # Clear the set first. Apple caps a set at 10 and a freshly created
+        # AppStoreVersion inherits the previous version's screenshots, so
+        # appending would both duplicate and hit the cap mid-run.
+        current.each do |shot|
           api(:delete, "/v1/appScreenshots/#{shot['id']}")
         end
+        puts "        cleared #{current.size} existing" unless current.empty?
       else
         created = api(:post, "/v1/appScreenshotSets", {
           data: {

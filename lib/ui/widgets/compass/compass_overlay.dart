@@ -26,6 +26,29 @@ const double _kMarkerMaxRadiusFraction = 152 / kCompassSize;
 const double _kMarkerWidth = 124;
 const double _kMarkerIconSize = 40;
 
+/// How far above its dot a marker's icon starts, so the icon sits roughly
+/// centred on the point rather than hanging below it.
+const double _kMarkerOverhang = 18;
+
+/// Clear space kept between two label boxes, so de-collided labels read as
+/// separate rather than merely not-quite-touching.
+const double _kLabelGap = 4;
+
+/// De-collision search: how far a marker may slide from its plotted point, and
+/// in what increments. Sliding is preferably **radial** — along the marker's own
+/// bearing — because bearing is the reading that matters on a compass: it keeps
+/// "which way do I go" exact and only stretches the distance.
+const double _kMaxRadialNudge = 56;
+const double _kNudgeStep = 7;
+
+/// Sliding **across** the ray is the fallback, for the case radial cannot fix:
+/// two labels whose rays are near perpendicular, where moving along either ray
+/// never separates them. It bends the reported bearing, so it is capped twice —
+/// in pixels, and as a tangent, so that a marker close to the player (where a
+/// few pixels are many degrees) is swung less than a distant one.
+const double _kMaxTangentialNudge = 28;
+const double _kMaxTangentialTan = 0.27; // ~15 degrees
+
 /// At most this many nearby locations get an icon + name label; anything
 /// farther is still drawn as a small dot on the rose.
 const int kMaxLabeledMarkers = 6;
@@ -99,6 +122,22 @@ class CompassRose extends ConsumerWidget {
     final nearest = nearby.isEmpty ? null : nearby.first;
     final scale = size / kCompassSize;
 
+    final labeled = nearby.take(maxLabeledMarkers).toList();
+    final style = DefaultTextStyle.of(context)
+        .style
+        .merge(_labelStyle(scheme.onSurface));
+    final textScaler = MediaQuery.textScalerOf(context);
+    final markers = _placeMarkers(
+      entries: labeled,
+      labelSizes: [
+        for (final entry in labeled)
+          _measureLabel(entry.location.shortName, style,
+              _kMarkerWidth * scale, textScaler),
+      ],
+      size: size,
+      scale: scale,
+    );
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -113,14 +152,15 @@ class CompassRose extends ConsumerWidget {
                 child: CustomPaint(
                   painter: _CompassRosePainter(
                     nearby: nearby,
+                    placed: markers,
                     primary: scheme.primary,
                     surface: scheme.surface,
                     onSurface: scheme.onSurface,
                   ),
                 ),
               ),
-              for (final entry in nearby.take(maxLabeledMarkers))
-                _LocationMarker(entry: entry, size: size, scale: scale),
+              for (final marker in markers)
+                _LocationMarker(marker: marker, size: size, scale: scale),
             ],
           ),
         ),
@@ -128,6 +168,189 @@ class CompassRose extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// A marker's resolved placement, once labels have been de-collided.
+class _PlacedMarker {
+  final NearbyLocation entry;
+
+  /// Radial displacement from the plotted point, to keep this marker's label
+  /// clear of the ones already placed. [Offset.zero] when nothing was in the
+  /// way, which is the common case away from a town.
+  final Offset nudge;
+
+  /// False when no clear placement existed at all: the icon still marks the
+  /// spot, but the name is dropped rather than piled onto a neighbour's.
+  final bool showLabel;
+
+  const _PlacedMarker(this.entry, this.nudge, {required this.showLabel});
+}
+
+/// The two rectangles a marker occupies: its icon, and its name label below.
+///
+/// Kept apart because the de-collision pass treats them differently. Two labels
+/// overlapping is unreadable and so forbidden; a label crossing an *icon* is
+/// fine — the label carries a double black shadow precisely so it reads over
+/// the art — and two icons overlapping reads as a cluster rather than a bug.
+class _MarkerRects {
+  final Rect icon;
+  final Rect label;
+
+  const _MarkerRects(this.icon, this.label);
+}
+
+_MarkerRects _markerRects({
+  required Offset anchor,
+  required Size labelSize,
+  required double iconSize,
+  required double overhang,
+}) {
+  final iconTop = anchor.dy - overhang;
+  return _MarkerRects(
+    Rect.fromLTWH(anchor.dx - iconSize / 2, iconTop, iconSize, iconSize),
+    Rect.fromLTWH(
+      anchor.dx - labelSize.width / 2,
+      iconTop + iconSize,
+      labelSize.width,
+      labelSize.height,
+    ),
+  );
+}
+
+/// Places [entries] so that no two name labels overlap.
+///
+/// Near a town half a dozen gazetteer entries land within a stadion or two of
+/// each other, and their label boxes are far wider than the gap between their
+/// plotted points — so drawn naively they pile into an unreadable smudge. Each
+/// marker is offered its plotted point first, then positions sliding along and
+/// then across its own bearing in [_kNudgeStep] increments, and takes the first
+/// that clears every label already placed. Nearest-first order means the
+/// locations that matter most keep their true position, and the ones pushed
+/// around (or, if nothing fits, left as a bare icon) are the far ones.
+List<_PlacedMarker> _placeMarkers({
+  required List<NearbyLocation> entries,
+  required List<Size> labelSizes,
+  required double size,
+  required double scale,
+}) {
+  final center = Offset(size / 2, size / 2);
+  final iconSize = _kMarkerIconSize * scale;
+  final overhang = _kMarkerOverhang * scale;
+  final halfGap = _kLabelGap * scale / 2;
+  final step = _kNudgeStep * scale;
+  final minRadius = size * _kMarkerMinRadiusFraction;
+
+  // Outward room: enough that the icon still sits inside the rose's ring.
+  final maxRadius = (size / 2 - 12) - iconSize + overhang;
+
+  final placedLabels = <Rect>[];
+  final placedIcons = <Rect>[];
+  final placed = <_PlacedMarker>[];
+
+  for (var i = 0; i < entries.length; i++) {
+    final base = _markerOffset(entries[i], size);
+    final radius = base.distance;
+    // A location the player is standing on plots at the minimum radius due
+    // north; its ray is that direction rather than an undefined zero vector.
+    final ray = radius == 0 ? const Offset(0, -1) : base / radius;
+    final tangent = Offset(-ray.dy, ray.dx);
+
+    // Candidate displacements, least first, so the placement chosen is always
+    // the smallest distortion. Radial before tangential at equal magnitude.
+    final maxTangential = math.min(
+      _kMaxTangentialNudge * scale,
+      radius * _kMaxTangentialTan,
+    );
+    final nudges = <Offset>[Offset.zero];
+    for (var m = step; m <= _kMaxRadialNudge * scale + 0.001; m += step) {
+      nudges
+        ..add(ray * m)
+        ..add(ray * -m);
+      if (m <= maxTangential + 0.001) {
+        nudges
+          ..add(tangent * m)
+          ..add(tangent * -m);
+      }
+    }
+
+    ({Offset nudge, _MarkerRects rects})? clear, anyClear;
+
+    for (final nudge in nudges) {
+      final point = base + nudge;
+      if (point.distance < minRadius - 0.001 || point.distance > maxRadius) {
+        continue;
+      }
+
+      final rects = _markerRects(
+        anchor: center + point,
+        labelSize: labelSizes[i],
+        iconSize: iconSize,
+        overhang: overhang,
+      );
+      final label = rects.label.inflate(halfGap);
+      if (placedLabels.any(label.overlaps)) continue;
+
+      final candidate = (nudge: nudge, rects: rects);
+      anyClear ??= candidate;
+      // Prefer a placement that also leaves the icons alone, but do not insist.
+      final touchesIcon = placedIcons.any(rects.label.overlaps) ||
+          placedIcons.any(rects.icon.overlaps) ||
+          placedLabels.any(rects.icon.overlaps);
+      if (!touchesIcon) {
+        clear = candidate;
+        break;
+      }
+    }
+
+    final chosen = clear ?? anyClear;
+    if (chosen == null) {
+      // Genuinely nowhere to put the name — keep the icon on its dot so the
+      // place is still marked, and let the nearest-location chip carry names.
+      placed.add(_PlacedMarker(entries[i], Offset.zero, showLabel: false));
+      placedIcons.add(_markerRects(
+        anchor: center + base,
+        labelSize: labelSizes[i],
+        iconSize: iconSize,
+        overhang: overhang,
+      ).icon);
+    } else {
+      placed.add(_PlacedMarker(entries[i], chosen.nudge, showLabel: true));
+      placedLabels.add(chosen.rects.label.inflate(halfGap));
+      placedIcons.add(chosen.rects.icon);
+    }
+  }
+
+  return placed;
+}
+
+/// Style of a marker's name label.
+///
+/// Shared with the measuring pass that feeds [_placeMarkers], so the boxes the
+/// de-collision reasons about cannot drift from the ones actually painted.
+TextStyle _labelStyle(Color color) => TextStyle(
+      fontFamily: 'JetBrainsMono',
+      fontSize: 12,
+      height: 1.1,
+      color: color,
+      shadows: const [
+        Shadow(color: Colors.black, blurRadius: 3),
+        Shadow(color: Colors.black, blurRadius: 6),
+      ],
+    );
+
+/// Size the label of [text] will render at, matching [_LocationMarker]'s [Text]
+/// (same style, same width cap, two lines then ellipsis).
+Size _measureLabel(String text, TextStyle style, double maxWidth,
+    TextScaler textScaler) {
+  return (TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: TextDirection.ltr,
+    textAlign: TextAlign.center,
+    maxLines: 2,
+    ellipsis: '…',
+    textScaler: textScaler,
+  )..layout(maxWidth: maxWidth))
+      .size;
 }
 
 /// Offset of a nearby location from the center of a [size]-wide compass,
@@ -143,14 +366,15 @@ Offset _markerOffset(NearbyLocation entry, double size) {
   );
 }
 
-/// Icon + name label anchored at a location's bearing/distance point.
+/// Icon + name label anchored at a location's bearing/distance point, shifted
+/// by whatever [_placeMarkers] decided was needed to keep the name readable.
 class _LocationMarker extends StatelessWidget {
-  final NearbyLocation entry;
+  final _PlacedMarker marker;
   final double size;
   final double scale;
 
   const _LocationMarker({
-    required this.entry,
+    required this.marker,
     required this.size,
     required this.scale,
   });
@@ -158,34 +382,27 @@ class _LocationMarker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final offset = _markerOffset(entry, size);
+    final entry = marker.entry;
+    final offset = _markerOffset(entry, size) + marker.nudge;
     final markerWidth = _kMarkerWidth * scale;
     final center = size / 2;
 
     return Positioned(
       left: center + offset.dx - markerWidth / 2,
-      top: center + offset.dy - 18 * scale,
+      top: center + offset.dy - _kMarkerOverhang * scale,
       width: markerWidth,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _LocationIcon(kind: entry.location.kind, scale: scale),
-          Text(
-            entry.location.shortName,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: 'JetBrainsMono',
-              fontSize: 12,
-              height: 1.1,
-              color: scheme.onSurface,
-              shadows: const [
-                Shadow(color: Colors.black, blurRadius: 3),
-                Shadow(color: Colors.black, blurRadius: 6),
-              ],
+          if (marker.showLabel)
+            Text(
+              entry.location.shortName,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: _labelStyle(scheme.onSurface),
             ),
-          ),
         ],
       ),
     );
@@ -255,12 +472,18 @@ class _NearestChip extends StatelessWidget {
 /// (including those beyond the labeled-marker cap).
 class _CompassRosePainter extends CustomPainter {
   final List<NearbyLocation> nearby;
+
+  /// The labeled markers and where de-collision put them, so a marker that had
+  /// to move can be tied back to its dot with a leader line.
+  final List<_PlacedMarker> placed;
+
   final Color primary;
   final Color surface;
   final Color onSurface;
 
   _CompassRosePainter({
     required this.nearby,
+    required this.placed,
     required this.primary,
     required this.surface,
     required this.onSurface,
@@ -349,8 +572,30 @@ class _CompassRosePainter extends CustomPainter {
         ..color = primary.withAlpha(90),
     );
 
-    // One dot per nearby location — the anchor point the labeled markers
-    // sit on, and the only trace of locations beyond the label cap.
+    // Leader lines, for the markers de-collision had to move off their point.
+    // Drawn before the dots so the dot stays the brightest thing on the ray.
+    final scale = size.width / kCompassSize;
+    final iconRadius = _kMarkerIconSize * scale / 2;
+    final leaderPaint = Paint()
+      ..strokeWidth = 1.2
+      ..color = primary.withAlpha(110);
+    for (final marker in placed) {
+      final travelled = marker.nudge.distance;
+      // A marker nudged less than its own icon is still sitting on its dot,
+      // so there is nothing to lead the eye across.
+      if (travelled <= iconRadius + 6) continue;
+      final dot = center + _markerOffset(marker.entry, size.width);
+      final along = marker.nudge / travelled;
+      // Start clear of the dot, stop at the edge of the icon it leads to.
+      canvas.drawLine(
+        dot + along * 5.5,
+        dot + marker.nudge - along * iconRadius,
+        leaderPaint,
+      );
+    }
+
+    // One dot per nearby location — the true plotted point, and the only trace
+    // of locations beyond the label cap.
     final dotPaint = Paint()..color = primary.withAlpha(210);
     for (final entry in nearby) {
       canvas.drawCircle(center + _markerOffset(entry, size.width), 3.6, dotPaint);
@@ -360,6 +605,7 @@ class _CompassRosePainter extends CustomPainter {
   @override
   bool shouldRepaint(_CompassRosePainter oldDelegate) =>
       oldDelegate.nearby != nearby ||
+      oldDelegate.placed != placed ||
       oldDelegate.primary != primary ||
       oldDelegate.surface != surface ||
       oldDelegate.onSurface != onSurface;

@@ -54,13 +54,19 @@ class StyledSpan {
   /// back through the connection service.
   ///
   /// Command-bearing spans render as a [WidgetSpan] so they can carry a
-  /// [Tooltip] — hover on desktop, long-press on mobile reveals the
-  /// templated command and the Ctrl/Cmd+L keyboard shortcut. URL and
-  /// plain-text spans stay as cheap [TextSpan]s.
+  /// [Tooltip] — hover on desktop reveals the templated command and the
+  /// Ctrl/Cmd+L keyboard shortcut. URL and plain-text spans stay as cheap
+  /// [TextSpan]s.
+  ///
+  /// [onCommandLongPress] receives the same command on a long press, which is
+  /// how the terminal offers to mute a kill-target link. It takes over the
+  /// gesture the tooltip used to claim on touch devices; the tooltip is still
+  /// reachable by hover, and the long-press menu names the command anyway.
   InlineSpan toTextSpan({
     required String fontFamily,
     required double fontSize,
     void Function(String command)? onCommandTap,
+    void Function(String command)? onCommandLongPress,
   }) {
     final isUrlLink = link != null;
     final isCommandLink = command != null;
@@ -87,11 +93,21 @@ class StyledSpan {
         child: Tooltip(
           message: 'Send: $command   (${_shortcutHint()})',
           waitDuration: const Duration(milliseconds: 400),
+          // A tooltip's default trigger is long-press, which would contest the
+          // arena with our own long-press recognizer and make which one wins
+          // an accident of hit-test order. Hover still shows the tooltip on
+          // desktop; touch users get the menu, which names the command anyway.
+          triggerMode: onCommandLongPress == null
+              ? TooltipTriggerMode.longPress
+              : TooltipTriggerMode.manual,
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => onCommandTap?.call(command!),
+              onLongPress: onCommandLongPress == null
+                  ? null
+                  : () => onCommandLongPress(command!),
               child: Text(displayText, style: style),
             ),
           ),
@@ -152,12 +168,14 @@ class StyledLine {
     required String fontFamily,
     required double fontSize,
     void Function(String command)? onCommandTap,
+    void Function(String command)? onCommandLongPress,
   }) {
     if (spans.length == 1) {
       return spans.first.toTextSpan(
         fontFamily: fontFamily,
         fontSize: fontSize,
         onCommandTap: onCommandTap,
+        onCommandLongPress: onCommandLongPress,
       );
     }
     return TextSpan(
@@ -166,6 +184,7 @@ class StyledLine {
                 fontFamily: fontFamily,
                 fontSize: fontSize,
                 onCommandTap: onCommandTap,
+                onCommandLongPress: onCommandLongPress,
               ))
           .toList(),
     );
@@ -182,6 +201,7 @@ class StyledLine {
     required int startCol,
     required int endCol,
     void Function(String command)? onCommandTap,
+    void Function(String command)? onCommandLongPress,
   }) {
     final children = <InlineSpan>[];
     var offset = 0;
@@ -196,6 +216,7 @@ class StyledLine {
           fontFamily: fontFamily,
           fontSize: fontSize,
           onCommandTap: onCommandTap,
+          onCommandLongPress: onCommandLongPress,
         ));
       } else {
         // Partially or fully inside selection – split at boundaries.

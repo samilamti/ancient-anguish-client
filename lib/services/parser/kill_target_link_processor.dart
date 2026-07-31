@@ -24,6 +24,10 @@ import 'text_link_processor.dart';
 ///
 /// Room headers and prompt lines are skipped outright: `West Gate (e,w)` is a
 /// location, not a creature.
+///
+/// [ignored] words are dropped from *both* modes — it is the user's runtime
+/// blocklist, so an announcement keyword the room parser accepted is silenced
+/// just as surely as a catalogue word.
 class KillTargetLinkProcessor {
   /// Recolours promoted spans so kill links read differently from the user's
   /// own text-link rules, which keep their surrounding ANSI colour.
@@ -33,13 +37,48 @@ class KillTargetLinkProcessor {
   /// scanned once regardless of catalogue size. Null when there are none.
   final RegExp? _catalogue;
 
-  KillTargetLinkProcessor(Iterable<String> targets, {this.linkColor})
-      : _catalogue = _buildCatalogue(targets);
+  /// Normalized words the user has muted, checked on the announcement path.
+  final Set<String> _ignored;
 
-  static RegExp? _buildCatalogue(Iterable<String> targets) {
+  /// Both the catalogue filter and the announcement check need the normalized
+  /// ignore set, and an initializer list can't share a local — hence the
+  /// factory plus private constructor.
+  factory KillTargetLinkProcessor(
+    Iterable<String> targets, {
+    Color? linkColor,
+    Iterable<String> ignored = const [],
+  }) {
+    final muted = _normalizeAll(ignored);
+    return KillTargetLinkProcessor._(
+      linkColor: linkColor,
+      ignored: muted,
+      catalogue: _buildCatalogue(targets, muted),
+    );
+  }
+
+  const KillTargetLinkProcessor._({
+    required this.linkColor,
+    required Set<String> ignored,
+    required RegExp? catalogue,
+  })  : _ignored = ignored,
+        _catalogue = catalogue;
+
+  static Set<String> _normalizeAll(Iterable<String> words) => words
+      .map((w) => w.trim().toLowerCase())
+      .where((w) => w.isNotEmpty)
+      .toSet();
+
+  static RegExp? _buildCatalogue(
+    Iterable<String> targets,
+    Set<String> ignored,
+  ) {
     // Longest-first so a target isn't cut short by a shorter one sharing its
     // prefix; escaped because room-derived targets are arbitrary MUD text.
-    final words = targets.where((t) => t.isNotEmpty).toSet().toList()
+    final words = targets
+        .where((t) => t.isNotEmpty)
+        .where((t) => !ignored.contains(t.trim().toLowerCase()))
+        .toSet()
+        .toList()
       ..sort((a, b) => b.length.compareTo(a.length));
     if (words.isEmpty) return null;
     final alternation = words.map(RegExp.escape).join('|');
@@ -63,7 +102,9 @@ class KillTargetLinkProcessor {
     }
 
     final hits = npcKeyword != null
-        ? _announcementHit(plain, npcKeyword)
+        ? (_ignored.contains(npcKeyword.trim().toLowerCase())
+            ? const <CommandHit>[]
+            : _announcementHit(plain, npcKeyword))
         : _catalogueHits(plain);
     if (hits.isEmpty) return line;
     return promoteCommandSpans(line, hits, linkColor: linkColor);

@@ -9,6 +9,7 @@ import '../widgets/social/social_message_list.dart' show SocialListType;
 
 import '../../models/battle_filter_mode.dart';
 import '../../models/connection_info.dart';
+import '../../models/line_spacing.dart';
 import '../../models/social_message.dart';
 import '../../models/support_tier.dart';
 import '../../providers/audio_provider.dart';
@@ -36,6 +37,7 @@ import 'advanced_customization_screen.dart';
 import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
 import 'history_screen.dart';
+import 'ignored_kill_targets_screen.dart';
 import 'support_screen.dart';
 import 'text_link_rules_screen.dart';
 import 'trigger_settings_screen.dart';
@@ -97,17 +99,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final showCompass =
         !isMobile && isDesktopPlatform() && settings.compassEnabled;
     // The battle HUD stands in for the combat text it gags, so it goes
-    // wherever that text would have been read — every platform, bottom-right,
-    // clear of the compass above it. It hides itself when no fight has started.
+    // wherever that text would have been read — every platform, directly under
+    // the terminal. Docked rather than floated so it can't cover the newest
+    // output lines; see [BattleHudDock]. It hides itself when no fight has
+    // started.
     final showBattleHud = settings.battleFilterMode == BattleFilterMode.hud;
-    final terminal = (showCompass || showBattleHud)
+    final terminal = showCompass
         ? Stack(
             children: [
               const TerminalView(),
-              if (showCompass)
-                const Positioned(top: 8, right: 12, child: CompassOverlay()),
-              if (showBattleHud)
-                const Positioned(bottom: 8, right: 12, child: BattleHud()),
+              const Positioned(top: 8, right: 12, child: CompassOverlay()),
             ],
           )
         : const TerminalView();
@@ -285,6 +286,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
                   // Terminal output – takes all available space.
                   Expanded(child: terminal),
+
+                  // Combat scoreboard, docked under the output so it never
+                  // hides the last line the MUD sent.
+                  if (showBattleHud) const BattleHudDock(),
 
                   // Audio controls (shown when connected and audio is enabled).
                   // Also yields vertical space to the soft keyboard on mobile.
@@ -775,6 +780,22 @@ class _SettingsDrawer extends ConsumerWidget {
                   _openScreen(context, const TextLinkRulesScreen()),
             ),
 
+            Consumer(builder: (context, ref, _) {
+              final ignoredCount = ref.watch(
+                settingsProvider.select((s) => s.ignoredKillTargets.length),
+              );
+              return _DrawerNavTile(
+                icon: const Icon(Icons.link_off, size: 20),
+                title: 'Ignored Kill Targets',
+                subtitle: ignoredCount == 0
+                    ? 'Long-press a red link to add one'
+                    : '$ignoredCount word${ignoredCount == 1 ? '' : 's'} '
+                        'never highlighted',
+                onTap: () =>
+                    _openScreen(context, const IgnoredKillTargetsScreen()),
+              );
+            }),
+
             const Divider(height: 24),
 
             // ── Support ── (store-backed platforms only)
@@ -881,6 +902,36 @@ class _SettingsDrawer extends ConsumerWidget {
               divisions: 24,
               label: '${settings.fontSize.round()}pt',
               onChanged: (v) => notifier.setFontSize(v),
+            ),
+
+            // ── Line Spacing ──
+            // Discrete steps rather than a free slider: the point is legible
+            // gaps, and a percentage of the font size keeps that true at any
+            // font size. Sits next to Font Size because they are read together.
+            Row(
+              children: [
+                const Icon(Icons.format_line_spacing, size: 18),
+                const SizedBox(width: 8),
+                Text('Line Spacing', style: theme.textTheme.bodyMedium),
+                const Spacer(),
+                Text(
+                  settings.lineSpacing.label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'JetBrainsMono',
+                    color: theme.colorScheme.onSurface.withAlpha(160),
+                  ),
+                ),
+              ],
+            ),
+            Slider(
+              value: LineSpacing.values.indexOf(settings.lineSpacing).toDouble(),
+              min: 0,
+              max: (LineSpacing.values.length - 1).toDouble(),
+              divisions: LineSpacing.values.length - 1,
+              label: settings.lineSpacing.label,
+              onChanged: (v) =>
+                  notifier.setLineSpacing(LineSpacing.values[v.round()]),
             ),
 
             const Divider(height: 24),

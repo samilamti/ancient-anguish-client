@@ -4,6 +4,7 @@ import '../core/theme/terminal_colors.dart';
 import '../services/parser/kill_target_link_processor.dart';
 import 'common_targets_provider.dart';
 import 'room_targets_provider.dart';
+import 'settings_provider.dart';
 
 /// Colour used for kill-target links in the terminal — a reddish tint that
 /// separates "this is a thing you can attack" from ordinary text-link rules,
@@ -29,10 +30,17 @@ final killTargetWordsProvider = Provider<List<String>>((ref) {
 /// `kill <target>` links. See [KillTargetLinkProcessor] for the matching
 /// rules; it runs *after* the user's own text-link rules in the buffer
 /// pipeline, so a hand-written rule always wins a contested region.
+///
+/// Words on the user's ignore list (long-press a red link to add one) are
+/// dropped here, which is what keeps a stubborn false positive from painting
+/// the screen red until the static blocklists learn about it.
 final killTargetLinkProcessorProvider =
     Provider<KillTargetLinkProcessor>((ref) {
   return KillTargetLinkProcessor(
     ref.watch(killTargetWordsProvider),
     linkColor: killTargetLinkColor,
+    ignored: ref.watch(
+      settingsProvider.select((s) => s.ignoredKillTargets),
+    ),
   );
 });

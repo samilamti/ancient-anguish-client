@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show SmartDashesType, SmartQuotesType;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/battle_filter_mode.dart';
+import '../models/line_spacing.dart';
 import '../models/quick_command.dart';
 import '../models/timestamp_mode.dart';
 import '../services/logging/log_service.dart';
@@ -31,12 +32,15 @@ class AppSettings {
   final TimestampMode timestampMode; // HH:MM column in social message rows
   final bool emojiMapsEnabled; // swap ASCII map tiles for emoji
   final BattleFilterMode battleFilterMode; // how combat spam reaches the buffer
+  final LineSpacing lineSpacing; // extra leading between terminal lines
   final bool compassEnabled; // desktop-only navigation compass overlay
   final bool mobileAutoCorrectEnabled; // soft-keyboard autocorrect/suggestions
   final List<String> pinnedAliasIds; // up to 3 alias IDs shown as D-Pad quick slots
   final List<String> pinnedTargets; // user-pinned targets shown atop the Kill picker
   final Map<String, List<String>>
       killAliasSteps; // normalized target → ordered combat steps (Kill picker "Customise")
+  final List<String>
+      ignoredKillTargets; // words that must never render as red kill links
 
   /// Maximum number of alias rules that can be pinned to the D-Pad's
   /// quick-slot column at once.
@@ -80,11 +84,13 @@ class AppSettings {
     this.timestampMode = TimestampMode.show,
     this.emojiMapsEnabled = false,
     this.battleFilterMode = BattleFilterMode.off,
+    this.lineSpacing = LineSpacing.none,
     this.compassEnabled = true,
     this.mobileAutoCorrectEnabled = false,
     this.pinnedAliasIds = const [],
     this.pinnedTargets = const [],
     this.killAliasSteps = const {},
+    this.ignoredKillTargets = const [],
   });
 
   AppSettings copyWith({
@@ -107,11 +113,13 @@ class AppSettings {
     TimestampMode? timestampMode,
     bool? emojiMapsEnabled,
     BattleFilterMode? battleFilterMode,
+    LineSpacing? lineSpacing,
     bool? compassEnabled,
     bool? mobileAutoCorrectEnabled,
     List<String>? pinnedAliasIds,
     List<String>? pinnedTargets,
     Map<String, List<String>>? killAliasSteps,
+    List<String>? ignoredKillTargets,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -138,12 +146,14 @@ class AppSettings {
       timestampMode: timestampMode ?? this.timestampMode,
       emojiMapsEnabled: emojiMapsEnabled ?? this.emojiMapsEnabled,
       battleFilterMode: battleFilterMode ?? this.battleFilterMode,
+      lineSpacing: lineSpacing ?? this.lineSpacing,
       compassEnabled: compassEnabled ?? this.compassEnabled,
       mobileAutoCorrectEnabled:
           mobileAutoCorrectEnabled ?? this.mobileAutoCorrectEnabled,
       pinnedAliasIds: pinnedAliasIds ?? this.pinnedAliasIds,
       pinnedTargets: pinnedTargets ?? this.pinnedTargets,
       killAliasSteps: killAliasSteps ?? this.killAliasSteps,
+      ignoredKillTargets: ignoredKillTargets ?? this.ignoredKillTargets,
     );
   }
 
@@ -170,11 +180,13 @@ class AppSettings {
         'timestampMode': timestampMode.storageKey,
         'emojiMapsEnabled': emojiMapsEnabled,
         'battleFilterMode': battleFilterMode.storageKey,
+        'lineSpacing': lineSpacing.storageKey,
         'compassEnabled': compassEnabled,
         'mobileAutoCorrectEnabled': mobileAutoCorrectEnabled,
         'pinnedAliasIds': pinnedAliasIds,
         'pinnedTargets': pinnedTargets,
         'killAliasSteps': killAliasSteps,
+        'ignoredKillTargets': ignoredKillTargets,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -210,6 +222,7 @@ class AppSettings {
       emojiMapsEnabled: json['emojiMapsEnabled'] as bool? ?? false,
       battleFilterMode:
           BattleFilterMode.fromStorageKey(json['battleFilterMode'] as String?),
+      lineSpacing: LineSpacing.fromStorageKey(json['lineSpacing'] as String?),
       compassEnabled: json['compassEnabled'] as bool? ?? true,
       mobileAutoCorrectEnabled:
           json['mobileAutoCorrectEnabled'] as bool? ?? false,
@@ -224,6 +237,9 @@ class AppSettings {
               (k, v) => MapEntry(k as String, List<String>.from(v as List)),
             )
           : const {},
+      ignoredKillTargets: json['ignoredKillTargets'] != null
+          ? List<String>.from(json['ignoredKillTargets'] as List)
+          : const [],
     );
   }
 
@@ -339,6 +355,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     _saveSettings();
   }
 
+  void setLineSpacing(LineSpacing spacing) {
+    state = state.copyWith(lineSpacing: spacing);
+    _saveSettings();
+  }
+
   void toggleCompass() {
     state = state.copyWith(compassEnabled: !state.compassEnabled);
     _saveSettings();
@@ -432,6 +453,31 @@ class SettingsNotifier extends Notifier<AppSettings> {
       updated[key] = List.unmodifiable(steps);
     }
     state = state.copyWith(killAliasSteps: Map.unmodifiable(updated));
+    _saveSettings();
+  }
+
+  /// Suppresses the reddish `kill <target>` link for [target] everywhere in the
+  /// terminal — the runtime counterpart to `RoomLineClassifier`'s compile-time
+  /// blocklists, and the escape hatch for a false positive the blocklists
+  /// haven't learned yet. Kept alphabetical so the review list reads sensibly.
+  ///
+  /// Only link rendering is affected: the target stays available in the Kill
+  /// picker, since "don't paint this red" isn't "I can never attack this".
+  void addIgnoredKillTarget(String target) {
+    final normalized = AppSettings.normalizeTarget(target);
+    if (normalized.isEmpty) return;
+    if (state.ignoredKillTargets.contains(normalized)) return;
+    final current = [...state.ignoredKillTargets, normalized]..sort();
+    state = state.copyWith(ignoredKillTargets: List.unmodifiable(current));
+    _saveSettings();
+  }
+
+  /// Restores kill links for [target].
+  void removeIgnoredKillTarget(String target) {
+    final normalized = AppSettings.normalizeTarget(target);
+    if (!state.ignoredKillTargets.contains(normalized)) return;
+    final current = [...state.ignoredKillTargets]..remove(normalized);
+    state = state.copyWith(ignoredKillTargets: List.unmodifiable(current));
     _saveSettings();
   }
 

@@ -5,7 +5,7 @@ import '../../../models/battle_filter_mode.dart';
 import '../../../models/battle_stats.dart';
 import '../../../providers/battle_stats_provider.dart';
 
-/// Floating combat panel shown under [BattleFilterMode.hud].
+/// Combat panel shown under [BattleFilterMode.hud].
 ///
 /// It has to earn the combat text it replaced, so it carries both halves of
 /// what scrolling combat output told the player: the running tallies (which
@@ -14,6 +14,8 @@ import '../../../providers/battle_stats_provider.dart';
 /// Appears when a fight starts and lingers for `BattleNotifier.battleTimeout`
 /// after the last exchange — long enough that the kill line is still on screen
 /// when the player looks up.
+///
+/// Docked rather than floating — see [BattleHudDock] for why.
 class BattleHud extends ConsumerWidget {
   const BattleHud({super.key});
 
@@ -106,6 +108,36 @@ class BattleHud extends ConsumerWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Reserves layout space for [BattleHud] beneath the terminal instead of
+/// floating it over the output.
+///
+/// The terminal is bottom-anchored, so an overlay panel covers precisely the
+/// newest lines — the ones the player is reading. Docking the panel as a
+/// sibling below the terminal means the tail of the output slides up to make
+/// room and the last received line stays visible for the whole fight, with no
+/// height measurement to keep in sync.
+///
+/// Collapses to nothing when no fight has started, so it costs no vertical
+/// space (not even its padding) outside combat.
+class BattleHudDock extends ConsumerWidget {
+  const BattleHudDock({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final inBattle =
+        ref.watch(battleStatsProvider.select((s) => s.startedAt != null));
+    if (!inBattle) return const SizedBox.shrink();
+
+    return const Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 4),
+        child: BattleHud(),
       ),
     );
   }

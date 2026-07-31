@@ -26,12 +26,15 @@ class HistoryScreen extends ConsumerStatefulWidget {
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   late final List<StyledLine> _lines;
   late final double _fontSize;
+  late final double _extraSpacing;
 
   @override
   void initState() {
     super.initState();
     _lines = List.of(ref.read(terminalBufferProvider));
-    _fontSize = ref.read(settingsProvider).fontSize;
+    final settings = ref.read(settingsProvider);
+    _fontSize = settings.fontSize;
+    _extraSpacing = settings.lineSpacing.extraFor(_fontSize);
   }
 
   @override
@@ -52,6 +55,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 line: _lines[lineIndex],
                 lineIndex: lineIndex,
                 fontSize: _fontSize,
+                extraSpacing: _extraSpacing,
                 onCommandTap: (cmd) {
                   if (cmd.trim().isEmpty) return;
                   ref.read(linkCommandSenderProvider)(cmd);

@@ -1,6 +1,7 @@
 import 'package:ancient_anguish_client/protocol/ansi/styled_span.dart';
 import 'package:ancient_anguish_client/providers/kill_target_links_provider.dart';
 import 'package:ancient_anguish_client/providers/room_targets_provider.dart';
+import 'package:ancient_anguish_client/providers/settings_provider.dart';
 import 'package:ancient_anguish_client/services/parser/kill_target_link_processor.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -301,6 +302,101 @@ void main() {
       final out =
           processor.processLine(plain('A giant eagle.'), npcKeyword: 'eagle');
       expect(links(out), [('eagle', 'kill eagle')]);
+    });
+  });
+
+  group('user ignore list', () {
+    test('mutes a catalogue word', () {
+      final processor = KillTargetLinkProcessor(
+        const ['goblin', 'orc'],
+        ignored: const ['goblin'],
+      );
+      expect(
+        links(processor.processLine(plain('The goblin hits you.'))),
+        isEmpty,
+      );
+      expect(
+        links(processor.processLine(plain('The orc hits you.'))),
+        [('orc', 'kill orc')],
+      );
+    });
+
+    test('mutes an announcement keyword too', () {
+      // The announcement path bypasses the catalogue entirely, so filtering
+      // the alternation alone would leave the red link on the very line that
+      // introduced the creature.
+      final processor = KillTargetLinkProcessor(
+        const ['eagle'],
+        ignored: const ['eagle'],
+      );
+      expect(
+        links(
+          processor.processLine(plain('A giant eagle.'), npcKeyword: 'eagle'),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('normalizes case and surrounding whitespace', () {
+      final processor = KillTargetLinkProcessor(
+        const ['troll'],
+        ignored: const ['  TROLL '],
+      );
+      expect(
+        links(processor.processLine(plain('Troll blocks your way.'))),
+        isEmpty,
+      );
+      expect(
+        links(processor.processLine(plain('A troll.'), npcKeyword: 'Troll')),
+        isEmpty,
+      );
+    });
+
+    test('the settings ignore list reaches the wired-up processor', () {
+      final container = freshContainer();
+      expect(
+        links(
+          container
+              .read(killTargetLinkProcessorProvider)
+              .processLine(plain('The goblin hits you.')),
+        ),
+        [('goblin', 'kill goblin')],
+      );
+
+      container.read(settingsProvider.notifier).addIgnoredKillTarget('Goblin');
+      expect(
+        links(
+          container
+              .read(killTargetLinkProcessorProvider)
+              .processLine(plain('The goblin hits you.')),
+        ),
+        isEmpty,
+      );
+
+      container
+          .read(settingsProvider.notifier)
+          .removeIgnoredKillTarget('goblin');
+      expect(
+        links(
+          container
+              .read(killTargetLinkProcessorProvider)
+              .processLine(plain('The goblin hits you.')),
+        ),
+        [('goblin', 'kill goblin')],
+      );
+    });
+
+    test('ignoring leaves the Kill picker targets alone', () {
+      // "Don't paint this red" is not "I can never attack this".
+      final container = freshContainer();
+      final rooms = container.read(roomTargetsProvider.notifier);
+      container.read(settingsProvider.notifier).addIgnoredKillTarget('eagle');
+      // Trailing blank line closes the room block, which is when the picker's
+      // target list commits.
+      for (final line in ['Dusty Crossroads (n,e,sw)', 'A giant eagle.', '']) {
+        rooms.processLine(line);
+      }
+      expect(container.read(roomTargetsProvider), contains('eagle'));
     });
   });
 }

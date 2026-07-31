@@ -16,6 +16,7 @@ import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
 import '../../../services/platform/file_utils.dart';
 import '../../screens/history_screen.dart';
+import '../../screens/ignored_kill_targets_screen.dart';
 import '../../screens/text_link_rules_screen.dart';
 import 'terminal_line.dart';
 import 'terminal_selection.dart';
@@ -58,11 +59,13 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   static const double _tapSlopSquared = 18.0 * 18.0;
   static const Duration _doubleTapTimeout = Duration(milliseconds: 300);
 
-  // Monospace font measurements (recomputed when font size changes).
+  // Monospace font measurements (recomputed when font size or line spacing
+  // changes — both feed _lineHeight, which _hitTest divides by).
   double _charWidth = 0;
   double _lineHeight = 0;
   bool _fontMeasured = false;
   double _measuredFontSize = 0;
+  double _measuredExtraSpacing = -1;
 
   @override
   void dispose() {
@@ -71,8 +74,16 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     super.dispose();
   }
 
-  void _measureFont(double fontSize) {
-    if (_fontMeasured && fontSize == _measuredFontSize) return;
+  /// [extraSpacing] is the line-spacing setting's contribution — the same value
+  /// [TerminalLine] pads with. It has to land in [_lineHeight] or [_hitTest]
+  /// converts pointer offsets to the wrong buffer line and both text selection
+  /// and link hit-testing drift by a line per row.
+  void _measureFont(double fontSize, double extraSpacing) {
+    if (_fontMeasured &&
+        fontSize == _measuredFontSize &&
+        extraSpacing == _measuredExtraSpacing) {
+      return;
+    }
     final painter = TextPainter(
       text: TextSpan(
         text: 'M',
@@ -84,10 +95,11 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
       textDirection: TextDirection.ltr,
     )..layout();
     _charWidth = painter.width;
-    _lineHeight = painter.height + 1.0;
+    _lineHeight = painter.height + 1.0 + extraSpacing;
     painter.dispose();
     _fontMeasured = true;
     _measuredFontSize = fontSize;
+    _measuredExtraSpacing = extraSpacing;
   }
 
   // ---------------------------------------------------------------------------
@@ -277,6 +289,87 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     }
   }
 
+  /// Long-press on a link span. Only kill-target links have anything to offer:
+  /// the red highlight is a heuristic, so this is the escape hatch for the
+  /// false positives the static blocklists haven't learned yet.
+  void _onCommandLongPress(String command) {
+    final target = _killTargetOf(command);
+    if (target == null) return;
+    _showIgnoreTargetSheet(target);
+  }
+
+  /// The target of a `kill <target>` command, or null for any other link —
+  /// user-authored text-link rules are deliberately left alone.
+  static String? _killTargetOf(String command) {
+    const prefix = 'kill ';
+    if (!command.startsWith(prefix)) return null;
+    final target = command.substring(prefix.length).trim();
+    return target.isEmpty ? null : target;
+  }
+
+  void _showIgnoreTargetSheet(String target) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                target,
+                style: const TextStyle(
+                  fontFamily: TerminalDefaults.fontFamily,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.link_off),
+              title: const Text('Stop highlighting this'),
+              subtitle: Text(
+                "'$target' will no longer show as a red kill link",
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                ref
+                    .read(settingsProvider.notifier)
+                    .addIgnoredKillTarget(target);
+                _confirmIgnored(target);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.playlist_remove),
+              title: const Text('Ignored targets…'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                openIgnoredKillTargetsEditor(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Undo lives in the confirmation rather than only in the settings pane — a
+  /// mis-aimed long-press should be one tap to reverse.
+  void _confirmIgnored(String target) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Ignoring '$target'"),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () => ref
+              .read(settingsProvider.notifier)
+              .removeIgnoredKillTarget(target),
+        ),
+      ),
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Keyboard shortcuts
   // ---------------------------------------------------------------------------
@@ -409,7 +502,8 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final fontSize = settings.fontSize;
-    _measureFont(fontSize);
+    final extraSpacing = settings.lineSpacing.extraFor(fontSize);
+    _measureFont(fontSize, extraSpacing);
     final lines = ref.watch(terminalBufferProvider);
     final selection = _selectionController.selection;
     final bgImagePath = ref.watch(backgroundImageProvider);
@@ -458,6 +552,8 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
                       selection: selection,
                       fontSize: fontSize,
                       onCommandTap: _sendLinkCommand,
+                      onCommandLongPress: _onCommandLongPress,
+                      extraSpacing: extraSpacing,
                     );
                   },
                 ),

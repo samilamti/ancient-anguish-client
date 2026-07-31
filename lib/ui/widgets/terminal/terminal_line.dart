@@ -21,6 +21,12 @@ class TerminalLine extends StatelessWidget {
   final TerminalSelection? selection;
   final double fontSize;
   final void Function(String command)? onCommandTap;
+  final void Function(String command)? onCommandLongPress;
+
+  /// Extra vertical breathing room, split evenly above and below the text.
+  /// Driven by the line-spacing setting; the terminal's hit-testing folds the
+  /// same value into its line-height maths, so the two must not diverge.
+  final double extraSpacing;
 
   const TerminalLine({
     super.key,
@@ -29,13 +35,19 @@ class TerminalLine extends StatelessWidget {
     this.selection,
     required this.fontSize,
     this.onCommandTap,
+    this.onCommandLongPress,
+    this.extraSpacing = 0,
   });
+
+  /// Half the extra spacing on each side, on top of the baseline 0.5.
+  EdgeInsets get _padding =>
+      EdgeInsets.symmetric(vertical: 0.5 + extraSpacing / 2);
 
   @override
   Widget build(BuildContext context) {
     if (line.spans.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 0.5),
+        padding: _padding,
         child: RichText(
           text: TextSpan(
             text: ' ',
@@ -82,15 +94,17 @@ class TerminalLine extends StatelessWidget {
             startCol: range.startCol,
             endCol: range.endCol,
             onCommandTap: onCommandTap,
+            onCommandLongPress: onCommandLongPress,
           )
         : line.toTextSpan(
             fontFamily: TerminalDefaults.fontFamily,
             fontSize: fontSize,
             onCommandTap: onCommandTap,
+            onCommandLongPress: onCommandLongPress,
           );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 0.5),
+      padding: _padding,
       child: RichText(
         text: textSpan,
         softWrap: true,

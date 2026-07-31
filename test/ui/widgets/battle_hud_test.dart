@@ -12,6 +12,28 @@ void main() {
   setUp(() => container = ProviderContainer());
   tearDown(() => container.dispose());
 
+  /// Pumps the dock the way HomeScreen does: a sibling below the terminal in
+  /// the main column, not an overlay on top of it.
+  Future<void> pumpDock(WidgetTester tester) async {
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                Expanded(
+                  child: SizedBox.expand(key: Key('fake-terminal')),
+                ),
+                BattleHudDock(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> pumpHud(WidgetTester tester) async {
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -146,5 +168,48 @@ void main() {
     expect(find.byType(BattleHud), findsOneWidget);
 
     await drainIdleTimer(tester);
+  });
+
+  group('BattleHudDock', () {
+    testWidgets('takes no space at all outside combat', (tester) async {
+      await pumpDock(tester);
+      expect(find.byType(BattleHud), findsNothing);
+      expect(tester.getSize(find.byType(BattleHudDock)).height, 0);
+    });
+
+    testWidgets('reserves space below the terminal during a fight',
+        (tester) async {
+      await pumpDock(tester);
+      final terminalBefore = tester.getSize(find.byKey(const Key('fake-terminal'))).height;
+
+      feed(["You pounded Nurse's leg heartlessly."]);
+      await tester.pump();
+
+      final dock = tester.getRect(find.byType(BattleHudDock));
+      expect(dock.height, greaterThan(0));
+      // The panel can only be covering the newest output if the terminal
+      // didn't actually give up the room.
+      expect(
+        tester.getSize(find.byKey(const Key('fake-terminal'))).height,
+        lessThanOrEqualTo(terminalBefore - dock.height),
+      );
+      // ...and it sits below it, not over it.
+      expect(dock.top,
+          greaterThanOrEqualTo(tester.getRect(find.byKey(const Key('fake-terminal'))).bottom));
+
+      await drainIdleTimer(tester);
+    });
+
+    testWidgets('is left aligned', (tester) async {
+      feed(["You pounded Nurse's leg heartlessly."]);
+      await pumpDock(tester);
+
+      final screen = tester.getRect(find.byType(Scaffold));
+      final panel = tester.getRect(find.byType(BattleHud));
+      expect(panel.left - screen.left, lessThan(24));
+      expect(screen.right - panel.right, greaterThan(panel.left - screen.left));
+
+      await drainIdleTimer(tester);
+    });
   });
 }

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/models/battle_filter_mode.dart';
+import 'package:ancient_anguish_client/models/line_spacing.dart';
 import 'package:ancient_anguish_client/models/quick_command.dart';
 import 'package:ancient_anguish_client/providers/settings_provider.dart';
 import 'package:ancient_anguish_client/services/logging/log_service.dart';
@@ -304,6 +305,72 @@ void main() {
       expect(BattleFilterMode.off.filtersTerminal, isFalse);
       expect(BattleFilterMode.collapse.filtersTerminal, isTrue);
       expect(BattleFilterMode.hud.filtersTerminal, isTrue);
+    });
+  });
+
+  group('SettingsNotifier - line spacing', () {
+    test('defaults to off', () {
+      expect(container.read(settingsProvider).lineSpacing, LineSpacing.none);
+    });
+
+    test('setLineSpacing updates the setting', () {
+      notifier.setLineSpacing(LineSpacing.half);
+      expect(container.read(settingsProvider).lineSpacing, LineSpacing.half);
+    });
+
+    test('survives a JSON round trip', () {
+      notifier.setLineSpacing(LineSpacing.third);
+      final restored =
+          AppSettings.fromJson(container.read(settingsProvider).toJson());
+      expect(restored.lineSpacing, LineSpacing.third);
+    });
+
+    test('an install predating the setting reads as off', () {
+      expect(AppSettings.fromJson(const {}).lineSpacing, LineSpacing.none);
+    });
+  });
+
+  group('SettingsNotifier - ignored kill targets', () {
+    test('defaults to empty', () {
+      expect(container.read(settingsProvider).ignoredKillTargets, isEmpty);
+    });
+
+    test('adds normalized, sorted, and without duplicates', () {
+      notifier.addIgnoredKillTarget('  Troll ');
+      notifier.addIgnoredKillTarget('eagle');
+      notifier.addIgnoredKillTarget('TROLL');
+      expect(
+        container.read(settingsProvider).ignoredKillTargets,
+        ['eagle', 'troll'],
+      );
+    });
+
+    test('blank input is ignored', () {
+      notifier.addIgnoredKillTarget('   ');
+      expect(container.read(settingsProvider).ignoredKillTargets, isEmpty);
+    });
+
+    test('removal normalizes too, so undo matches what was added', () {
+      notifier.addIgnoredKillTarget('Giant Eagle');
+      notifier.removeIgnoredKillTarget('  giant eagle  ');
+      expect(container.read(settingsProvider).ignoredKillTargets, isEmpty);
+    });
+
+    test('removing an absent target is a no-op', () {
+      notifier.addIgnoredKillTarget('orc');
+      notifier.removeIgnoredKillTarget('goblin');
+      expect(container.read(settingsProvider).ignoredKillTargets, ['orc']);
+    });
+
+    test('survives a JSON round trip', () {
+      notifier.addIgnoredKillTarget('signpost');
+      final restored =
+          AppSettings.fromJson(container.read(settingsProvider).toJson());
+      expect(restored.ignoredKillTargets, ['signpost']);
+    });
+
+    test('an install predating the setting reads as empty', () {
+      expect(AppSettings.fromJson(const {}).ignoredKillTargets, isEmpty);
     });
   });
 

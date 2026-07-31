@@ -360,4 +360,74 @@ void main() {
       });
     }
   });
+
+  group("Sami's Red fox transcript (bare-apostrophe possessive)", () {
+    // AA writes `Red fox' body`, not `Red fox's body`, for a name already
+    // ending in an s-sound. Requiring the `s` classified none of these.
+    const yourHits = [
+      "You lacerated Red fox' body.",
+      "You slashed Red fox' body viciously.",
+      "You gashed Red fox' body.",
+    ];
+
+    for (final line in yourHits) {
+      test('reads "$line" as your hit on Red fox', () {
+        final match = BattleTextClassifier.classify(line);
+        expect(match?.kind, BattleLineKind.yourHit);
+        // The apostrophe must not survive into the name: it reaches the HUD
+        // title and the `kill` command built from it.
+        expect(match?.opponent, 'Red fox');
+      });
+    }
+
+    test('the death and kill lines resolve to the same clean name', () {
+      expect(
+        BattleTextClassifier.classify('Red fox died.')?.opponent,
+        'Red fox',
+      );
+      expect(
+        BattleTextClassifier.classify('You killed Red fox.')?.opponent,
+        'Red fox',
+      );
+    });
+
+    test('the curly apostrophe works too', () {
+      final match = BattleTextClassifier.classify('You gashed Red fox’ body.');
+      expect(match?.kind, BattleLineKind.yourHit);
+      expect(match?.opponent, 'Red fox');
+    });
+
+    test('a normal possessive still works alongside it', () {
+      expect(
+        BattleTextClassifier.classify("You gashed Nurse's body.")?.opponent,
+        'Nurse',
+      );
+    });
+
+    test('footwork against a bare-apostrophe name names it cleanly', () {
+      final match = BattleTextClassifier.classify(
+          "You take a quick step backwards, avoiding Red fox' attack.");
+      expect(match?.kind, BattleLineKind.incomingMiss);
+      expect(match?.opponent, 'Red fox');
+    });
+
+    test('an incoming hit from a bare-apostrophe name', () {
+      final match =
+          BattleTextClassifier.classify('Red fox bit your leg savagely.');
+      expect(match?.kind, BattleLineKind.incomingHit);
+      expect(match?.opponent, 'Red fox');
+    });
+
+    test('a possessive apostrophe does not turn prose into combat', () {
+      // The loosened possessive must not start matching ordinary sentences.
+      expect(
+        BattleTextClassifier.classify("You admire Red fox' shiny coat."),
+        isNull,
+      );
+      expect(
+        BattleTextClassifier.classify("Nurse tells you: Red fox' body is warm."),
+        isNull,
+      );
+    });
+  });
 }

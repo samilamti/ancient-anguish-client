@@ -1,11 +1,9 @@
-import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/models/battle_filter_mode.dart';
-import 'package:ancient_anguish_client/models/connection_info.dart';
 import 'package:ancient_anguish_client/protocol/telnet/telnet_events.dart';
 import 'package:ancient_anguish_client/providers/battle_stats_provider.dart';
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
@@ -15,8 +13,9 @@ import 'package:ancient_anguish_client/providers/settings_provider.dart';
 import 'package:ancient_anguish_client/providers/unified_area_config_provider.dart';
 import 'package:ancient_anguish_client/services/area/area_detector.dart';
 import 'package:ancient_anguish_client/services/config/unified_area_config_manager.dart';
-import 'package:ancient_anguish_client/services/connection/connection_interface.dart';
 import 'package:ancient_anguish_client/services/parser/prompt_parser.dart';
+
+import 'fake_connection_service.dart';
 
 /// End-to-end tests for battle-text filtering: real bytes into
 /// [TerminalBufferNotifier], assertions on what the player ends up seeing.
@@ -25,7 +24,7 @@ import 'package:ancient_anguish_client/services/parser/prompt_parser.dart';
 /// `off` all 22 land in the buffer; the whole point of the other two modes is
 /// that the number stops scaling with the length of the fight.
 void main() {
-  late _FakeConnectionService fakeService;
+  late FakeConnectionService fakeService;
   late ProviderContainer container;
 
   /// The transcript this feature was built from, as it arrives off the socket.
@@ -71,7 +70,7 @@ void main() {
     return c;
   }
 
-  setUp(() => fakeService = _FakeConnectionService());
+  setUp(() => fakeService = FakeConnectionService());
   tearDown(() => container.dispose());
 
   Future<void> feed(Iterable<String> lines) async {
@@ -301,55 +300,4 @@ void main() {
       ]);
     });
   });
-}
-
-class _FakeConnectionService implements MudConnectionService {
-  final _events = StreamController<TelnetEvent>.broadcast();
-  final _status = StreamController<ConnectionStatus>.broadcast();
-  final _rawData = StreamController<Uint8List>.broadcast();
-
-  void emit(TelnetEvent event) => _events.add(event);
-
-  @override
-  Stream<TelnetEvent> get events => _events.stream;
-
-  @override
-  Stream<ConnectionStatus> get statusStream => _status.stream;
-
-  @override
-  Stream<Uint8List> get rawData => _rawData.stream;
-
-  @override
-  ConnectionStatus get status => ConnectionStatus.connected;
-
-  @override
-  bool get isConnected => true;
-
-  @override
-  ConnectionInfo? get connectionInfo => ConnectionInfo.ancientAnguish;
-
-  @override
-  Future<void> connect([ConnectionInfo? info]) async {}
-
-  @override
-  Future<void> disconnect() async {}
-
-  @override
-  Future<void> reconnect([ConnectionInfo? info]) async {}
-
-  @override
-  void sendCommand(String command) {}
-
-  @override
-  void sendBytes(Uint8List bytes) {}
-
-  @override
-  void checkAlive() {}
-
-  @override
-  Future<void> dispose() async {
-    await _events.close();
-    await _status.close();
-    await _rawData.close();
-  }
 }

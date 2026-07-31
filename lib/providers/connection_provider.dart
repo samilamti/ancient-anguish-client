@@ -23,6 +23,7 @@ import '../services/parser/emoji_parser.dart';
 import '../services/parser/link_parser.dart';
 import '../services/parser/map_emoji_transformer.dart';
 import '../services/parser/output_parser.dart';
+import '../services/parser/sheet_parser.dart';
 import '../services/parser/text_link_processor.dart';
 import 'text_link_rule_provider.dart';
 import '../models/social_message.dart';
@@ -36,6 +37,7 @@ import 'battle_stats_provider.dart';
 import 'game_state_provider.dart';
 import 'login_provider.dart';
 import 'framed_text_block_provider.dart';
+import 'sheet_provider.dart';
 import 'kill_target_links_provider.dart';
 import 'map_block_provider.dart';
 import 'online_players_provider.dart';
@@ -287,7 +289,10 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
               final vitals = _extractPrompt(plainText);
               if (vitals != null) {
                 // A prompt signals end-of-output — lift emoji suppression
-                // that was triggered by `read map`.
+                // that was triggered by `read map`, and close any sheet block
+                // still accumulating. Without this a block that nothing
+                // terminated would sit in the capture unseen.
+                _flushSheetCapture(processedLines);
                 _emojiSuppressed = false;
                 _insideMapBorder = false;
                 gameNotifier.updateFromPrompt(vitals.values);
@@ -515,11 +520,20 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             // it leaves the terminal, not the client.
             final result = triggerEngine.processLine(emojiLine);
             if (!result.gagged && !gagForBattleHud) {
-              processedLines.add(result.styledLine);
               if (collapseThisLine) collapsibleLines.add(result.styledLine);
               if (npcTarget != null) {
                 npcKeywords[result.styledLine] = npcTarget;
               }
+              // Sheets intercept here, at the one place a finished line is
+              // emitted, so a captured block has already been through emoji
+              // parsing, triggers and gagging — release it unchanged and it
+              // looks exactly as it would have without the feature.
+              _emitOrCapture(
+                plainText,
+                result.styledLine,
+                processedLines,
+                sheetsEnabled: settings.sheetsEnabled,
+              );
             }
 
             // Feed to game state parser for HP/SP prompt detection.
@@ -827,6 +841,63 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// it here — rather than at each of the call sites that append — means a run
   /// of combat lines collapses identically whether it arrived in one TCP packet
   /// or was split across several.
+  /// Accumulates `skills` / `score` / shop-`list` blocks so they can be
+  /// replaced by a widget. Holds the fully-transformed lines, so a block that
+  /// turns out not to be a sheet is released exactly as it would have looked.
+  final SheetCapture<StyledLine> _sheetCapture = SheetCapture<StyledLine>();
+
+  /// Offers [line] to the sheet capture and appends whatever should now be
+  /// emitted to [out].
+  ///
+  /// When sheets are off the line goes straight through — and any block already
+  /// in flight is released first, so toggling the setting mid-block cannot
+  /// swallow the lines it had held.
+  void _emitOrCapture(
+    String plainText,
+    StyledLine line,
+    List<StyledLine> out, {
+    required bool sheetsEnabled,
+  }) {
+    if (!sheetsEnabled) {
+      // Release rather than flush: the player just asked for raw text, so a
+      // block already in flight must appear as text instead of becoming the
+      // sheet it was one line away from being.
+      if (_sheetCapture.isCapturing) out.addAll(_sheetCapture.release());
+      out.add(line);
+      return;
+    }
+
+    final result = _sheetCapture.offer(plainText, line);
+    switch (result.action) {
+      case SheetCaptureAction.passThrough:
+        out.add(line);
+      case SheetCaptureAction.held:
+        break;
+      case SheetCaptureAction.completed:
+        _appendCaptureResult(result, out);
+    }
+  }
+
+  /// Closes any block in progress, emitting its sheet or releasing its lines.
+  void _flushSheetCapture(List<StyledLine> out) {
+    final result = _sheetCapture.flush();
+    if (result.action == SheetCaptureAction.completed) {
+      _appendCaptureResult(result, out);
+    }
+  }
+
+  void _appendCaptureResult(
+    SheetCaptureResult<StyledLine> result,
+    List<StyledLine> out,
+  ) {
+    if (result.sheet != null) {
+      final id = ref.read(sheetsProvider.notifier).put(result.sheet!);
+      out.add(StyledLine([StyledSpan(text: sentinelForSheetId(id))]));
+    }
+    out.addAll(result.releasedLines);
+    if (result.trailing != null) out.add(result.trailing!);
+  }
+
   void _addLines(
     List<StyledLine> lines, {
     Map<StyledLine, String>? npcKeywords,
@@ -990,12 +1061,17 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     ref.read(gameStateProvider.notifier).processLine(plainText);
   }
 
-  /// Clears the terminal buffer (and any captured map / parchment blocks).
+  /// Clears the terminal buffer, along with every captured block: map,
+  /// parchment and sheet. Their sentinel lines go with the buffer, so the
+  /// blocks they point at are unreachable afterwards.
   void clear() {
     state = [];
     _tailIsCollapsedBattle = false;
     ref.read(mapBlocksProvider.notifier).clear();
     ref.read(framedTextBlocksProvider.notifier).clear();
+    ref.read(sheetsProvider.notifier).clear();
+    ref.read(expandedSheetsProvider.notifier).clear();
+    ref.read(costSortedSheetsProvider.notifier).clear();
   }
 }
 

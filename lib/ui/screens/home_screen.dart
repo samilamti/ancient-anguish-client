@@ -992,6 +992,13 @@ class SettingsDrawer extends ConsumerWidget {
               onChanged: (_) => notifier.toggleEmojiMaps(),
             ),
 
+            _DrawerToggle(
+              label: 'Sheets',
+              icon: Icons.table_chart,
+              value: settings.sheetsEnabled,
+              onChanged: (_) => notifier.toggleSheets(),
+            ),
+
             const SizedBox(height: 8),
 
             // ── Battle Text ──

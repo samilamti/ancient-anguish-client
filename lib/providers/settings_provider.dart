@@ -31,6 +31,7 @@ class AppSettings {
   final bool hideKeyboardOnMobile; // suppress autofocus + dismiss after send
   final TimestampMode timestampMode; // HH:MM column in social message rows
   final bool emojiMapsEnabled; // swap ASCII map tiles for emoji
+  final bool sheetsEnabled; // render skills/score/shop output as widgets
   final BattleFilterMode battleFilterMode; // how combat spam reaches the buffer
   final LineSpacing lineSpacing; // extra leading between terminal lines
   final bool compassEnabled; // desktop-only navigation compass overlay
@@ -83,6 +84,7 @@ class AppSettings {
     this.hideKeyboardOnMobile = true,
     this.timestampMode = TimestampMode.show,
     this.emojiMapsEnabled = false,
+    this.sheetsEnabled = true,
     this.battleFilterMode = BattleFilterMode.off,
     this.lineSpacing = LineSpacing.none,
     this.compassEnabled = true,
@@ -112,6 +114,7 @@ class AppSettings {
     bool? hideKeyboardOnMobile,
     TimestampMode? timestampMode,
     bool? emojiMapsEnabled,
+    bool? sheetsEnabled,
     BattleFilterMode? battleFilterMode,
     LineSpacing? lineSpacing,
     bool? compassEnabled,
@@ -145,6 +148,7 @@ class AppSettings {
           hideKeyboardOnMobile ?? this.hideKeyboardOnMobile,
       timestampMode: timestampMode ?? this.timestampMode,
       emojiMapsEnabled: emojiMapsEnabled ?? this.emojiMapsEnabled,
+      sheetsEnabled: sheetsEnabled ?? this.sheetsEnabled,
       battleFilterMode: battleFilterMode ?? this.battleFilterMode,
       lineSpacing: lineSpacing ?? this.lineSpacing,
       compassEnabled: compassEnabled ?? this.compassEnabled,
@@ -179,6 +183,7 @@ class AppSettings {
         'hideKeyboardOnMobile': hideKeyboardOnMobile,
         'timestampMode': timestampMode.storageKey,
         'emojiMapsEnabled': emojiMapsEnabled,
+        'sheetsEnabled': sheetsEnabled,
         'battleFilterMode': battleFilterMode.storageKey,
         'lineSpacing': lineSpacing.storageKey,
         'compassEnabled': compassEnabled,
@@ -220,6 +225,7 @@ class AppSettings {
       timestampMode:
           TimestampMode.fromStorageKey(json['timestampMode'] as String?),
       emojiMapsEnabled: json['emojiMapsEnabled'] as bool? ?? false,
+      sheetsEnabled: json['sheetsEnabled'] as bool? ?? true,
       battleFilterMode:
           BattleFilterMode.fromStorageKey(json['battleFilterMode'] as String?),
       lineSpacing: LineSpacing.fromStorageKey(json['lineSpacing'] as String?),
@@ -347,6 +353,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void toggleEmojiMaps() {
     state = state.copyWith(emojiMapsEnabled: !state.emojiMapsEnabled);
+    _saveSettings();
+  }
+
+  void toggleSheets() {
+    state = state.copyWith(sheetsEnabled: !state.sheetsEnabled);
     _saveSettings();
   }
 

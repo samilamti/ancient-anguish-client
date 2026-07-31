@@ -9,7 +9,16 @@ import 'package:ancient_anguish_client/ui/widgets/status/battle_hud.dart';
 void main() {
   late ProviderContainer container;
 
-  setUp(() => container = ProviderContainer());
+  /// The fake wall clock the HUD reads. Advanced by hand, since pumping only
+  /// moves Flutter's clock.
+  late DateTime now;
+
+  setUp(() {
+    now = DateTime(2026, 8, 1, 12);
+    container = ProviderContainer(overrides: [
+      clockProvider.overrideWithValue(() => now),
+    ]);
+  });
   tearDown(() => container.dispose());
 
   /// Pumps the dock the way HomeScreen does: a sibling below the terminal in
@@ -31,6 +40,23 @@ void main() {
           ),
         ),
       ),
+    );
+  }
+
+  /// Pumps long enough for the dock's fade to finish.
+  ///
+  /// `pumpAndSettle` cannot be used while a fight is active: the HUD pulses its
+  /// border on a repeating animation, so frames are always scheduled and
+  /// settling never happens. A fixed pump is the correct tool for an animation
+  /// that is *meant* to run forever.
+  /// Two pumps, not one: the first delivers the provider change and *starts*
+  /// the animation, the second advances the clock past its duration. A single
+  /// `pump(duration)` leaves the controller at 0 — the frame that begins the
+  /// animation is the same one being advanced.
+  Future<void> pumpFade(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(
+      BattleHudDock.fadeDuration + const Duration(milliseconds: 50),
     );
   }
 
@@ -102,9 +128,12 @@ void main() {
 
     // Scoreboard rows.
     expect(find.text('You'), findsOneWidget);
-    expect(find.text('Taken'), findsOneWidget);
-    expect(find.text('67% acc'), findsOneWidget); // 2 hits of 3 swings
-    expect(find.text('33% evd'), findsOneWidget); // 1 miss of 3 incoming
+    // "Target", not "Taken" — the row is what the target managed against you.
+    expect(find.text('Target'), findsOneWidget);
+    // Labels spelled out: the HUD replaces the combat text, so it should not
+    // need decoding.
+    expect(find.text('67% accuracy'), findsOneWidget); // 2 hits of 3 swings
+    expect(find.text('33% evade'), findsOneWidget); // 1 miss of 3 incoming
 
     // Vitals carried over from the gagged `HP:/SP:` lines, plus HP lost since
     // the fight's first reading.
@@ -112,20 +141,24 @@ void main() {
     expect(find.text('75'), findsOneWidget);
     expect(find.text('-6'), findsOneWidget);
 
-    // Round counter from the two vitals lines.
-    expect(find.textContaining('r2'), findsOneWidget);
+    // Round counter from the two vitals lines, spelled out.
+    expect(find.textContaining('round 2'), findsOneWidget);
 
     await drainIdleTimer(tester);
   });
 
-  testWidgets('hides the Others row until a third party acts', (tester) async {
+  testWidgets('never shows a third-party row', (tester) async {
+    // The Others row was dropped: the classifier can tell neither participant
+    // is the player but not which side they are on, so the number meant too
+    // little to earn a line in a panel this small. The tallies are still
+    // recorded — see battle_stats_provider_test.
     feed(["You pounded Nurse's leg heartlessly."]);
     await pumpHud(tester);
     expect(find.text('Others'), findsNothing);
 
     feed(["Mummy pierced Nurse's head keenly."]);
     await tester.pump();
-    expect(find.text('Others'), findsOneWidget);
+    expect(find.text('Others'), findsNothing);
 
     await drainIdleTimer(tester);
   });
@@ -192,7 +225,7 @@ void main() {
       final terminalBefore = tester.getSize(find.byKey(const Key('fake-terminal'))).height;
 
       feed(["You pounded Nurse's leg heartlessly."]);
-      await tester.pumpAndSettle();
+      await pumpFade(tester);
 
       final dock = tester.getRect(find.byType(BattleHudDock));
       expect(dock.height, greaterThan(0));
@@ -212,7 +245,7 @@ void main() {
     testWidgets('is left aligned', (tester) async {
       feed(["You pounded Nurse's leg heartlessly."]);
       await pumpDock(tester);
-      await tester.pumpAndSettle();
+      await pumpFade(tester);
 
       final screen = tester.getRect(find.byType(Scaffold));
       final panel = tester.getRect(find.byType(BattleHud));
@@ -234,27 +267,27 @@ void main() {
       expect(midOpacity, lessThan(1));
       expect(midHeight, greaterThan(0));
 
-      await tester.pumpAndSettle();
+      await pumpFade(tester);
       expect(dockOpacity(tester), 1);
       expect(tester.getSize(find.byType(BattleHudDock)).height,
           greaterThan(midHeight));
 
       await drainIdleTimer(tester);
-      await tester.pumpAndSettle();
+      await pumpFade(tester);
     });
 
     testWidgets('fades out and gives the space back when the fight ends',
         (tester) async {
       await pumpDock(tester);
       feed(["You pounded Nurse's leg heartlessly."]);
-      await tester.pumpAndSettle();
+      await pumpFade(tester);
       expect(tester.getSize(find.byType(BattleHudDock)).height, greaterThan(0));
 
       // Past the idle timeout the fight is over, so the panel leaves. The
       // outcome stays readable in the terminal — resolution lines are never
       // filtered — which is what makes removing it safe.
       await drainIdleTimer(tester);
-      await tester.pumpAndSettle();
+      await pumpFade(tester);
 
       expect(dockOpacity(tester), 0);
       expect(tester.getSize(find.byType(BattleHudDock)).height, 0);
@@ -269,7 +302,119 @@ void main() {
       expect(dockOpacity(tester), 1);
 
       await drainIdleTimer(tester);
+      await pumpFade(tester);
+    });
+  });
+
+  testWidgets('three-digit tallies fit beside the spelled-out labels',
+      (tester) async {
+    // The row overflowed by 0.25px once already, and "accuracy"/"evade" are
+    // longer than the "acc"/"evd" it was tuned against. Worst case: 100+ of
+    // everything on the narrowest screen.
+    tester.view.physicalSize = const Size(375 * 3, 812 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final lines = <String>[];
+    for (var i = 0; i < 120; i++) {
+      lines.add("You pounded Nurse's leg heartlessly.");
+      lines.add('Nurse pounded your head heartlessly.');
+      lines.add('You missed.');
+      lines.add('Nurse missed you.');
+    }
+    feed(lines);
+    await pumpHud(tester);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('120% accuracy'), findsNothing, reason: 'sanity');
+    expect(find.textContaining('accuracy'), findsOneWidget);
+    expect(find.textContaining('evade'), findsOneWidget);
+
+    await drainIdleTimer(tester);
+  });
+
+  group('pulse and clock', () {
+    /// The border colour the HUD is currently painting.
+    Color? borderColour(WidgetTester tester) {
+      final box = tester.widgetList<Container>(find.descendant(
+        of: find.byType(BattleHud),
+        matching: find.byType(Container),
+      )).first;
+      return ((box.decoration as BoxDecoration).border as Border?)?.top.color;
+    }
+
+    testWidgets('the border pulses while a fight is running', (tester) async {
+      feed(["You pounded Nurse's leg heartlessly."]);
+      await pumpHud(tester);
+
+      // Compare whole colours: `Color.a` is a normalised double, so rounding it
+      // to an int collapses every alpha in this range to 0.
+      final samples = <Color>{};
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(BattleHud.pulsePeriod ~/ 4);
+        samples.add(borderColour(tester)!);
+      }
+      // Several distinct alphas over one period — a static border would give one.
+      expect(samples.length, greaterThan(2));
+
+      await drainIdleTimer(tester);
+    });
+
+    testWidgets('the pulse stops when the fight ends', (tester) async {
+      feed(["You pounded Nurse's leg heartlessly."]);
+      await pumpHud(tester);
+      await drainIdleTimer(tester);
+
+      // Idle: no repeating animation, so the frame count settles. If the pulse
+      // were still running this would time out.
       await tester.pumpAndSettle();
+      final resting = borderColour(tester);
+      await tester.pump(BattleHud.pulsePeriod);
+      expect(borderColour(tester), resting);
+    });
+
+    testWidgets('the elapsed clock advances without new combat text',
+        (tester) async {
+      // The whole point of the local timer: a lull mid-fight used to freeze the
+      // readout, because it only re-rendered when a line arrived. No further
+      // combat text is fed here — only time passes.
+      feed(["You pounded Nurse's leg heartlessly."]);
+      await pumpHud(tester);
+      expect(find.textContaining('0:00'), findsOneWidget);
+
+      now = now.add(const Duration(seconds: 3));
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.textContaining('0:03'), findsOneWidget);
+
+      await drainIdleTimer(tester);
+    });
+
+    testWidgets('the clock stops when the fight does', (tester) async {
+      feed(["You pounded Nurse's leg heartlessly."]);
+      await pumpHud(tester);
+      await drainIdleTimer(tester);
+
+      final frozen = tester
+          .widgetList<Text>(find.descendant(
+            of: find.byType(BattleHud),
+            matching: find.byType(Text),
+          ))
+          .map((t) => t.data)
+          .firstWhere((s) => s != null && s.contains(':'));
+
+      // No pending timer to advance it, so time passing changes nothing — and
+      // reaching the end of the test with one scheduled would fail the run.
+      now = now.add(const Duration(seconds: 5));
+      await tester.pump(const Duration(seconds: 5));
+      expect(
+        tester
+            .widgetList<Text>(find.descendant(
+              of: find.byType(BattleHud),
+              matching: find.byType(Text),
+            ))
+            .map((t) => t.data),
+        contains(frozen),
+      );
     });
   });
 }

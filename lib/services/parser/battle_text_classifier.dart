@@ -127,6 +127,10 @@ class BattleTextClassifier {
   /// part was struck (`Nurse's leg`) and whose attempt was read
   /// (`Ship rat's attack`).
   ///
+  /// The possessive itself may be a bare apostrophe: AA writes `Red fox' body`,
+  /// not `Red fox's body`, for a name already ending in an s-sound. Requiring
+  /// the `s` silently classified none of those creatures' hit lines.
+  ///
   /// The creature name must allow **several words** before the possessive.
   /// Ancient Anguish is full of two-word short descriptions (`Ship rat`,
   /// `city guard`, `forest hare`), and a single-word-only possessive silently
@@ -134,7 +138,7 @@ class BattleTextClassifier {
   /// reached the terminal unfiltered while `You slit Nurse's body.` collapsed.
   /// The symptom is per-creature, which is what makes it easy to miss.
   static const String _possessive =
-      r"(?:your|his|her|its|their|[A-Z][\w'’-]*(?:\s+[\w'’-]+){0,3}'s)";
+      r"(?:your|his|her|its|their|[A-Z][\w'’-]*(?:\s+[\w'’-]+){0,3}['’]s?)";
 
   /// Optional laterality in front of the body part (`left arm`, `hind leg`).
   static const String _side = r'(?:(?:left|right|upper|lower|front|hind|rear|near|far)\s+)?';
@@ -372,8 +376,11 @@ class BattleTextClassifier {
   /// `Nurse`, `… avoiding Ship rat's attack` → `Ship rat`), or `null` when
   /// there isn't one. Multi-word for the same reason [_possessive] is.
   static String? _possessiveIn(String text) {
-    final match =
-        RegExp(r"\b([A-Z][\w'’-]*(?:\s+[\w'’-]+){0,3})'s\b").firstMatch(text);
+    // No trailing \b: after a bare `fox'` the next character is a space, and a
+    // word boundary between two non-word characters can never match — the
+    // pattern would be silently inert for exactly the names this handles.
+    final match = RegExp(r"\b([A-Z][\w'’-]*(?:\s+[\w'’-]+){0,3})['’]s?")
+        .firstMatch(text);
     return _creatureName(match?.group(1));
   }
 
@@ -386,6 +393,10 @@ class BattleTextClassifier {
     if (name.isEmpty) return null;
     if (name.endsWith("'s") || name.endsWith('’s')) {
       name = name.substring(0, name.length - 2);
+    } else if (name.endsWith("'") || name.endsWith('’')) {
+      // A bare possessive apostrophe (`Red fox'`). Left on, this reaches the
+      // HUD title and the `kill` command it builds.
+      name = name.substring(0, name.length - 1);
     }
     name = name.replaceFirst(RegExp(r'^(?:the|a|an)\s+', caseSensitive: false), '');
     if (name.isEmpty || _isPlayer(name)) return null;

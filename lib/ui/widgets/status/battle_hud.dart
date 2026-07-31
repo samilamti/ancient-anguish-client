@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,46 +18,116 @@ import '../../../providers/battle_stats_provider.dart';
 /// when the player looks up.
 ///
 /// Docked rather than floating — see [BattleHudDock] for why.
-class BattleHud extends ConsumerWidget {
+///
+/// **Stateful, with its own second-timer and pulse.** It was deliberately
+/// tickerless at first: combat lines arrive several times a second, so a live
+/// fight refreshed the elapsed readout on its own. That works while blows are
+/// landing and stalls the moment there is a lull mid-fight — the clock simply
+/// stops until the next hit — so the time is now driven locally, once a second.
+/// Both the timer and the pulse run *only while the fight is active*, so an
+/// idle HUD schedules nothing at all (which is also what keeps widget tests
+/// from tripping over a pending timer).
+class BattleHud extends ConsumerStatefulWidget {
   const BattleHud({super.key});
 
-  /// Fixed width so the tallies don't reflow on every round.
-  static const double width = 268;
+  /// Fixed width so the tallies don't reflow on every round. Wide enough for
+  /// the spelled-out labels ("accuracy", "evade") next to three-digit counts.
+  static const double width = 300;
+
+  /// One breath of the border pulse, each direction.
+  static const Duration pulsePeriod = Duration(milliseconds: 900);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BattleHud> createState() => _BattleHudState();
+}
+
+class _BattleHudState extends ConsumerState<BattleHud>
+    with SingleTickerProviderStateMixin {
+  /// Ticks the elapsed readout. Null whenever no fight is running, so the widget
+  /// costs nothing when idle.
+  Timer? _clock;
+
+  late final AnimationController _pulse = AnimationController(
+    duration: BattleHud.pulsePeriod,
+    vsync: this,
+  );
+
+  @override
+  void dispose() {
+    _clock?.cancel();
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  /// Starts or stops the clock and the pulse to match [active].
+  ///
+  /// Called from build rather than an effect, but only ever *schedules* work —
+  /// the setState is inside the timer callback, never during this build.
+  void _syncAnimations({required bool active}) {
+    if (active) {
+      _clock ??= Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+      if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
+    } else {
+      _clock?.cancel();
+      _clock = null;
+      if (_pulse.isAnimating) {
+        _pulse.stop();
+        _pulse.value = 0;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final stats = ref.watch(battleStatsProvider);
     // The panel stays up while the tallies are still worth reading — i.e.
     // until a fight has actually started. `active` alone would pop it away the
     // instant combat went quiet, hiding the outcome.
-    if (stats.startedAt == null) return const SizedBox.shrink();
+    if (stats.startedAt == null) {
+      _syncAnimations(active: false);
+      return const SizedBox.shrink();
+    }
+    _syncAnimations(active: stats.active);
 
     final scheme = Theme.of(context).colorScheme;
-    // Read at build time rather than driven by a ticker: combat lines arrive
-    // several times a second, so a live fight refreshes this on its own — and
-    // when combat stops the readout freezes at the fight's length, which is
-    // what you want to read afterwards rather than a clock still counting up.
-    final elapsed = stats.elapsedAt(DateTime.now());
+    // Local clock, so the elapsed time advances through a lull instead of
+    // freezing until the next blow. It still stops when the fight does, leaving
+    // the fight's final length on screen.
+    final elapsed = stats.elapsedAt(ref.read(clockProvider)());
 
-    return Container(
-      width: BattleHud.width,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: scheme.surface.withAlpha(stats.active ? 238 : 200),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: stats.active
-              ? const Color(0xFFCC4444).withAlpha(150)
-              : scheme.primary.withAlpha(60),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(90),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, child) {
+        // Pulse the border rather than the whole panel: the text has to stay
+        // readable while it breathes.
+        final pulseAlpha = stats.active
+            ? (110 + 110 * _pulse.value).round()
+            : 60;
+        return Container(
+          width: BattleHud.width,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: scheme.surface.withAlpha(stats.active ? 238 : 200),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: stats.active
+                  ? const Color(0xFFCC4444).withAlpha(pulseAlpha)
+                  : scheme.primary.withAlpha(60),
+              width: stats.active ? 1.4 : 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(90),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
+          child: child,
+        );
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -67,26 +139,19 @@ class BattleHud extends ConsumerWidget {
             hits: stats.hitsDealt,
             misses: stats.missesDealt,
             percent: stats.accuracy,
-            percentLabel: 'acc',
+            percentLabel: 'accuracy',
             accent: scheme.primary,
           ),
+          // "Target", not "Taken": the row is what the target managed against
+          // you — it hit this often, missed that often, and you evaded N%.
           _TallyRow(
-            label: 'Taken',
+            label: 'Target',
             hits: stats.hitsTaken,
             misses: stats.missesAgainst,
             percent: stats.evasion,
-            percentLabel: 'evd',
+            percentLabel: 'evade',
             accent: const Color(0xFFCC4444),
           ),
-          if (stats.otherHits > 0 || stats.otherMisses > 0)
-            _TallyRow(
-              label: 'Others',
-              hits: stats.otherHits,
-              misses: stats.otherMisses,
-              percent: null,
-              percentLabel: '',
-              accent: scheme.secondary,
-            ),
           if (stats.hpNow != null) ...[
             const SizedBox(height: 4),
             _VitalsRow(stats: stats),
@@ -247,11 +312,14 @@ class _Header extends StatelessWidget {
               ),
             ),
           ),
+        // Spelled out rather than "r15": the HUD is what the player reads
+        // instead of the combat text, so it should not need decoding.
         Text(
           [
-            if (rounds > 0) 'r$rounds',
+            if (rounds > 0) 'round $rounds',
             if (elapsed != null) _formatElapsed(elapsed!),
           ].join('  '),
+          maxLines: 1,
           style: TextStyle(
             fontFamily: 'JetBrainsMono',
             fontSize: 10,

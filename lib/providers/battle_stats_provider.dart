@@ -6,6 +6,13 @@ import '../models/battle_stats.dart';
 import '../services/parser/battle_text_classifier.dart';
 import 'battle_provider.dart';
 
+/// The wall clock, injectable so the HUD's elapsed readout can be driven in
+/// tests. `tester.pump(duration)` advances Flutter's fake clock but not
+/// `DateTime.now()`, so a widget reading the real clock directly cannot be
+/// tested for "does the time advance" at all — which is the whole behaviour the
+/// per-second timer exists to provide.
+final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
 /// Provides the running [BattleStats] for the fight in progress.
 final battleStatsProvider =
     NotifierProvider<BattleStatsNotifier, BattleStats>(BattleStatsNotifier.new);
@@ -39,7 +46,9 @@ class BattleStatsNotifier extends Notifier<BattleStats> {
   /// *not* start one: pulling three mobs is one fight, and its [
   /// BattleStats.resolutions] counter is the interesting part of it.
   void record(BattleLineMatch match, {String? rawLine, DateTime? now}) {
-    final timestamp = now ?? DateTime.now();
+    // Same clock the HUD reads, so "when the fight started" and "what time is
+    // it now" can never come from two different sources.
+    final timestamp = now ?? ref.read(clockProvider)();
     var next = state.active ? state : _freshBattle(timestamp);
 
     next = switch (match.kind) {

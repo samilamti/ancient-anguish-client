@@ -7,17 +7,28 @@ import '../../../models/known_location.dart';
 import '../../../providers/compass_provider.dart';
 import '../../../providers/game_state_provider.dart';
 
-/// Diameter of the compass disc.
-const double _kCompassSize = 432;
+/// Diameter of the compass disc on desktop, where there is room for it.
+const double kCompassSize = 432;
 
-/// Markers are plotted between these radii: touching distance at the
-/// center, [kCompassRangeStadia] at the outer edge.
-const double _kMarkerMinRadius = 32;
-const double _kMarkerMaxRadius = 152;
+/// Markers are plotted between these radii **as a fraction of the diameter**:
+/// touching distance at the center, [kCompassRangeStadia] at the outer edge.
+///
+/// Fractions rather than pixels because the rose also renders small enough to
+/// fit a phone (see [CompassRose.size]); the two were fixed at 32/152 px for
+/// the 432 px disc, which is exactly these ratios.
+const double _kMarkerMinRadiusFraction = 32 / kCompassSize;
+const double _kMarkerMaxRadiusFraction = 152 / kCompassSize;
+
+/// Width of a marker's label box, and its icon, at [kCompassSize]. Both scale
+/// with the disc so labels crowd no worse at a smaller size — the *font* does
+/// not scale, because 12pt is already the floor for readability and shrinking
+/// it is what makes a scaled-down compass useless.
+const double _kMarkerWidth = 124;
+const double _kMarkerIconSize = 40;
 
 /// At most this many nearby locations get an icon + name label; anything
 /// farther is still drawn as a small dot on the rose.
-const int _kMaxLabeledMarkers = 6;
+const int kMaxLabeledMarkers = 6;
 
 /// Blender-rendered icons that exist under assets/images/compass/. Kinds
 /// not listed here fall back to an emoji glyph until their art lands.
@@ -47,6 +58,9 @@ const Map<LocationKind, String> _kKindEmoji = {
 /// [kCompassRangeStadia] stadia at its true bearing — north up, nearer
 /// locations closer to the center. Hidden while coordinates are unknown
 /// (indoors, not logged in, disconnected).
+///
+/// On mobile the same information arrives via [CompassStrip] instead: the disc
+/// is wider than a phone screen, so there it is opened on demand.
 class CompassOverlay extends ConsumerWidget {
   const CompassOverlay({super.key});
 
@@ -56,48 +70,73 @@ class CompassOverlay extends ConsumerWidget {
         ref.watch(gameStateProvider.select((s) => s.hasCoordinates));
     if (!hasCoordinates) return const SizedBox.shrink();
 
+    return const IgnorePointer(child: CompassRose());
+  }
+}
+
+/// The rose itself: disc, markers and the nearest-location chip.
+///
+/// [size] is the disc diameter. It exists so the compass can also be shown on
+/// a phone, where [kCompassSize] does not fit — the geometry scales, the label
+/// font does not.
+class CompassRose extends ConsumerWidget {
+  final double size;
+
+  /// How many locations get an icon + name. Worth lowering along with [size]:
+  /// the labels crowd the disc, and six of them on a phone-sized rose overlap.
+  final int maxLabeledMarkers;
+
+  const CompassRose({
+    super.key,
+    this.size = kCompassSize,
+    this.maxLabeledMarkers = kMaxLabeledMarkers,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final nearby = ref.watch(nearbyLocationsProvider);
     final scheme = Theme.of(context).colorScheme;
     final nearest = nearby.isEmpty ? null : nearby.first;
+    final scale = size / kCompassSize;
 
-    return IgnorePointer(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: _kCompassSize,
-            height: _kCompassSize,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _CompassRosePainter(
-                      nearby: nearby,
-                      primary: scheme.primary,
-                      surface: scheme.surface,
-                      onSurface: scheme.onSurface,
-                    ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _CompassRosePainter(
+                    nearby: nearby,
+                    primary: scheme.primary,
+                    surface: scheme.surface,
+                    onSurface: scheme.onSurface,
                   ),
                 ),
-                for (final entry in nearby.take(_kMaxLabeledMarkers))
-                  _LocationMarker(entry: entry),
-              ],
-            ),
+              ),
+              for (final entry in nearby.take(maxLabeledMarkers))
+                _LocationMarker(entry: entry, size: size, scale: scale),
+            ],
           ),
-          if (nearest != null) _NearestChip(nearest: nearest),
-        ],
-      ),
+        ),
+        if (nearest != null) _NearestChip(nearest: nearest),
+      ],
     );
   }
 }
 
-/// Offset of a nearby location from the compass center, north up.
-Offset _markerOffset(NearbyLocation entry) {
-  final radius = _kMarkerMinRadius +
-      (entry.distance / kCompassRangeStadia) *
-          (_kMarkerMaxRadius - _kMarkerMinRadius);
+/// Offset of a nearby location from the center of a [size]-wide compass,
+/// north up.
+Offset _markerOffset(NearbyLocation entry, double size) {
+  final minRadius = size * _kMarkerMinRadiusFraction;
+  final maxRadius = size * _kMarkerMaxRadiusFraction;
+  final radius = minRadius +
+      (entry.distance / kCompassRangeStadia) * (maxRadius - minRadius);
   return Offset(
     math.sin(entry.bearing) * radius,
     -math.cos(entry.bearing) * radius,
@@ -107,24 +146,30 @@ Offset _markerOffset(NearbyLocation entry) {
 /// Icon + name label anchored at a location's bearing/distance point.
 class _LocationMarker extends StatelessWidget {
   final NearbyLocation entry;
+  final double size;
+  final double scale;
 
-  const _LocationMarker({required this.entry});
+  const _LocationMarker({
+    required this.entry,
+    required this.size,
+    required this.scale,
+  });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final offset = _markerOffset(entry);
-    const markerWidth = 124.0;
-    final center = _kCompassSize / 2;
+    final offset = _markerOffset(entry, size);
+    final markerWidth = _kMarkerWidth * scale;
+    final center = size / 2;
 
     return Positioned(
       left: center + offset.dx - markerWidth / 2,
-      top: center + offset.dy - 18,
+      top: center + offset.dy - 18 * scale,
       width: markerWidth,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _LocationIcon(kind: entry.location.kind),
+          _LocationIcon(kind: entry.location.kind, scale: scale),
           Text(
             entry.location.shortName,
             textAlign: TextAlign.center,
@@ -150,22 +195,23 @@ class _LocationMarker extends StatelessWidget {
 /// Kind icon: the Blender-rendered PNG when available, an emoji until then.
 class _LocationIcon extends StatelessWidget {
   final LocationKind kind;
+  final double scale;
 
-  const _LocationIcon({required this.kind});
+  const _LocationIcon({required this.kind, this.scale = 1});
 
   @override
   Widget build(BuildContext context) {
     if (_kRenderedIconKinds.contains(kind)) {
       return Image.asset(
         'assets/images/compass/${kind.name}.png',
-        width: 40,
-        height: 40,
+        width: _kMarkerIconSize * scale,
+        height: _kMarkerIconSize * scale,
         filterQuality: FilterQuality.medium,
       );
     }
     return Text(
       _kKindEmoji[kind] ?? '📍',
-      style: const TextStyle(fontSize: 24, height: 1),
+      style: TextStyle(fontSize: 24 * scale, height: 1),
     );
   }
 }
@@ -247,10 +293,12 @@ class _CompassRosePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4
       ..color = onSurface.withAlpha(24);
-    final halfRadius = _kMarkerMinRadius +
-        (_kMarkerMaxRadius - _kMarkerMinRadius) / 2;
-    canvas.drawCircle(center, halfRadius, rangePaint);
-    canvas.drawCircle(center, _kMarkerMaxRadius, rangePaint);
+    // Radii come from the painted size, so the rings land on the markers at
+    // any diameter (the rose renders smaller on phones).
+    final minRadius = size.width * _kMarkerMinRadiusFraction;
+    final maxRadius = size.width * _kMarkerMaxRadiusFraction;
+    canvas.drawCircle(center, minRadius + (maxRadius - minRadius) / 2, rangePaint);
+    canvas.drawCircle(center, maxRadius, rangePaint);
 
     // 16-wind ticks; the 8 major ones longer and brighter.
     for (var i = 0; i < 16; i++) {
@@ -305,7 +353,7 @@ class _CompassRosePainter extends CustomPainter {
     // sit on, and the only trace of locations beyond the label cap.
     final dotPaint = Paint()..color = primary.withAlpha(210);
     for (final entry in nearby) {
-      canvas.drawCircle(center + _markerOffset(entry), 3.6, dotPaint);
+      canvas.drawCircle(center + _markerOffset(entry, size.width), 3.6, dotPaint);
     }
   }
 

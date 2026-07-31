@@ -25,6 +25,7 @@ import '../../providers/social_panel_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../widgets/audio/audio_controls.dart';
 import '../widgets/compass/compass_overlay.dart';
+import '../widgets/compass/compass_strip.dart';
 import '../widgets/login/login_dialog.dart';
 import '../widgets/mobile/d_pad.dart';
 import '../widgets/social/social_windows_overlay.dart';
@@ -95,9 +96,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final playerName = gameState.playerName;
 
     // Navigation compass floats over the terminal's top-right corner on
-    // large desktop screens only.
+    // large desktop screens only. On mobile the same setting shows the compact
+    // strip instead — the 432px disc is wider than a phone screen, so there it
+    // opens on demand (see [CompassStrip]).
     final showCompass =
         !isMobile && isDesktopPlatform() && settings.compassEnabled;
+    final showCompassStrip = isMobile && settings.compassEnabled;
     // The battle HUD stands in for the combat text it gags, so it goes
     // wherever that text would have been read — every platform, directly under
     // the terminal. Docked rather than floated so it can't cover the newest
@@ -283,6 +287,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   // possible.
                   if (isConnected && !keyboardHidesSecondaryBars)
                     const StatusBar(),
+
+                  // Compact navigation readout, next to the other "where am I"
+                  // information. Not gated on isConnected — it hides itself
+                  // when nothing is in range, which already implies a logged-in
+                  // session with coordinates, and that is the same condition
+                  // the desktop compass uses. Still yields to the soft keyboard
+                  // like the bars above it.
+                  if (showCompassStrip && !keyboardHidesSecondaryBars)
+                    const CompassStrip(),
 
                   // Terminal output – takes all available space.
                   Expanded(child: terminal),

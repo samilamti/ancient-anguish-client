@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart' show FocusNode, TextEditingController;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/web_config.dart';
+import '../models/battle_filter_mode.dart';
 import '../models/prompt_element.dart';
 import '../models/auth_state.dart';
 import '../models/connection_info.dart';
@@ -17,6 +18,7 @@ import '../services/connection/connection_interface.dart';
 import '../services/connection/create_connection.dart';
 import '../models/framed_text_block.dart';
 import '../models/map_block.dart';
+import '../services/parser/battle_text_classifier.dart';
 import '../services/parser/emoji_parser.dart';
 import '../services/parser/link_parser.dart';
 import '../services/parser/map_emoji_transformer.dart';
@@ -30,6 +32,7 @@ import 'auth_provider.dart';
 import 'storage_provider.dart';
 import '../services/social/social_message_parser.dart';
 import 'battle_provider.dart';
+import 'battle_stats_provider.dart';
 import 'game_state_provider.dart';
 import 'login_provider.dart';
 import 'framed_text_block_provider.dart';
@@ -137,6 +140,16 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// Tracks whether we've already seen the opening map border and are
   /// waiting for the closing one.
   bool _insideMapBorder = false;
+
+  /// Whether the line currently at the tail of the buffer is a collapsed
+  /// combat line — the slot the next one may overwrite under
+  /// [BattleFilterMode.collapse].
+  ///
+  /// A flag about the tail rather than an index into the buffer, so trimming
+  /// at [_maxLines] can't silently point it at the wrong line. Any
+  /// non-combat append clears it, which is what stops a collapsed slot from
+  /// reaching back over unrelated output.
+  bool _tailIsCollapsedBattle = false;
 
   /// Accumulator used when capturing a map block for grid rendering. Active
   /// only while `settings.emojiMapsEnabled` is on and we are between the
@@ -248,6 +261,9 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           // identity rather than index — several branches below append to
           // [processedLines], so positions wouldn't stay aligned.
           final npcKeywords = <StyledLine, String>{};
+          // Combat lines that may overwrite the buffer's tail instead of
+          // extending it. Same identity-keyed trick as [npcKeywords].
+          final collapsibleLines = <StyledLine>{};
 
           for (final line in newLines) {
             final plainText = line.plainText;
@@ -447,6 +463,43 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
               battleNotifier.onBattlePatternDetected();
             }
 
+            // Combat-line classification drives three things: the battle HUD's
+            // tallies, the buffer filtering below, and battle mode itself —
+            // hit lines start a fight several rounds before the first `HP:`
+            // line does, which is what lets the very first exchange of a fight
+            // create the collapse slot the rest overwrite.
+            final battleMatch = BattleTextClassifier.classify(plainText);
+            var collapseThisLine = false;
+            var gagForBattleHud = false;
+            if (battleMatch != null) {
+              // Read before recording: `record` is what flips a fight to
+              // active, so this is "was a fight already running when this line
+              // arrived?".
+              final fightAlreadyRunning = ref.read(battleStatsProvider).active;
+              battleNotifier.onBattlePatternDetected();
+              ref
+                  .read(battleStatsProvider.notifier)
+                  .record(battleMatch, rawLine: plainText.trim());
+              if (battleMatch.isFilterable) {
+                switch (settings.battleFilterMode) {
+                  case BattleFilterMode.off:
+                    break;
+                  case BattleFilterMode.collapse:
+                    // Safe to apply from the first line: collapsing only
+                    // overwrites a tail that is *itself* a collapsed combat
+                    // line, so a lone line that merely resembles combat
+                    // ("The healer bandaged your leg gently.") still appends
+                    // and destroys nothing.
+                    collapseThisLine = true;
+                  case BattleFilterMode.hud:
+                    // Gagging does remove the line, so it waits for a second
+                    // combat line to corroborate the first. Costs one visible
+                    // line per fight — which usefully marks where it began.
+                    gagForBattleHud = fightAlreadyRunning;
+                }
+              }
+            }
+
             // Extract capitalized words for TAB completion.
             ref.read(recentWordsProvider.notifier).extractFromLine(plainText);
 
@@ -456,10 +509,14 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             final npcTarget =
                 ref.read(roomTargetsProvider.notifier).processLine(plainText);
 
-            // Normal trigger processing.
+            // Normal trigger processing. A battle-HUD gag is applied here
+            // rather than by `continue`ing earlier, so a gagged combat line
+            // still feeds TAB completion, room targets and the game state —
+            // it leaves the terminal, not the client.
             final result = triggerEngine.processLine(emojiLine);
-            if (!result.gagged) {
+            if (!result.gagged && !gagForBattleHud) {
               processedLines.add(result.styledLine);
+              if (collapseThisLine) collapsibleLines.add(result.styledLine);
               if (npcTarget != null) {
                 npcKeywords[result.styledLine] = npcTarget;
               }
@@ -474,7 +531,11 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           }
 
           if (processedLines.isNotEmpty) {
-            _addLines(processedLines, npcKeywords: npcKeywords);
+            _addLines(
+              processedLines,
+              npcKeywords: npcKeywords,
+              collapsible: collapsibleLines,
+            );
           }
         }
 
@@ -569,6 +630,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         ref.read(outputParserProvider).reset();
         ref.read(gameStateProvider.notifier).reset();
         ref.read(battleStateProvider.notifier).reset();
+        ref.read(battleStatsProvider.notifier).reset();
         ref.read(loginProvider.notifier).reset();
         _loginDetected = false;
         _lastSocialType = null;
@@ -578,6 +640,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         _insideMapBorder = false;
         _pendingMapRows = null;
         _pendingMapOriginalLines = null;
+        _tailIsCollapsedBattle = false;
       }
     });
   }
@@ -757,24 +820,40 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// pipeline. [npcKeywords] maps a line to the creature the room parser
   /// announced on it (see `RoomTargetsNotifier.processLine`); lines absent
   /// from the map fall back to a plain catalogue scan.
+  ///
+  /// Lines listed in [collapsible] overwrite the buffer's tail when that tail
+  /// is itself a collapsed combat line, which is how [BattleFilterMode.collapse]
+  /// keeps a thousand-round fight down to a single line of scrollback. Applying
+  /// it here — rather than at each of the call sites that append — means a run
+  /// of combat lines collapses identically whether it arrived in one TCP packet
+  /// or was split across several.
   void _addLines(
     List<StyledLine> lines, {
     Map<StyledLine, String>? npcKeywords,
+    Set<StyledLine>? collapsible,
   }) {
     final TextLinkProcessor linkRules = ref.read(textLinkProcessorProvider);
     // Kill-target links run last so the user's own rules claim a contested
     // region first — the promoter leaves spans that already carry a command
     // or URL untouched.
     final killTargets = ref.read(killTargetLinkProcessorProvider);
-    final processed = lines.map((line) {
+    final newState = [...state];
+    for (final line in lines) {
       var out = LinkParser.processLine(line);
       if (!linkRules.isEmpty) out = linkRules.processLine(out);
       if (!killTargets.isEmpty) {
         out = killTargets.processLine(out, npcKeyword: npcKeywords?[line]);
       }
-      return out;
-    });
-    final newState = [...state, ...processed];
+
+      final isCollapsible = collapsible?.contains(line) ?? false;
+      if (isCollapsible && _tailIsCollapsedBattle && newState.isNotEmpty) {
+        newState[newState.length - 1] = out;
+      } else {
+        newState.add(out);
+      }
+      _tailIsCollapsedBattle = isCollapsible;
+    }
+
     // Trim to max lines.
     if (newState.length > _maxLines) {
       final removedCount = newState.length - _maxLines;
@@ -914,6 +993,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// Clears the terminal buffer (and any captured map / parchment blocks).
   void clear() {
     state = [];
+    _tailIsCollapsedBattle = false;
     ref.read(mapBlocksProvider.notifier).clear();
     ref.read(framedTextBlocksProvider.notifier).clear();
   }

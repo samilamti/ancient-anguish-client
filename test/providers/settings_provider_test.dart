@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:ancient_anguish_client/models/battle_filter_mode.dart';
 import 'package:ancient_anguish_client/models/quick_command.dart';
 import 'package:ancient_anguish_client/providers/settings_provider.dart';
 import 'package:ancient_anguish_client/services/logging/log_service.dart';
@@ -253,6 +254,56 @@ void main() {
     test('setThemeMode updates themeMode', () {
       notifier.setThemeMode('classic');
       expect(container.read(settingsProvider).themeMode, 'classic');
+    });
+  });
+
+  group('SettingsNotifier - battle filter mode', () {
+    test('defaults to off', () {
+      expect(
+        container.read(settingsProvider).battleFilterMode,
+        BattleFilterMode.off,
+      );
+    });
+
+    test('setBattleFilterMode updates the mode', () {
+      notifier.setBattleFilterMode(BattleFilterMode.collapse);
+      expect(
+        container.read(settingsProvider).battleFilterMode,
+        BattleFilterMode.collapse,
+      );
+      notifier.setBattleFilterMode(BattleFilterMode.hud);
+      expect(
+        container.read(settingsProvider).battleFilterMode,
+        BattleFilterMode.hud,
+      );
+    });
+
+    test('survives a JSON round trip', () {
+      notifier.setBattleFilterMode(BattleFilterMode.hud);
+      final restored =
+          AppSettings.fromJson(container.read(settingsProvider).toJson());
+      expect(restored.battleFilterMode, BattleFilterMode.hud);
+    });
+
+    test('an install predating the setting reads as off', () {
+      expect(
+        AppSettings.fromJson(const {}).battleFilterMode,
+        BattleFilterMode.off,
+      );
+    });
+
+    test('an unrecognised stored value falls back to off', () {
+      expect(
+        AppSettings.fromJson(const {'battleFilterMode': 'nonsense'})
+            .battleFilterMode,
+        BattleFilterMode.off,
+      );
+    });
+
+    test('only off leaves the terminal alone', () {
+      expect(BattleFilterMode.off.filtersTerminal, isFalse);
+      expect(BattleFilterMode.collapse.filtersTerminal, isTrue);
+      expect(BattleFilterMode.hud.filtersTerminal, isTrue);
     });
   });
 

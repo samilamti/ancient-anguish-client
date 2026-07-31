@@ -7,6 +7,7 @@ import '../widgets/common/escape_dismiss.dart';
 import '../widgets/common/settings_drawer_route.dart';
 import '../widgets/social/social_message_list.dart' show SocialListType;
 
+import '../../models/battle_filter_mode.dart';
 import '../../models/connection_info.dart';
 import '../../models/social_message.dart';
 import '../../models/support_tier.dart';
@@ -26,6 +27,7 @@ import '../widgets/compass/compass_overlay.dart';
 import '../widgets/login/login_dialog.dart';
 import '../widgets/mobile/d_pad.dart';
 import '../widgets/social/social_windows_overlay.dart';
+import '../widgets/status/battle_hud.dart';
 import '../widgets/status/status_bar.dart';
 import '../widgets/terminal/input_bar.dart';
 import '../widgets/terminal/terminal_view.dart';
@@ -94,11 +96,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // large desktop screens only.
     final showCompass =
         !isMobile && isDesktopPlatform() && settings.compassEnabled;
-    final terminal = showCompass
-        ? const Stack(
+    // The battle HUD stands in for the combat text it gags, so it goes
+    // wherever that text would have been read — every platform, bottom-right,
+    // clear of the compass above it. It hides itself when no fight has started.
+    final showBattleHud = settings.battleFilterMode == BattleFilterMode.hud;
+    final terminal = (showCompass || showBattleHud)
+        ? Stack(
             children: [
-              TerminalView(),
-              Positioned(top: 8, right: 12, child: CompassOverlay()),
+              const TerminalView(),
+              if (showCompass)
+                const Positioned(top: 8, right: 12, child: CompassOverlay()),
+              if (showBattleHud)
+                const Positioned(bottom: 8, right: 12, child: BattleHud()),
             ],
           )
         : const TerminalView();
@@ -914,6 +923,43 @@ class _SettingsDrawer extends ConsumerWidget {
               icon: Icons.map,
               value: settings.emojiMapsEnabled,
               onChanged: (_) => notifier.toggleEmojiMaps(),
+            ),
+
+            const SizedBox(height: 8),
+
+            // ── Battle Text ──
+            Row(
+              children: [
+                const Icon(Icons.gavel, size: 18),
+                const SizedBox(width: 8),
+                Text('Battle Text', style: theme.textTheme.bodyMedium),
+              ],
+            ),
+            RadioGroup<BattleFilterMode>(
+              groupValue: settings.battleFilterMode,
+              onChanged: (v) => notifier.setBattleFilterMode(v!),
+              child: Column(
+                children: [
+                  for (final mode in BattleFilterMode.values)
+                    RadioListTile<BattleFilterMode>(
+                      title: Text(
+                        mode.label,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        mode.description,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: theme.colorScheme.onSurface.withAlpha(140),
+                        ),
+                      ),
+                      value: mode,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                ],
+              ),
             ),
 
             if (isMobile) ...[

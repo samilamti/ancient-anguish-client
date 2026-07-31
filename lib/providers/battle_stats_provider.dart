@@ -55,6 +55,9 @@ class BattleStatsNotifier extends Notifier<BattleStats> {
         next.copyWith(otherMisses: next.otherMisses + 1),
       BattleLineKind.resolution =>
         next.copyWith(resolutions: next.resolutions + 1),
+      // Chatter keeps the fight alive (it resets the idle timer below and shows
+      // as the latest line) but scores nothing — see [BattleLineKind.flavour].
+      BattleLineKind.flavour => next,
       BattleLineKind.vitals => next.copyWith(
           rounds: next.rounds + 1,
           // `hpStart` is only ever set once per fight — copyWith's null-means-

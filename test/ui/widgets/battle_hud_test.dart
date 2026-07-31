@@ -34,6 +34,16 @@ void main() {
     );
   }
 
+  /// The dock's own fade. Scoped, because MaterialApp's route machinery has
+  /// FadeTransitions of its own and an unscoped finder matches several.
+  double dockOpacity(WidgetTester tester) => tester
+      .widget<FadeTransition>(find.descendant(
+        of: find.byType(BattleHudDock),
+        matching: find.byType(FadeTransition),
+      ))
+      .opacity
+      .value;
+
   Future<void> pumpHud(WidgetTester tester) async {
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -173,7 +183,6 @@ void main() {
   group('BattleHudDock', () {
     testWidgets('takes no space at all outside combat', (tester) async {
       await pumpDock(tester);
-      expect(find.byType(BattleHud), findsNothing);
       expect(tester.getSize(find.byType(BattleHudDock)).height, 0);
     });
 
@@ -183,7 +192,7 @@ void main() {
       final terminalBefore = tester.getSize(find.byKey(const Key('fake-terminal'))).height;
 
       feed(["You pounded Nurse's leg heartlessly."]);
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       final dock = tester.getRect(find.byType(BattleHudDock));
       expect(dock.height, greaterThan(0));
@@ -203,6 +212,7 @@ void main() {
     testWidgets('is left aligned', (tester) async {
       feed(["You pounded Nurse's leg heartlessly."]);
       await pumpDock(tester);
+      await tester.pumpAndSettle();
 
       final screen = tester.getRect(find.byType(Scaffold));
       final panel = tester.getRect(find.byType(BattleHud));
@@ -210,6 +220,56 @@ void main() {
       expect(screen.right - panel.right, greaterThan(panel.left - screen.left));
 
       await drainIdleTimer(tester);
+    });
+    testWidgets('fades and grows in as the fight starts', (tester) async {
+      await pumpDock(tester);
+      feed(["You pounded Nurse's leg heartlessly."]);
+
+      // Mid-fade: partially transparent and only partially tall.
+      await tester.pump();
+      await tester.pump(BattleHudDock.fadeDuration ~/ 2);
+      final midOpacity = dockOpacity(tester);
+      final midHeight = tester.getSize(find.byType(BattleHudDock)).height;
+      expect(midOpacity, greaterThan(0));
+      expect(midOpacity, lessThan(1));
+      expect(midHeight, greaterThan(0));
+
+      await tester.pumpAndSettle();
+      expect(dockOpacity(tester), 1);
+      expect(tester.getSize(find.byType(BattleHudDock)).height,
+          greaterThan(midHeight));
+
+      await drainIdleTimer(tester);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('fades out and gives the space back when the fight ends',
+        (tester) async {
+      await pumpDock(tester);
+      feed(["You pounded Nurse's leg heartlessly."]);
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byType(BattleHudDock)).height, greaterThan(0));
+
+      // Past the idle timeout the fight is over, so the panel leaves. The
+      // outcome stays readable in the terminal — resolution lines are never
+      // filtered — which is what makes removing it safe.
+      await drainIdleTimer(tester);
+      await tester.pumpAndSettle();
+
+      expect(dockOpacity(tester), 0);
+      expect(tester.getSize(find.byType(BattleHudDock)).height, 0);
+    });
+
+    testWidgets('mounting mid-fight shows the panel without animating in',
+        (tester) async {
+      // Switching the mode on during combat shouldn't play a fade-in.
+      feed(["You pounded Nurse's leg heartlessly."]);
+      await pumpDock(tester);
+
+      expect(dockOpacity(tester), 1);
+
+      await drainIdleTimer(tester);
+      await tester.pumpAndSettle();
     });
   });
 }

@@ -58,6 +58,28 @@ class SavedAlt {
 
 const _altsFileName = 'alts.json';
 
+/// Orders remembered characters most-recently-played first.
+///
+/// `_saveAlt` already stores them that way, so this is about the files that
+/// predate it: every install upgrading from a build that updated alts in place
+/// has an `alts.json` in first-saved order carrying perfectly good `lastPlayed`
+/// timestamps. Sorting on read means those users see the right order
+/// immediately rather than after re-logging every character once.
+///
+/// Characters saved before `lastPlayed` existed have none; they sort last,
+/// keeping their relative order (the sort is stable), because "never recorded"
+/// is not evidence of being recent.
+List<SavedAlt> sortAltsByRecency(List<SavedAlt> alts) {
+  final sorted = [...alts];
+  mergeSort(sorted, compare: (a, b) {
+    if (a.lastPlayed == null && b.lastPlayed == null) return 0;
+    if (a.lastPlayed == null) return 1;
+    if (b.lastPlayed == null) return -1;
+    return b.lastPlayed!.compareTo(a.lastPlayed!);
+  });
+  return sorted;
+}
+
 /// Provides the list of remembered characters with passwords, loaded from disk.
 final savedAltsProvider = FutureProvider<List<SavedAlt>>((ref) async {
   final storage = ref.read(storageServiceProvider);
@@ -74,7 +96,9 @@ final savedAltsProvider = FutureProvider<List<SavedAlt>>((ref) async {
           .map((s) => SavedAlt(name: s, password: ''))
           .toList();
     }
-    return list.cast<Map<String, dynamic>>().map(SavedAlt.fromJson).toList();
+    return sortAltsByRecency(
+      list.cast<Map<String, dynamic>>().map(SavedAlt.fromJson).toList(),
+    );
   } catch (e) {
     debugPrint('savedAltsProvider: parse error: $e');
     return [];
@@ -185,7 +209,9 @@ class LoginNotifier extends Notifier<LoginState> {
             .map((s) => SavedAlt(name: s, password: ''))
             .toList();
       }
-      return json.cast<Map<String, dynamic>>().map(SavedAlt.fromJson).toList();
+      return sortAltsByRecency(
+        json.cast<Map<String, dynamic>>().map(SavedAlt.fromJson).toList(),
+      );
     } catch (e) {
       debugPrint('LoginNotifier._readAlts: parse error: $e');
       return [];
@@ -203,13 +229,14 @@ class LoginNotifier extends Notifier<LoginState> {
   Future<void> _saveAlt(String name, String password) async {
     final alts = await _readAlts();
     final now = DateTime.now();
-    // Upsert: update password + lastPlayed if name exists, else insert at front.
-    final index = alts.indexWhere((a) => a.name == name);
-    if (index >= 0) {
-      alts[index] = SavedAlt(name: name, password: password, lastPlayed: now);
-    } else {
-      alts.insert(0, SavedAlt(name: name, password: password, lastPlayed: now));
-    }
+    // Move-to-front, not update-in-place: an existing character used to keep
+    // whatever position it was first saved at, so `lastPlayed` was refreshed
+    // (the quick-login path passes `remember: true` purely for that) while the
+    // list order never changed and the alt you play every day stayed at the
+    // bottom. Removing before inserting makes "most recent first" true of the
+    // stored order itself, which is what the 1-9 shortcuts index into.
+    alts.removeWhere((a) => a.name == name);
+    alts.insert(0, SavedAlt(name: name, password: password, lastPlayed: now));
     await _writeAlts(alts);
   }
 

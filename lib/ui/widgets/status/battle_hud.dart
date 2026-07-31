@@ -122,22 +122,81 @@ class BattleHud extends ConsumerWidget {
 /// room and the last received line stays visible for the whole fight, with no
 /// height measurement to keep in sync.
 ///
-/// Collapses to nothing when no fight has started, so it costs no vertical
-/// space (not even its padding) outside combat.
-class BattleHudDock extends ConsumerWidget {
+/// Fades and grows the panel in as a fight starts, and back out as it ends —
+/// costing no vertical space at all in between.
+///
+/// **One controller drives both the opacity and the reserved height**, which is
+/// what makes the fade-out possible: the panel has to keep its space while it
+/// fades and give it up afterwards, and a pair of implicit animations
+/// (`AnimatedOpacity` + `AnimatedSize`) can't express that ordering — an
+/// opacity change doesn't affect layout, so the height would collapse before
+/// the fade began, or not at all. `SizeTransition` also gives a free fade-in
+/// from a genuine zero, which `AnimatedOpacity` cannot: it animates on
+/// *change*, so a first build at opacity 1 just appears.
+///
+/// Visibility follows [BattleStats.active], i.e. the panel leaves ~5s
+/// (`battleTimeout`) after the last exchange. Before v6.36 it keyed off
+/// `startedAt`, which is never cleared in normal play — so the HUD stayed on
+/// screen forever after the first fight of a session. The outcome is still
+/// readable afterwards because resolution lines are never filtered out of the
+/// terminal.
+class BattleHudDock extends ConsumerStatefulWidget {
   const BattleHudDock({super.key});
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final inBattle =
-        ref.watch(battleStatsProvider.select((s) => s.startedAt != null));
-    if (!inBattle) return const SizedBox.shrink();
+  /// Long enough to read as a fade rather than a flicker, short enough not to
+  /// delay the first combat line the player is waiting for.
+  static const Duration fadeDuration = Duration(milliseconds: 220);
 
-    return const Align(
-      alignment: Alignment.centerLeft,
-      child: Padding(
-        padding: EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 4),
-        child: BattleHud(),
+  @override
+  ConsumerState<BattleHudDock> createState() => _BattleHudDockState();
+}
+
+class _BattleHudDockState extends ConsumerState<BattleHudDock>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    duration: BattleHudDock.fadeDuration,
+    vsync: this,
+    // Mounting mid-fight (the player switches the mode on during combat)
+    // should show the panel, not animate it in from nothing.
+    value: ref.read(battleStatsProvider).active ? 1 : 0,
+  );
+
+  late final Animation<double> _curve = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Driven from a listener rather than the build body: starting an animation
+    // during build schedules a layout change from inside layout.
+    ref.listen(battleStatsProvider.select((s) => s.active), (_, active) {
+      if (active) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    });
+
+    return SizeTransition(
+      sizeFactor: _curve,
+      axisAlignment: -1,
+      child: FadeTransition(
+        opacity: _curve,
+        child: const Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 4),
+            child: BattleHud(),
+          ),
+        ),
       ),
     );
   }

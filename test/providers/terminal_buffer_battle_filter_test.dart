@@ -222,6 +222,85 @@ void main() {
       expect(container.read(battleStatsProvider).hitsDealt, 3);
     });
   });
+  group("Sami's Ship rat transcript end to end", () {
+    /// The fight verbatim, including the two lines that used to score nothing.
+    const shipRat = [
+      "You slit Ship rat's body.",
+      "You chopped Ship rat's body bluntly.",
+      "You sliced Ship rat's paw deeply.",
+      "You chopped Ship rat's body bluntly.",
+      "You clubbed Ship rat's body.",
+      "You gashed Ship rat's body.",
+      "You pounded Ship rat's body heartlessly.",
+      "You slit Ship rat's body.",
+      "You sliced Ship rat's body deeply.",
+      "You take a quick step backwards, avoiding Ship rat's attack.",
+      "You gashed Ship rat's body.",
+      "You pierced Ship rat's body keenly.",
+      "You pierced Ship rat's body keenly.",
+      "You slit Ship rat's body.",
+      "You chopped Ship rat's body bluntly.",
+      "You chopped Ship rat's head bluntly.",
+      'Ship rat predicts your attempt to dodge!',
+      "You lacerated Ship rat's head.",
+      'Ship rat is vanquished.',
+      'You vanquished Ship rat.',
+    ];
+
+    test('only the opening line and the two resolutions reach the terminal',
+        () async {
+      container = newContainer(BattleFilterMode.hud);
+      await feed(shipRat);
+
+      // Before the fix every one of the 20 lines landed here, because a
+      // two-word creature name never matched the possessive.
+      expect(buffer(), [
+        "You slit Ship rat's body.",
+        'Ship rat is vanquished.',
+        'You vanquished Ship rat.',
+      ]);
+    });
+
+    test('the HUD tallies the fight and names the target', () async {
+      container = newContainer(BattleFilterMode.hud);
+      await feed(shipRat);
+
+      final stats = container.read(battleStatsProvider);
+      expect(stats.target, 'Ship rat');
+      // 16 hit lines; the footwork line is an evasion and the read-dodge line
+      // scores nothing at all.
+      expect(stats.hitsDealt, 16);
+      expect(stats.missesAgainst, 1);
+      expect(stats.hitsTaken, 0);
+      expect(stats.missesDealt, 0);
+      expect(stats.resolutions, 2);
+    });
+
+    test('chatter keeps the fight alive without scoring', () async {
+      container = newContainer(BattleFilterMode.hud);
+      await feed(['Ship rat predicts your attempt to dodge!']);
+
+      final stats = container.read(battleStatsProvider);
+      expect(stats.startedAt, isNotNull);
+      expect(stats.hitsDealt, 0);
+      expect(stats.missesDealt, 0);
+      expect(stats.hitsTaken, 0);
+      expect(stats.missesAgainst, 0);
+    });
+
+    test('collapse mode reduces the fight to one slot plus the resolutions',
+        () async {
+      container = newContainer(BattleFilterMode.collapse);
+      await feed(shipRat);
+
+      expect(buffer(), [
+        // The collapsed slot holds the last combat line of the run.
+        "You lacerated Ship rat's head.",
+        'Ship rat is vanquished.',
+        'You vanquished Ship rat.',
+      ]);
+    });
+  });
 }
 
 class _FakeConnectionService implements MudConnectionService {

@@ -248,4 +248,116 @@ void main() {
       });
     }
   });
+  group("Sami's Ship rat transcript (multi-word creature names)", () {
+    // The whole transcript was reaching the terminal unfiltered: `_possessive`
+    // only matched a single-word name, so no `Ship rat's <part>` line
+    // classified while the identical `Nurse's <part>` line did. Every
+    // two-word creature in the game was affected.
+    const yourHits = [
+      "You slit Ship rat's body.",
+      "You chopped Ship rat's body bluntly.",
+      "You sliced Ship rat's paw deeply.",
+      "You clubbed Ship rat's body.",
+      "You gashed Ship rat's body.",
+      "You pounded Ship rat's body heartlessly.",
+      "You sliced Ship rat's body deeply.",
+      "You pierced Ship rat's body keenly.",
+      "You chopped Ship rat's head bluntly.",
+      "You lacerated Ship rat's head.",
+    ];
+
+    for (final line in yourHits) {
+      test('reads "$line" as your hit on Ship rat', () {
+        final match = BattleTextClassifier.classify(line);
+        expect(match?.kind, BattleLineKind.yourHit);
+        expect(match?.opponent, 'Ship rat');
+      });
+    }
+
+    test('a three-word creature name works too', () {
+      // Capitalised, because that is how AA renders a creature's short
+      // description in combat output — the possessive deliberately requires it
+      // rather than matching any lowercase noun phrase, which is what keeps
+      // prose out.
+      final match =
+          BattleTextClassifier.classify("You slit City guard captain's arm.");
+      expect(match?.kind, BattleLineKind.yourHit);
+      expect(match?.opponent, 'City guard captain');
+    });
+
+    test('a lowercase noun phrase is still not a creature', () {
+      expect(
+        BattleTextClassifier.classify("You slit the old city guard's arm."),
+        isNull,
+      );
+    });
+
+    test('footwork counts as an evasion, not a hit', () {
+      // `take a quick step backwards` also satisfies the hit skeleton
+      // (actor + verb + possessive + noun), so ordering matters here.
+      final match = BattleTextClassifier.classify(
+          "You take a quick step backwards, avoiding Ship rat's attack.");
+      expect(match?.kind, BattleLineKind.incomingMiss);
+      expect(match?.opponent, 'Ship rat');
+    });
+
+    test('footwork against a single-word creature too', () {
+      final match = BattleTextClassifier.classify(
+          "You take a quick step backwards, avoiding Zombie's attack.");
+      expect(match?.kind, BattleLineKind.incomingMiss);
+      expect(match?.opponent, 'Zombie');
+    });
+
+    test('a read dodge is filterable chatter that scores nothing', () {
+      // Neither a hit nor a successful evasion — counting it as either would
+      // put a number in the HUD for an exchange that never happened.
+      final match =
+          BattleTextClassifier.classify('Ship rat predicts your attempt to dodge!');
+      expect(match?.kind, BattleLineKind.flavour);
+      expect(match?.isFilterable, isTrue);
+      expect(match?.opponent, isNull);
+    });
+
+    test('a read dodge from a single-word creature', () {
+      expect(
+        BattleTextClassifier.classify('Zombie predicts your attempt to dodge!')
+            ?.kind,
+        BattleLineKind.flavour,
+      );
+    });
+
+    test('the passive death line resolves, naming the creature cleanly', () {
+      // Greedy actor matching read this as actor `Ship rat is` + verb
+      // `vanquished` — a plausible-looking name with a stray word welded on.
+      final match = BattleTextClassifier.classify('Ship rat is vanquished.');
+      expect(match?.kind, BattleLineKind.resolution);
+      expect(match?.opponent, 'Ship rat');
+    });
+
+    test('the active kill line resolves', () {
+      final match = BattleTextClassifier.classify('You vanquished Ship rat.');
+      expect(match?.kind, BattleLineKind.resolution);
+      expect(match?.opponent, 'Ship rat');
+      expect(match?.isFilterable, isFalse);
+    });
+  });
+
+  group('lines that must stay non-combat after the loosening', () {
+    // The multi-word possessive, the footwork shape and the flavour idiom each
+    // widened a pattern; these are the neighbours they must not swallow.
+    const notCombat = [
+      'You take a step towards the gate.',
+      'The wizard predicts your future.',
+      'A ship rat is standing here.',
+      "You admire Ship rat's shiny collar.",
+      'You take a quick step backwards, admiring the view.',
+      "Nurse tells you: I slit Ship rat's body.",
+    ];
+
+    for (final line in notCombat) {
+      test('ignores "$line"', () {
+        expect(BattleTextClassifier.classify(line), isNull);
+      });
+    }
+  });
 }

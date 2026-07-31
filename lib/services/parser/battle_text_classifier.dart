@@ -54,6 +54,15 @@ enum BattleLineKind {
   /// Never filtered out of the terminal — this is the line the player has
   /// been waiting for.
   resolution,
+
+  /// Combat chatter that scores nothing: `Ship rat predicts your attempt to
+  /// dodge!`
+  ///
+  /// It is unmistakably part of the fight, so it must be filterable — but it
+  /// reports neither a hit nor a successful evasion, and counting it as either
+  /// would put a number in the HUD that never happened. A separate kind keeps
+  /// it out of the terminal without touching the tallies.
+  flavour,
 }
 
 /// A classified combat line: what kind it is, who it was against, and the
@@ -106,10 +115,26 @@ class BattleTextClassifier {
   /// The restrictive character class is what keeps prose out: a tell such as
   /// `Foo tells you: I pounded your head.` fails on the `:` rather than being
   /// read as a hit on the player.
-  static const String _actor = r"(?:You|[A-Z][\w'’-]*(?:\s+[\w'’-]+){0,3})";
+  ///
+  /// The trailing words are **lazy** (`{0,3}?`): every pattern here follows the
+  /// actor with a required verb, so the shortest name that still lets the verb
+  /// match is the right one. Greedy matching read `Ship rat is vanquished.` as
+  /// actor `Ship rat is` plus verb `vanquished` — a plausible-looking opponent
+  /// name with a stray word welded on, which then reaches the HUD and `kill`.
+  static const String _actor = r"(?:You|[A-Z][\w'’-]*(?:\s+[\w'’-]+){0,3}?)";
 
-  /// Whose body part was struck: the player's, or a named creature's.
-  static const String _owner = r"(?:your|his|her|its|their|[A-Z][\w'’-]*'s)";
+  /// A possessive: the player's, or a named creature's. Used for whose body
+  /// part was struck (`Nurse's leg`) and whose attempt was read
+  /// (`Ship rat's attack`).
+  ///
+  /// The creature name must allow **several words** before the possessive.
+  /// Ancient Anguish is full of two-word short descriptions (`Ship rat`,
+  /// `city guard`, `forest hare`), and a single-word-only possessive silently
+  /// classified none of their hit lines — every `You slit Ship rat's body.`
+  /// reached the terminal unfiltered while `You slit Nurse's body.` collapsed.
+  /// The symptom is per-creature, which is what makes it easy to miss.
+  static const String _possessive =
+      r"(?:your|his|her|its|their|[A-Z][\w'’-]*(?:\s+[\w'’-]+){0,3}'s)";
 
   /// Optional laterality in front of the body part (`left arm`, `hind leg`).
   static const String _side = r'(?:(?:left|right|upper|lower|front|hind|rear|near|far)\s+)?';
@@ -119,7 +144,7 @@ class BattleTextClassifier {
   /// The verb is `[a-z]+` — unconstrained on purpose (see the library doc).
   /// Validity rests on [bodyParts] instead, checked by [classify].
   static final RegExp hitPattern = RegExp(
-    '^($_actor)\\s+([a-z]+)\\s+($_owner)\\s+$_side([a-z]+)\\b[^.!?]*[.!]\$',
+    '^($_actor)\\s+([a-z]+)\\s+($_possessive)\\s+$_side([a-z]+)\\b[^.!?]*[.!]\$',
   );
 
   /// `You missed.` · `You missed Nurse.` · `Nurse missed you.` ·
@@ -140,10 +165,37 @@ class BattleTextClassifier {
     'weave|weaves|fend|fends|ward|wards)\\b([^.!?]*)[.!]\$',
   );
 
-  /// `Nurse died.` · `You killed Nurse.` · `Nurse is dead.` · `You died.`
+  /// A footwork evasion, which AA phrases as a *movement* rather than a dodge
+  /// verb: `You take a quick step backwards, avoiding Ship rat's attack.`
+  ///
+  /// Kept separate from [defensePattern] because the defender's action here is
+  /// `take`/`make`, which is far too common a verb to add to that alternation —
+  /// the load-bearing part is the trailing `avoiding <someone>'s attack`, so
+  /// that is what this anchors on.
+  static final RegExp footworkPattern = RegExp(
+    '^($_actor)\\s+(?:takes?|made?|makes)\\s+[^.!?]*?'
+    '\\b(?:avoiding|evading|dodging|escaping)\\s+([^.!?]+?)\\s*[.!]\$',
+  );
+
+  /// Combat chatter that scores nothing: `Ship rat predicts your attempt to
+  /// dodge!`
+  ///
+  /// Anchored on the *idiom* rather than a verb list, since the point is that
+  /// no exchange is being reported — see [BattleLineKind.flavour].
+  static final RegExp flavourPattern = RegExp(
+    '^($_actor)\\s+(?:predicts?|anticipates?|foresees?|reads?)\\s+'
+    '$_possessive\\s+attempts?\\s+to\\s+[a-z]+[^.!?]*[.!]\$',
+  );
+
+  /// `Nurse died.` · `You killed Nurse.` · `Nurse is dead.` · `You died.` ·
+  /// `Ship rat is vanquished.` · `You vanquished Ship rat.`
+  ///
+  /// The `is <past participle>` branch carries the passive phrasings AA uses
+  /// for a death it reports from the victim's side.
   static final RegExp resolutionPattern = RegExp(
-    '^($_actor)\\s+(?:died|dies|is\\s+dead|'
-    'killed|kills|slew|slays|slaughtered|destroyed|'
+    '^($_actor)\\s+(?:died|dies|'
+    'is\\s+(?:dead|vanquished|slain|destroyed|killed)|'
+    'killed|kills|slew|slays|slaughtered|destroyed|vanquished|vanquishes|'
     'has\\s+been\\s+killed|have\\s+killed|has\\s+killed)'
     '(?:\\s+([^.!?]+?))?\\s*[.!]\$',
   );
@@ -187,7 +239,9 @@ class BattleTextClassifier {
   ///   1. **resolution** — `You killed Nurse.` must never be mistaken for a
   ///      hit, because it is the one line that always reaches the player.
   ///   2. **vitals** — cheap exact shape.
-  ///   3. **miss**, then **defense** — both share the hit skeleton.
+  ///   3. **miss**, then **defense**, **footwork** and **flavour** — all four
+  ///      share the hit skeleton (`You take a quick step backwards, avoiding
+  ///      Ship rat's attack.` reads as actor + verb + possessive + noun).
   ///   4. **hit** — the loosest pattern, so it goes last.
   static BattleLineMatch? classify(String plainText) {
     final line = plainText.trim();
@@ -252,6 +306,33 @@ class BattleTextClassifier {
       );
     }
 
+    final footwork = footworkPattern.firstMatch(line);
+    if (footwork != null) {
+      final defender = footwork.group(1)!;
+      // `avoiding Ship rat's attack` — the attacker is the possessive here,
+      // not the defender.
+      final attacker = _possessiveIn(footwork.group(2) ?? '');
+      if (_isPlayer(defender)) {
+        return BattleLineMatch(
+          kind: BattleLineKind.incomingMiss,
+          opponent: attacker,
+        );
+      }
+      // A creature side-stepped. Whose blow it dodged decides the ledger, the
+      // same way [defensePattern] does it.
+      final dodgedPlayer = _mentionsPlayer(footwork.group(2) ?? '');
+      return BattleLineMatch(
+        kind: dodgedPlayer ? BattleLineKind.yourMiss : BattleLineKind.otherMiss,
+        opponent: dodgedPlayer ? _creatureName(defender) : attacker,
+      );
+    }
+
+    if (flavourPattern.hasMatch(line)) {
+      // No exchange reported, so no opponent is claimed either — the target
+      // shown in the HUD should keep whatever the real exchanges established.
+      return const BattleLineMatch(kind: BattleLineKind.flavour);
+    }
+
     final hit = hitPattern.firstMatch(line);
     if (hit != null) {
       final actor = hit.group(1)!;
@@ -288,10 +369,12 @@ class BattleTextClassifier {
       ).hasMatch(text);
 
   /// The first possessive creature name in [text] (`… as Nurse's blow …` →
-  /// `Nurse`), or `null` when there isn't one.
+  /// `Nurse`, `… avoiding Ship rat's attack` → `Ship rat`), or `null` when
+  /// there isn't one. Multi-word for the same reason [_possessive] is.
   static String? _possessiveIn(String text) {
-    final match = RegExp(r"\b([A-Z][\w'’-]*)'s\b").firstMatch(text);
-    return match?.group(1);
+    final match =
+        RegExp(r"\b([A-Z][\w'’-]*(?:\s+[\w'’-]+){0,3})'s\b").firstMatch(text);
+    return _creatureName(match?.group(1));
   }
 
   /// Normalises a captured name into a bare creature name: strips a possessive

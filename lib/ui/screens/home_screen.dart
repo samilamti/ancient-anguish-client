@@ -115,7 +115,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     return Scaffold(
       key: _scaffoldKey,
-      endDrawer: _SettingsDrawer(isMobile: isMobile),
+      endDrawer: SettingsDrawer(isMobile: isMobile),
       appBar: AppBar(
         centerTitle: false,
         title: Row(
@@ -699,10 +699,13 @@ class _ConnectionIndicator extends ConsumerWidget {
 }
 
 /// Slide-in settings panel shown as an end drawer.
-class _SettingsDrawer extends ConsumerWidget {
+/// The application's settings surface on every platform - `settings_screen.dart`
+/// is orphaned and unreachable, so anything user-configurable belongs here.
+/// Public so widget tests can pump it directly at a given screen width.
+class SettingsDrawer extends ConsumerWidget {
   final bool isMobile;
 
-  const _SettingsDrawer({required this.isMobile});
+  const SettingsDrawer({super.key, required this.isMobile});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

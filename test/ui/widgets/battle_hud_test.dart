@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:ancient_anguish_client/models/battle_stats.dart';
 import 'package:ancient_anguish_client/providers/battle_stats_provider.dart';
 import 'package:ancient_anguish_client/services/parser/battle_text_classifier.dart';
 import 'package:ancient_anguish_client/ui/widgets/status/battle_hud.dart';
@@ -87,14 +88,25 @@ void main() {
     );
   }
 
+  /// Feeds combat lines one batch of MUD output at a time, which is how the
+  /// client counts rounds — so feeding N lines advances the fight N rounds.
   void feed(Iterable<String> lines) {
     final notifier = container.read(battleStatsProvider.notifier);
     for (final line in lines) {
       final match = BattleTextClassifier.classify(line);
       expect(match, isNotNull, reason: 'Fixture must classify: "$line"');
-      notifier.record(match!, rawLine: line);
+      notifier.record(match!, rawLine: line, startsRound: true);
     }
   }
+
+  /// The shortest fight the HUD will show itself for. Below
+  /// [BattleStats.confirmRounds] rounds the panel deliberately stays hidden, so
+  /// every test about what a *visible* HUD looks like has to clear that bar
+  /// first.
+  void feedConfirmedFight() => feed(List.filled(
+        BattleStats.confirmRounds,
+        "You pounded Nurse's leg heartlessly.",
+      ));
 
   /// Lets the stats notifier's idle timer fire. The test framework asserts on
   /// timers still pending when the tree is torn down, and that assertion runs
@@ -106,6 +118,45 @@ void main() {
   testWidgets('renders nothing before a fight has started', (tester) async {
     await pumpHud(tester);
     expect(find.byType(Text), findsNothing);
+  });
+
+  testWidgets('stays hidden until the fight is confirmed', (tester) async {
+    // Walking through the world draws the odd swing from a stray NPC. A scuffle
+    // that is over in a round or two must not flash the panel up — and, since
+    // gagging is gated on the same flag, its text stays in the terminal.
+    feed(List.filled(
+      BattleStats.confirmRounds - 1,
+      "Nurse pounded your head heartlessly.",
+    ));
+    await pumpHud(tester);
+    expect(find.byType(Text), findsNothing);
+    expect(container.read(battleStatsProvider).active, isTrue,
+        reason: 'The fight is running — it just has not earned the panel yet.');
+
+    // The round that reaches the threshold brings it on screen.
+    feed(['Nurse missed you.']);
+    await tester.pump();
+    expect(find.text('Nurse'), findsOneWidget);
+
+    await drainIdleTimer(tester);
+  });
+
+  testWidgets('the dock keeps its space until the fight is confirmed',
+      (tester) async {
+    await pumpDock(tester);
+    feed(List.filled(
+      BattleStats.confirmRounds - 1,
+      "Nurse pounded your head heartlessly.",
+    ));
+    await pumpFade(tester);
+    expect(tester.getSize(find.byType(BattleHudDock)).height, 0);
+
+    feed(['Nurse missed you.']);
+    await pumpFade(tester);
+    expect(tester.getSize(find.byType(BattleHudDock)).height, greaterThan(0));
+
+    await drainIdleTimer(tester);
+    await pumpFade(tester);
   });
 
   testWidgets('shows the target, tallies and latest line', (tester) async {
@@ -141,8 +192,11 @@ void main() {
     expect(find.text('75'), findsOneWidget);
     expect(find.text('-6'), findsOneWidget);
 
-    // Round counter from the two vitals lines, spelled out.
-    expect(find.textContaining('round 2'), findsOneWidget);
+    // One round per batch of combat output — eight batches above — spelled out
+    // rather than abbreviated. Not the two `HP:/SP:` lines: those set the
+    // vitals, but AA doesn't reliably print one per round, which is what used
+    // to leave this stuck on nothing for a whole fight.
+    expect(find.textContaining('round 8'), findsOneWidget);
 
     await drainIdleTimer(tester);
   });
@@ -152,7 +206,7 @@ void main() {
     // is the player but not which side they are on, so the number meant too
     // little to earn a line in a panel this small. The tallies are still
     // recorded — see battle_stats_provider_test.
-    feed(["You pounded Nurse's leg heartlessly."]);
+    feedConfirmedFight();
     await pumpHud(tester);
     expect(find.text('Others'), findsNothing);
 
@@ -164,7 +218,7 @@ void main() {
   });
 
   testWidgets('shows a kill tally once something dies', (tester) async {
-    feed(["You pounded Nurse's leg heartlessly."]);
+    feedConfirmedFight();
     await pumpHud(tester);
     expect(find.textContaining('☠'), findsNothing);
 
@@ -176,10 +230,8 @@ void main() {
   });
 
   testWidgets('stays readable after combat goes quiet', (tester) async {
-    feed([
-      "You pounded Nurse's leg heartlessly.",
-      'You killed Nurse.',
-    ]);
+    feedConfirmedFight();
+    feed(['You killed Nurse.']);
     await pumpHud(tester);
 
     // Past the idle timeout: the fight is over but the outcome must still be
@@ -224,7 +276,7 @@ void main() {
       await pumpDock(tester);
       final terminalBefore = tester.getSize(find.byKey(const Key('fake-terminal'))).height;
 
-      feed(["You pounded Nurse's leg heartlessly."]);
+      feedConfirmedFight();
       await pumpFade(tester);
 
       final dock = tester.getRect(find.byType(BattleHudDock));
@@ -243,7 +295,7 @@ void main() {
     });
 
     testWidgets('is left aligned', (tester) async {
-      feed(["You pounded Nurse's leg heartlessly."]);
+      feedConfirmedFight();
       await pumpDock(tester);
       await pumpFade(tester);
 
@@ -256,7 +308,7 @@ void main() {
     });
     testWidgets('fades and grows in as the fight starts', (tester) async {
       await pumpDock(tester);
-      feed(["You pounded Nurse's leg heartlessly."]);
+      feedConfirmedFight();
 
       // Mid-fade: partially transparent and only partially tall.
       await tester.pump();
@@ -279,7 +331,7 @@ void main() {
     testWidgets('fades out and gives the space back when the fight ends',
         (tester) async {
       await pumpDock(tester);
-      feed(["You pounded Nurse's leg heartlessly."]);
+      feedConfirmedFight();
       await pumpFade(tester);
       expect(tester.getSize(find.byType(BattleHudDock)).height, greaterThan(0));
 
@@ -296,7 +348,7 @@ void main() {
     testWidgets('mounting mid-fight shows the panel without animating in',
         (tester) async {
       // Switching the mode on during combat shouldn't play a fade-in.
-      feed(["You pounded Nurse's leg heartlessly."]);
+      feedConfirmedFight();
       await pumpDock(tester);
 
       expect(dockOpacity(tester), 1);
@@ -344,7 +396,7 @@ void main() {
     }
 
     testWidgets('the border pulses while a fight is running', (tester) async {
-      feed(["You pounded Nurse's leg heartlessly."]);
+      feedConfirmedFight();
       await pumpHud(tester);
 
       // Compare whole colours: `Color.a` is a normalised double, so rounding it
@@ -361,7 +413,7 @@ void main() {
     });
 
     testWidgets('the pulse stops when the fight ends', (tester) async {
-      feed(["You pounded Nurse's leg heartlessly."]);
+      feedConfirmedFight();
       await pumpHud(tester);
       await drainIdleTimer(tester);
 
@@ -378,7 +430,7 @@ void main() {
       // The whole point of the local timer: a lull mid-fight used to freeze the
       // readout, because it only re-rendered when a line arrived. No further
       // combat text is fed here — only time passes.
-      feed(["You pounded Nurse's leg heartlessly."]);
+      feedConfirmedFight();
       await pumpHud(tester);
       expect(find.textContaining('0:00'), findsOneWidget);
 
@@ -390,7 +442,7 @@ void main() {
     });
 
     testWidgets('the clock stops when the fight does', (tester) async {
-      feed(["You pounded Nurse's leg heartlessly."]);
+      feedConfirmedFight();
       await pumpHud(tester);
       await drainIdleTimer(tester);
 

@@ -2,6 +2,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:ancient_anguish_client/models/battle_stats.dart';
 import 'package:ancient_anguish_client/providers/battle_stats_provider.dart';
 import 'package:ancient_anguish_client/services/parser/battle_text_classifier.dart';
 
@@ -17,11 +18,24 @@ void main() {
   tearDown(() => container.dispose());
 
   /// Feeds a raw combat line through the classifier into the notifier, exactly
-  /// as `TerminalBufferNotifier` does.
+  /// as `TerminalBufferNotifier` does — as a continuation of the round in
+  /// progress, so the tallies can be exercised without also moving the round
+  /// counter. See [feedRound] for the other half.
   void feed(String line) {
     final match = BattleTextClassifier.classify(line);
     expect(match, isNotNull, reason: 'Test fixture must classify: "$line"');
     notifier.record(match!, rawLine: line);
+  }
+
+  /// Feeds one batch of MUD output — the unit the client counts as a round.
+  void feedRound(Iterable<String> lines) {
+    var first = true;
+    for (final line in lines) {
+      final match = BattleTextClassifier.classify(line);
+      expect(match, isNotNull, reason: 'Test fixture must classify: "$line"');
+      notifier.record(match!, rawLine: line, startsRound: first);
+      first = false;
+    }
   }
 
   group('BattleStatsNotifier - tallies', () {
@@ -77,7 +91,9 @@ void main() {
       expect(stats.otherMisses, 1);
       // "Nurse died." and "You killed Nurse."
       expect(stats.resolutions, 2);
-      expect(stats.rounds, 3);
+      // The whole transcript arrived as one batch, so it is one round — the
+      // three `HP:/SP:` lines set the vitals but no longer drive the counter.
+      expect(stats.rounds, 0, reason: 'feed() continues the round in progress');
       expect(stats.latestLine, 'You killed Nurse.');
     });
 
@@ -123,6 +139,57 @@ void main() {
       expect(stats.resolutions, 1);
       expect(stats.hitsDealt, 2, reason: 'Tallies carry across the kill.');
       expect(stats.target, 'Mummy');
+    });
+  });
+
+  group('BattleStatsNotifier - rounds', () {
+    test('counts one round per batch of output, not per vitals line', () {
+      // Two batches, three vitals lines between them. Counting the vitals lines
+      // is what this used to do, and it read the fight as three rounds — while
+      // in live play, where AA rarely prints a bare `HP:/SP:` line at all, it
+      // read the same fight as none.
+      feedRound([
+        "You pounded Nurse's leg heartlessly.",
+        'HP:  88  SP:  79',
+        'HP:  87  SP:  79',
+      ]);
+      feedRound(['Nurse missed you.', 'HP:  86  SP:  79']);
+
+      final stats = container.read(battleStatsProvider);
+      expect(stats.rounds, 2);
+      expect(stats.hpStart, 88, reason: 'vitals still set the readings');
+      expect(stats.hpNow, 86);
+    });
+
+    test('a fight is unconfirmed until enough rounds have arrived', () {
+      for (var i = 1; i < BattleStats.confirmRounds; i++) {
+        feedRound(['Nurse missed you.']);
+        expect(container.read(battleStatsProvider).confirmed, isFalse,
+            reason: 'round $i of ${BattleStats.confirmRounds}');
+      }
+
+      feedRound(['Nurse missed you.']);
+      expect(container.read(battleStatsProvider).confirmed, isTrue);
+    });
+
+    test('the next fight has to earn its confirmation again', () {
+      fakeAsync((async) {
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final n = c.read(battleStatsProvider.notifier);
+        final match = BattleTextClassifier.classify('Nurse missed you.')!;
+
+        for (var i = 0; i < BattleStats.confirmRounds; i++) {
+          n.record(match, startsRound: true);
+        }
+        expect(c.read(battleStatsProvider).confirmed, isTrue);
+
+        async.elapse(BattleStatsNotifier.battleTimeout * 2);
+        n.record(match, startsRound: true);
+
+        expect(c.read(battleStatsProvider).rounds, 1);
+        expect(c.read(battleStatsProvider).confirmed, isFalse);
+      });
     });
   });
 

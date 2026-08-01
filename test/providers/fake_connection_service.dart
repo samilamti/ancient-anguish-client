@@ -26,6 +26,13 @@ class FakeConnectionService implements MudConnectionService {
         ),
       );
 
+  /// Feeds [text] verbatim — no terminator added. AA ends a command's output
+  /// with a prompt carrying no newline, GA or EOR, so anything that depends on
+  /// that trailing partial line has to be fed this way rather than via
+  /// [emitLines].
+  void emitChunk(String text) =>
+      emit(TelnetDataEvent(Uint8List.fromList(text.codeUnits)));
+
   @override
   Stream<TelnetEvent> get events => _events.stream;
 

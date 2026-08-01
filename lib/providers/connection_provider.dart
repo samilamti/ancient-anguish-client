@@ -266,6 +266,10 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           // Combat lines that may overwrite the buffer's tail instead of
           // extending it. Same identity-keyed trick as [npcKeywords].
           final collapsibleLines = <StyledLine>{};
+          // One combat round per batch of MUD output: the first classified
+          // line here advances the round counter, the rest of the batch
+          // belongs to the same round. See [BattleStats.rounds].
+          var battleRoundCounted = false;
 
           for (final line in newLines) {
             final plainText = line.plainText;
@@ -477,14 +481,13 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             var collapseThisLine = false;
             var gagForBattleHud = false;
             if (battleMatch != null) {
-              // Read before recording: `record` is what flips a fight to
-              // active, so this is "was a fight already running when this line
-              // arrived?".
-              final fightAlreadyRunning = ref.read(battleStatsProvider).active;
               battleNotifier.onBattlePatternDetected();
-              ref
-                  .read(battleStatsProvider.notifier)
-                  .record(battleMatch, rawLine: plainText.trim());
+              ref.read(battleStatsProvider.notifier).record(
+                    battleMatch,
+                    rawLine: plainText.trim(),
+                    startsRound: !battleRoundCounted,
+                  );
+              battleRoundCounted = true;
               if (battleMatch.isFilterable) {
                 switch (settings.battleFilterMode) {
                   case BattleFilterMode.off:
@@ -497,10 +500,15 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                     // and destroys nothing.
                     collapseThisLine = true;
                   case BattleFilterMode.hud:
-                    // Gagging does remove the line, so it waits for a second
-                    // combat line to corroborate the first. Costs one visible
-                    // line per fight — which usefully marks where it began.
-                    gagForBattleHud = fightAlreadyRunning;
+                    // Gagging does remove the line, so it waits until the fight
+                    // is confirmed — the same threshold that raises the HUD.
+                    // Read *after* recording, so the line completing the third
+                    // round is gagged by the panel it just brought on screen.
+                    // Costs the opening rounds of every fight as visible text,
+                    // which is what keeps a stray NPC's two swings from
+                    // vanishing into a HUD that never appears.
+                    gagForBattleHud =
+                        ref.read(battleStatsProvider).confirmed;
                 }
               }
             }
@@ -561,6 +569,10 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           final pendingPlain = parser.pendingText
               .replaceAll(_ansiEscapeRegex, '');
           if (ref.read(promptConfigProvider).promptRegex.hasMatch(pendingPlain)) {
+            // The prompt ends the command's output, so anything the sheet
+            // capture is still holding is complete — render it now rather than
+            // leaving it for whatever the player types next to dislodge.
+            _flushSheetCaptureToBuffer();
             final flushed = parser.flush();
             if (flushed != null) {
               final vitals = _extractPrompt(flushed.plainText);
@@ -595,6 +607,11 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       } else if (event is TelnetCommandEvent) {
         // GA or EOR signals "end of prompt" – flush partial line.
         _promptFlushTimer?.cancel();
+        // ...and end-of-prompt means end-of-output, so a sheet block is
+        // complete whether or not there is a partial line behind it. Flushing
+        // only inside [_emitFlushedPrompt] would miss the common shape, where
+        // the last line was CRLF-terminated and there is nothing to flush.
+        _flushSheetCaptureToBuffer();
         final flushed = parser.flush();
         if (flushed != null) {
           _emitFlushedPrompt(flushed);
@@ -618,6 +635,11 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       if (status == ConnectionStatus.connected) {
         ref.read(loginProvider.notifier).onNamePromptDetected();
       }
+
+      // Before the status line, so a block still being held lands in the order
+      // it arrived rather than after "*** Disconnected." — and so it cannot
+      // survive to be emitted in the middle of the next session's output.
+      if (status == ConnectionStatus.disconnected) _flushSheetCaptureToBuffer();
 
       final message = switch (status) {
         ConnectionStatus.connecting =>
@@ -886,6 +908,22 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     }
   }
 
+  /// Closes any block in progress straight into the buffer.
+  ///
+  /// The in-line prompt path can append to the batch it is already building,
+  /// but AA's prompt usually never *becomes* a line: it arrives with no
+  /// terminator and is consumed straight out of the parser's pending buffer.
+  /// None of those paths had a way to close a block, so a finished `score` or
+  /// shop `list` stayed held until some unrelated later line pushed it out —
+  /// the sheet appeared one command late. Flushing here is what makes it render
+  /// the moment its output is complete.
+  void _flushSheetCaptureToBuffer() {
+    if (!_sheetCapture.isCapturing) return;
+    final out = <StyledLine>[];
+    _flushSheetCapture(out);
+    if (out.isNotEmpty) _addLines(out);
+  }
+
   void _appendCaptureResult(
     SheetCaptureResult<StyledLine> result,
     List<StyledLine> out,
@@ -1001,6 +1039,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       final pendingPlain =
           parser.pendingText.replaceAll(_ansiEscapeRegex, '');
       if (ref.read(promptConfigProvider).promptRegex.hasMatch(pendingPlain)) {
+        _flushSheetCaptureToBuffer();
         final flushed = parser.flush();
         if (flushed != null) {
           final vitals = _extractPrompt(flushed.plainText);
@@ -1025,6 +1064,11 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   void _emitFlushedPrompt(StyledLine flushed) {
     final service = ref.read(connectionServiceProvider);
     final plainText = flushed.plainText;
+
+    // Whatever is being flushed comes *after* any block the sheet capture is
+    // holding, so close that first — both to render the sheet at once and to
+    // keep this line from jumping ahead of the output it followed.
+    _flushSheetCaptureToBuffer();
 
     // Login dialog: detect "Password:" prompt.
     if (plainText.contains('Password:')) {

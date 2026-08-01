@@ -45,7 +45,18 @@ class BattleStatsNotifier extends Notifier<BattleStats> {
   /// reads as per-fight numbers rather than one ever-growing total. A kill does
   /// *not* start one: pulling three mobs is one fight, and its [
   /// BattleStats.resolutions] counter is the interesting part of it.
-  void record(BattleLineMatch match, {String? rawLine, DateTime? now}) {
+  ///
+  /// [startsRound] marks this line as the first combat line of a fresh batch of
+  /// MUD output, which is what advances [BattleStats.rounds]. The caller owns
+  /// that judgement because only it can see where one write from the MUD ends
+  /// and the next begins — see [BattleStats.rounds] for why the `HP:/SP:` line
+  /// is not the marker it looks like.
+  void record(
+    BattleLineMatch match, {
+    String? rawLine,
+    DateTime? now,
+    bool startsRound = false,
+  }) {
     // Same clock the HUD reads, so "when the fight started" and "what time is
     // it now" can never come from two different sources.
     final timestamp = now ?? ref.read(clockProvider)();
@@ -68,7 +79,6 @@ class BattleStatsNotifier extends Notifier<BattleStats> {
       // as the latest line) but scores nothing — see [BattleLineKind.flavour].
       BattleLineKind.flavour => next,
       BattleLineKind.vitals => next.copyWith(
-          rounds: next.rounds + 1,
           // `hpStart` is only ever set once per fight — copyWith's null-means-
           // keep semantics would silently ignore a later write anyway, but the
           // explicit guard documents that the baseline is the *first* reading.
@@ -77,6 +87,8 @@ class BattleStatsNotifier extends Notifier<BattleStats> {
           spNow: match.sp,
         ),
     };
+
+    if (startsRound) next = next.copyWith(rounds: next.rounds + 1);
 
     state = next.copyWith(
       target: match.opponent ?? next.target,

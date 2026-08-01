@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/models/sheet.dart';
+import 'package:ancient_anguish_client/protocol/telnet/telnet_events.dart';
+import 'package:ancient_anguish_client/protocol/telnet/telnet_option.dart';
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
 import 'package:ancient_anguish_client/providers/game_state_provider.dart'
     show areaDetectorProvider, promptParserProvider;
@@ -56,6 +58,14 @@ void main() {
 
   Future<void> feed(Iterable<String> lines) async {
     fakeService.emitLines(lines);
+    await Future.microtask(() {});
+    await Future.microtask(() {});
+  }
+
+  /// Feeds a chunk verbatim, so a trailing prompt can be left unterminated the
+  /// way AA really sends it.
+  Future<void> feedChunk(String text) async {
+    fakeService.emitChunk(text);
     await Future.microtask(() {});
     await Future.microtask(() {});
   }
@@ -159,6 +169,37 @@ void main() {
       // The prompt itself is gagged, so the sheet is all that lands.
       expect(visible(), ['<sheet>']);
       expect(sheets().single, isA<SkillsSheet>());
+    });
+
+    test('an unterminated prompt renders the sheet in the same chunk', () async {
+      // How AA actually ends a command's output: the block, then a prompt with
+      // no newline after it. That prompt never becomes a parsed line — it is
+      // consumed straight out of the parser's pending buffer — so nothing
+      // terminated the block, and the sheet used to stay invisible until the
+      // *next* command's output happened to push it out.
+      container = newContainer();
+      container.read(terminalBufferProvider.notifier).setLoginDetected();
+
+      await feedChunk('${skills.join('\r\n')}\r\n@@100 100 50 50 1 2@@');
+
+      expect(visible(), ['<sheet>']);
+      expect(sheets().single, isA<SkillsSheet>());
+    });
+
+    test('a go-ahead closes the block too', () async {
+      // SGA means AA never sends one, but the GA/EOR path exists and must not
+      // be the one route that leaves a finished sheet held.
+      container = newContainer();
+      container.read(terminalBufferProvider.notifier).setLoginDetected();
+
+      await feed(skills);
+      expect(visible(), isEmpty, reason: 'still accumulating');
+
+      fakeService.emit(const TelnetCommandEvent(TelnetCmd.ga));
+      await Future.microtask(() {});
+      await Future.microtask(() {});
+
+      expect(visible(), ['<sheet>']);
     });
   });
 

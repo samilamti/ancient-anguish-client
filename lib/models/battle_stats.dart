@@ -16,7 +16,16 @@ class BattleStats {
   /// The creature most recently named on either side of an exchange.
   final String? target;
 
-  /// Vitals lines seen this fight — AA prints one per combat round.
+  /// Rounds of combat output seen this fight.
+  ///
+  /// Counted from the *arrival* of combat text — one round per batch of output
+  /// the MUD writes — rather than from the `HP:/SP:` line. That line is what
+  /// this used to count, and it left the counter frozen at zero through whole
+  /// fights: the classifier's vitals pattern is anchored to the whole line (so
+  /// a line carrying real content plus vitals is never gagged wholesale), and
+  /// under most prompt configurations AA's round vitals never arrive as a line
+  /// of their own. Batches are also the honest unit for the HUD, which is
+  /// standing in for one screenful of combat text per round.
   final int rounds;
 
   final int hitsDealt;
@@ -64,6 +73,20 @@ class BattleStats {
   });
 
   static const BattleStats initial = BattleStats();
+
+  /// Rounds of combat output that must arrive before a fight counts as real.
+  ///
+  /// Walking through the world draws the odd swing from a stray NPC, and a
+  /// scuffle that is over in a round or two should not flash the HUD up and
+  /// shove the terminal's tail out of the way on its way past.
+  static const int confirmRounds = 3;
+
+  /// Whether enough rounds have arrived to treat this as a real fight.
+  ///
+  /// Gates the HUD *and* the gagging that hides combat text behind it — the two
+  /// have to move together, or the opening rounds of every fight would be
+  /// swallowed by a panel that isn't on screen yet.
+  bool get confirmed => rounds >= confirmRounds;
 
   /// Your swings that connected, as a percentage, or `null` before you've
   /// swung at all.

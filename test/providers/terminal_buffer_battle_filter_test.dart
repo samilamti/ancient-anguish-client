@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/models/battle_filter_mode.dart';
+import 'package:ancient_anguish_client/models/battle_stats.dart';
 import 'package:ancient_anguish_client/protocol/telnet/telnet_events.dart';
 import 'package:ancient_anguish_client/providers/battle_stats_provider.dart';
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
@@ -27,31 +28,47 @@ void main() {
   late FakeConnectionService fakeService;
   late ProviderContainer container;
 
-  /// The transcript this feature was built from, as it arrives off the socket.
-  const combat = [
-    "Mummy pierced Nurse's head keenly.",
-    "You pounded Nurse's leg heartlessly.",
-    'Nurse missed you.',
-    "Mummy pricked Nurse's head.",
-    "You pounded Nurse's head heartlessly.",
-    "You duck your head quickly as Nurse's blow flies over you.",
-    'Nurse missed you.',
-    "Mummy lacerated Nurse's body.",
-    'You missed.',
-    'HP:  88  SP:  79',
-    'Nurse pounded your head heartlessly.',
-    "Mummy impaled Nurse's body sharply.",
-    "You pounded Nurse's body heartlessly.",
-    'HP:  83  SP:  79',
-    'Nurse pounded your body heartlessly.',
-    'Mummy missed Nurse.',
-    'You missed.',
-    'HP:  82  SP:  79',
-    'Nurse battered your leg.',
-    "Mummy pricked Nurse's head.",
-    'Nurse died.',
-    'You killed Nurse.',
+  /// The transcript this feature was built from, as it arrives off the socket:
+  /// one write per combat round, each ending on that round's vitals line.
+  ///
+  /// The rounds are the load-bearing part. The client counts one round per
+  /// batch of output and only shows the HUD — and only gags anything — once
+  /// [BattleStats.confirmRounds] of them have arrived, so a transcript fed as
+  /// one giant packet would exercise a case that never happens in play.
+  const combatRounds = [
+    [
+      "Mummy pierced Nurse's head keenly.",
+      "You pounded Nurse's leg heartlessly.",
+      'Nurse missed you.',
+      "Mummy pricked Nurse's head.",
+      "You pounded Nurse's head heartlessly.",
+      "You duck your head quickly as Nurse's blow flies over you.",
+      'Nurse missed you.',
+      "Mummy lacerated Nurse's body.",
+      'You missed.',
+      'HP:  88  SP:  79',
+    ],
+    [
+      'Nurse pounded your head heartlessly.',
+      "Mummy impaled Nurse's body sharply.",
+      "You pounded Nurse's body heartlessly.",
+      'HP:  83  SP:  79',
+    ],
+    [
+      'Nurse pounded your body heartlessly.',
+      'Mummy missed Nurse.',
+      'You missed.',
+      'HP:  82  SP:  79',
+    ],
+    [
+      'Nurse battered your leg.',
+      "Mummy pricked Nurse's head.",
+      'Nurse died.',
+      'You killed Nurse.',
+    ],
   ];
+
+  final combat = [for (final round in combatRounds) ...round];
 
   ProviderContainer newContainer(BattleFilterMode mode) {
     final c = ProviderContainer(
@@ -81,6 +98,13 @@ void main() {
     );
     await Future.microtask(() {});
     await Future.microtask(() {});
+  }
+
+  /// Feeds each round as its own write, the way the MUD sends them.
+  Future<void> feedRounds(Iterable<List<String>> rounds) async {
+    for (final round in rounds) {
+      await feed(round);
+    }
   }
 
   List<String> buffer() =>
@@ -171,43 +195,61 @@ void main() {
   group('BattleFilterMode.hud', () {
     test('combat leaves the terminal but the resolution stays', () async {
       container = newContainer(BattleFilterMode.hud);
-      await feed(combat);
+      await feedRounds(combatRounds);
 
-      // The opening line survives on purpose: gagging waits for a second
-      // combat line to corroborate the first, so a lone false positive is
-      // always visible. That leaves the line where the fight began.
+      // The opening rounds survive on purpose: gagging removes the line, so it
+      // cannot start before the HUD that stands in for it. The two move on the
+      // same threshold, and the text of the rounds before it usefully marks
+      // where the fight began.
       expect(buffer(), [
-        "Mummy pierced Nurse's head keenly.",
+        ...combatRounds[0],
+        ...combatRounds[1],
+        // Round three confirms the fight, so from there only the resolutions —
+        // which are never filtered — reach the terminal. That is what stops the
+        // line count scaling with the length of the fight.
         'Nurse died.',
         'You killed Nurse.',
       ]);
     });
 
+    test('a fight over in two rounds never gags anything', () async {
+      container = newContainer(BattleFilterMode.hud);
+      // A stray NPC gets a swing in as the player walks past. Nothing may be
+      // hidden, because no HUD appears to hold it.
+      await feedRounds(combatRounds.take(BattleStats.confirmRounds - 1));
+
+      expect(buffer(), [...combatRounds[0], ...combatRounds[1]]);
+      expect(container.read(battleStatsProvider).confirmed, isFalse);
+    });
+
     test('the HUD carries the tallies and the latest line', () async {
       container = newContainer(BattleFilterMode.hud);
-      await feed(combat);
+      await feedRounds(combatRounds);
 
       final stats = container.read(battleStatsProvider);
       expect(stats.active, isTrue);
       expect(stats.target, 'Nurse');
       expect(stats.hitsDealt, 3);
       expect(stats.hitsTaken, 3);
-      expect(stats.rounds, 3);
+      // One per batch of output, so the counter tracks the fight even though
+      // only three of the four rounds carried an `HP:/SP:` line.
+      expect(stats.rounds, combatRounds.length);
       expect(stats.hpNow, 82);
       expect(stats.latestLine, 'You killed Nurse.');
     });
 
     test('non-combat output is untouched', () async {
       container = newContainer(BattleFilterMode.hud);
+      await feedRounds(combatRounds.take(BattleStats.confirmRounds));
+      final before = buffer().length;
+
       await feed([
-        "You pounded Nurse's leg heartlessly.",
-        "You pounded Nurse's head heartlessly.",
+        "You slashed Nurse's arm cruelly.", // gagged — the fight is confirmed
         'Tuinn arrives.',
         'Obvious exits: north and east.',
       ]);
 
-      expect(buffer(), [
-        "You pounded Nurse's leg heartlessly.", // fight opener
+      expect(buffer().skip(before), [
         'Tuinn arrives.',
         'Obvious exits: north and east.',
       ]);
@@ -246,15 +288,19 @@ void main() {
       'You vanquished Ship rat.',
     ];
 
-    test('only the opening line and the two resolutions reach the terminal',
+    test('only the opening rounds and the two resolutions reach the terminal',
         () async {
       container = newContainer(BattleFilterMode.hud);
-      await feed(shipRat);
+      // Sami's capture is one line per combat pulse, so each is its own round.
+      for (final line in shipRat) {
+        await feed([line]);
+      }
 
       // Before the fix every one of the 20 lines landed here, because a
-      // two-word creature name never matched the possessive.
+      // two-word creature name never matched the possessive. The first two
+      // still do: gagging waits for the round that confirms the fight.
       expect(buffer(), [
-        "You slit Ship rat's body.",
+        ...shipRat.take(BattleStats.confirmRounds - 1),
         'Ship rat is vanquished.',
         'You vanquished Ship rat.',
       ]);

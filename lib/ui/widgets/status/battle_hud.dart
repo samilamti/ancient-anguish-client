@@ -82,10 +82,11 @@ class _BattleHudState extends ConsumerState<BattleHud>
   @override
   Widget build(BuildContext context) {
     final stats = ref.watch(battleStatsProvider);
-    // The panel stays up while the tallies are still worth reading — i.e.
-    // until a fight has actually started. `active` alone would pop it away the
-    // instant combat went quiet, hiding the outcome.
-    if (stats.startedAt == null) {
+    // The panel stays up while the tallies are still worth reading — i.e. from
+    // the round that confirms the fight until a new one starts. `active` alone
+    // would pop it away the instant combat went quiet, hiding the outcome;
+    // `startedAt` alone would raise it for a stray NPC's single swing.
+    if (stats.startedAt == null || !stats.confirmed) {
       _syncAnimations(active: false);
       return const SizedBox.shrink();
     }
@@ -199,12 +200,17 @@ class _BattleHudState extends ConsumerState<BattleHud>
 /// from a genuine zero, which `AnimatedOpacity` cannot: it animates on
 /// *change*, so a first build at opacity 1 just appears.
 ///
-/// Visibility follows [BattleStats.active], i.e. the panel leaves ~5s
+/// Visibility follows [BattleStats.active] *and* [BattleStats.confirmed]: the
+/// panel arrives on the round that confirms the fight and leaves ~5s
 /// (`battleTimeout`) after the last exchange. Before v6.36 it keyed off
 /// `startedAt`, which is never cleared in normal play — so the HUD stayed on
 /// screen forever after the first fight of a session. The outcome is still
 /// readable afterwards because resolution lines are never filtered out of the
 /// terminal.
+///
+/// The confirmation half is what keeps it from flashing up as the player walks
+/// through the world and a stray NPC gets a swing in — see
+/// [BattleStats.confirmRounds].
 class BattleHudDock extends ConsumerStatefulWidget {
   const BattleHudDock({super.key});
 
@@ -216,6 +222,11 @@ class BattleHudDock extends ConsumerStatefulWidget {
   ConsumerState<BattleHudDock> createState() => _BattleHudDockState();
 }
 
+/// Whether the dock should be showing the panel: a fight that is both running
+/// and confirmed. Shared by the controller's initial value and the listener, so
+/// mounting mid-fight and reacting to one can never disagree.
+bool _visible(BattleStats stats) => stats.active && stats.confirmed;
+
 class _BattleHudDockState extends ConsumerState<BattleHudDock>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
@@ -223,7 +234,7 @@ class _BattleHudDockState extends ConsumerState<BattleHudDock>
     vsync: this,
     // Mounting mid-fight (the player switches the mode on during combat)
     // should show the panel, not animate it in from nothing.
-    value: ref.read(battleStatsProvider).active ? 1 : 0,
+    value: _visible(ref.read(battleStatsProvider)) ? 1 : 0,
   );
 
   late final Animation<double> _curve = CurvedAnimation(
@@ -242,8 +253,8 @@ class _BattleHudDockState extends ConsumerState<BattleHudDock>
   Widget build(BuildContext context) {
     // Driven from a listener rather than the build body: starting an animation
     // during build schedules a layout change from inside layout.
-    ref.listen(battleStatsProvider.select((s) => s.active), (_, active) {
-      if (active) {
+    ref.listen(battleStatsProvider.select(_visible), (_, visible) {
+      if (visible) {
         _controller.forward();
       } else {
         _controller.reverse();

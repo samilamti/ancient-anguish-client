@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' show Color;
 
 import '../../protocol/ansi/styled_span.dart';
+import 'battle_text_classifier.dart';
 import 'room_line_classifier.dart';
 import 'text_link_processor.dart';
 
@@ -22,8 +23,10 @@ import 'text_link_processor.dart';
 ///    "giant orc" links `orc`, since the first of a bare noun pair is almost
 ///    always doing adjective duty.
 ///
-/// Room headers and prompt lines are skipped outright: `West Gate (e,w)` is a
-/// location, not a creature.
+/// Whole *lines* are skipped before either mode runs — see [skipsLine]. A
+/// creature's name appearing in a line is not the same as the creature being
+/// offered to you, and the difference is what stops the screen turning red the
+/// moment a fight starts.
 ///
 /// [ignored] words are dropped from *both* modes — it is the user's runtime
 /// blocklist, so an announcement keyword the room parser accepted is silenced
@@ -87,6 +90,99 @@ class KillTargetLinkProcessor {
 
   bool get isEmpty => _catalogue == null;
 
+  /// Speech: `An orc seems to exclaim: An trp!  Par, skxxa!`
+  ///
+  /// Anchored on a speech verb followed by its colon, because the colon alone
+  /// appears in far too much ordinary output to key off. What the creature is
+  /// *saying* is quoted text, and a target word inside it — or inside the
+  /// creature's own name in the attribution — is not an offer to attack
+  /// anything; the room listing that introduced it already was.
+  static final RegExp _speechPattern = RegExp(
+    r'\b(?:says?|said|exclaims?|exclaim|asks?|ask|shouts?|shout|yells?|yell|'
+    r'whispers?|whisper|tells?|tell|replies|reply|answers?|answer|mutters?|'
+    r'mutter|growls?|growl|snarls?|snarl|screams?|scream|chants?|chant|'
+    r'sings?|sing|cries|cry|utters?|utter|declares?|declare|announces?|'
+    r'announce|remarks?|remark)\b[^:]{0,24}:',
+    caseSensitive: false,
+  );
+
+  /// A creature in an ongoing state: `Orc is panicking and trying to flee.`
+  ///
+  /// Two tells together, and both are load-bearing. The progressive says the
+  /// line reports something happening rather than something present; the
+  /// **absent article** says the MUD is naming a creature already in play,
+  /// which is how AA writes combat participants (`Orc died.`, `Orc is
+  /// panicking…`). Requiring both is what keeps an article-led room listing —
+  /// `A large goblin is standing here.` — out of this, since that one is a
+  /// creature being offered and should keep its link.
+  ///
+  /// The leading negative lookahead is what enforces the second tell: without
+  /// it `A` is simply eaten as the first capitalised word of the name, and
+  /// `A large orc is standing here.` matches after all.
+  static final RegExp _creatureStatePattern = RegExp(
+    r"^(?!(?:A|An|The|Some)\s)"
+    r"[A-Z][\w'’-]*(?:\s+[\w'’-]+){0,3}\s+"
+    r"(?:is|are|was|were)\s+(?:\w+\s+)?\w+ing\b",
+  );
+
+  /// Combat kinds that rule a line out on their own.
+  ///
+  /// Deliberately *not* every kind the classifier recognises. Its miss and
+  /// defense patterns are the loose ones and reach ordinary prose —
+  /// `Troll blocks your way.` classifies as a dodge — which is exactly a line
+  /// the player wants a `kill troll` link on. The hit and resolution patterns
+  /// are anchored (a body part; a death verb), so a match there really is a
+  /// fight in progress. The rest of combat is covered far more reliably by the
+  /// caller's battle-mode gate, which drops every link for the duration.
+  static const Set<BattleLineKind> _blockingKinds = {
+    BattleLineKind.yourHit,
+    BattleLineKind.incomingHit,
+    BattleLineKind.otherHit,
+    BattleLineKind.resolution,
+  };
+
+  /// What is left of something already dead: `The corpse of a bugbear.`
+  ///
+  /// Its name is still in there, and the catalogue scan will happily offer to
+  /// attack it. Matched on the `<remains> of` idiom rather than the noun alone
+  /// so a creature whose own name contains one (`A bone golem.`) is untouched.
+  static final RegExp _deadThingPattern = RegExp(
+    r'\b(?:corpse|corpses|remains|carcass|carcasses|skeleton|bones|head|'
+    r'skull|hide|pelt|meat|flesh)\s+of\b',
+    caseSensitive: false,
+  );
+
+  /// Whether [plain] is a line no kill link belongs on, whatever it names.
+  ///
+  /// Six shapes, each of which mentions a creature without presenting one:
+  ///
+  ///  * a room header or prompt — `West Gate (e,w)` is a location;
+  ///  * speech — what an NPC *says* is quoted text;
+  ///  * a blow or a death — `Orc died.` least of all wants a `kill orc` link;
+  ///  * a creature-state report — `Orc is panicking and trying to flee.`;
+  ///  * a dead thing — `The corpse of Orc`;
+  ///  * **an item listing** — a line whose whole subject is something you
+  ///    cannot attack. The room classifier already refuses to take a keyword
+  ///    from one, and letting it fall through to the catalogue scan quietly
+  ///    overrules that with a *worse* answer: `Some goat meat` is refused as
+  ///    `kill meat`, then linked as `kill goat`. See
+  ///    [RoomLineClassifier.announcesNonTarget].
+  static bool skipsLine(String plain) {
+    final trimmed = plain.trim();
+    if (RoomLineClassifier.isRoomHeader(plain) ||
+        RoomLineClassifier.isPromptShape(plain)) {
+      return true;
+    }
+    if (_speechPattern.hasMatch(plain)) return true;
+    if (_blockingKinds.contains(BattleTextClassifier.classify(plain)?.kind)) {
+      return true;
+    }
+    if (_creatureStatePattern.hasMatch(trimmed)) return true;
+    if (_deadThingPattern.hasMatch(plain)) return true;
+    if (RoomLineClassifier.announcesNonTarget(plain)) return true;
+    return false;
+  }
+
   /// Returns [line] with its kill targets promoted, or the original instance
   /// when nothing matched (cheap reference equality lets the buffer skip
   /// rebuilds).
@@ -96,10 +192,7 @@ class KillTargetLinkProcessor {
   StyledLine processLine(StyledLine line, {String? npcKeyword}) {
     final plain = line.plainText;
     if (plain.isEmpty) return line;
-    if (RoomLineClassifier.isRoomHeader(plain) ||
-        RoomLineClassifier.isPromptShape(plain)) {
-      return line;
-    }
+    if (skipsLine(plain)) return line;
 
     final hits = npcKeyword != null
         ? (_ignored.contains(npcKeyword.trim().toLowerCase())

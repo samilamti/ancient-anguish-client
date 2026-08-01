@@ -56,6 +56,12 @@ class _StubAudioService implements AudioInterface {
   void setMuted(bool muted) {}
 
   @override
+  double playbackSpeed = 1.0;
+
+  @override
+  void setPlaybackSpeed(double speed) => playbackSpeed = speed;
+
+  @override
   Future<bool> canPlay(String path) async => false;
 
   @override

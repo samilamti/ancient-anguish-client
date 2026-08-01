@@ -145,6 +145,10 @@ class _BattleHudState extends ConsumerState<BattleHud>
           ),
           // "Target", not "Taken": the row is what the target managed against
           // you — it hit this often, missed that often, and you evaded N%.
+          //
+          // The row's accent is the threat colour, but the evade figure is the
+          // one number on it that is *good news* — so it gets its own green
+          // rather than reading as more damage taken.
           _TallyRow(
             label: 'Target',
             hits: stats.hitsTaken,
@@ -152,6 +156,7 @@ class _BattleHudState extends ConsumerState<BattleHud>
             percent: stats.evasion,
             percentLabel: 'evade',
             accent: const Color(0xFFCC4444),
+            percentColor: const Color(0xFF55AA55),
           ),
           if (stats.hpNow != null) ...[
             const SizedBox(height: 4),
@@ -222,10 +227,11 @@ class BattleHudDock extends ConsumerStatefulWidget {
   ConsumerState<BattleHudDock> createState() => _BattleHudDockState();
 }
 
-/// Whether the dock should be showing the panel: a fight that is both running
-/// and confirmed. Shared by the controller's initial value and the listener, so
-/// mounting mid-fight and reacting to one can never disagree.
-bool _visible(BattleStats stats) => stats.active && stats.confirmed;
+/// Whether the dock should be showing the panel. Shared by the controller's
+/// initial value and the listener, so mounting mid-fight and reacting to one
+/// can never disagree — and defined on [BattleStats] so the battle soundtrack
+/// starts on exactly the same moment.
+bool _visible(BattleStats stats) => stats.hudVisible;
 
 class _BattleHudDockState extends ConsumerState<BattleHudDock>
     with SingleTickerProviderStateMixin {
@@ -287,7 +293,6 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final rounds = stats.rounds;
 
     return Row(
       children: [
@@ -323,20 +328,20 @@ class _Header extends StatelessWidget {
               ),
             ),
           ),
-        // Spelled out rather than "r15": the HUD is what the player reads
-        // instead of the combat text, so it should not need decoding.
-        Text(
-          [
-            if (rounds > 0) 'round $rounds',
-            if (elapsed != null) _formatElapsed(elapsed!),
-          ].join('  '),
-          maxLines: 1,
-          style: TextStyle(
-            fontFamily: 'JetBrainsMono',
-            fontSize: 10,
-            color: scheme.onSurface.withAlpha(130),
+        // Elapsed time only. The round count went with it: rounds are counted
+        // per batch of output, which is a detection threshold rather than
+        // anything the player recognises as a round, so the number on screen
+        // never quite matched the fight they were watching.
+        if (elapsed != null)
+          Text(
+            _formatElapsed(elapsed!),
+            maxLines: 1,
+            style: TextStyle(
+              fontFamily: 'JetBrainsMono',
+              fontSize: 10,
+              color: scheme.onSurface.withAlpha(130),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -357,6 +362,9 @@ class _TallyRow extends StatelessWidget {
   final String percentLabel;
   final Color accent;
 
+  /// Colour for the percentage, when it shouldn't take the row's accent.
+  final Color? percentColor;
+
   const _TallyRow({
     required this.label,
     required this.hits,
@@ -364,6 +372,7 @@ class _TallyRow extends StatelessWidget {
     required this.percent,
     required this.percentLabel,
     required this.accent,
+    this.percentColor,
   });
 
   @override
@@ -421,7 +430,7 @@ class _TallyRow extends StatelessWidget {
                 maxLines: 1,
                 style: numberStyle.copyWith(
                   fontSize: 10,
-                  color: accent.withAlpha(200),
+                  color: (percentColor ?? accent).withAlpha(220),
                 ),
               ),
             ),

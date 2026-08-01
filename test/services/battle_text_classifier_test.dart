@@ -430,4 +430,33 @@ void main() {
       );
     });
   });
+
+  group("Sami's Bugbear transcript", () {
+    test('a two-word verb hit on a single-word name', () {
+      final match =
+          BattleTextClassifier.classify("You pounded Bugbear's head heartlessly.");
+      expect(match?.kind, BattleLineKind.yourHit);
+      expect(match?.opponent, 'Bugbear');
+    });
+
+    test('a hit with no adverb at all', () {
+      final match =
+          BattleTextClassifier.classify("You clubbed Bugbear's body.");
+      expect(match?.kind, BattleLineKind.yourHit);
+      expect(match?.opponent, 'Bugbear');
+    });
+
+    test('footwork credits the attacker named in the possessive', () {
+      final match = BattleTextClassifier.classify(
+          "You take a quick step backwards, avoiding Bugbear's attack.");
+      expect(match?.kind, BattleLineKind.incomingMiss);
+      expect(match?.opponent, 'Bugbear');
+    });
+
+    test('an incoming miss', () {
+      final match = BattleTextClassifier.classify('Bugbear missed you.');
+      expect(match?.kind, BattleLineKind.incomingMiss);
+      expect(match?.opponent, 'Bugbear');
+    });
+  });
 }

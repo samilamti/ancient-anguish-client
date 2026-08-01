@@ -19,6 +19,11 @@ class SheetFrame extends StatelessWidget {
   final VoidCallback? onToggleExpanded;
   final bool expanded;
 
+  /// Shrinks the panel to the width its content needs instead of filling the
+  /// terminal. For a list of short item names, a full-width panel leaves the
+  /// prices stranded on the far side of an empty gutter.
+  final bool fitContent;
+
   final Widget child;
 
   const SheetFrame({
@@ -29,6 +34,7 @@ class SheetFrame extends StatelessWidget {
     this.trailingLabel,
     this.onToggleExpanded,
     this.expanded = false,
+    this.fitContent = false,
   });
 
   @override
@@ -71,38 +77,50 @@ class SheetFrame extends StatelessWidget {
       ],
     );
 
+    final panel = Container(
+      decoration: BoxDecoration(
+        // A raised surface rather than the page colour: in dark mode a shadow
+        // alone carries no elevation against a near-black background, so the
+        // sheet needs its own fill and a border to read as a panel at all.
+        color: scheme.surface.withAlpha(235),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: scheme.primary.withAlpha(55)),
+      ),
+      padding: const EdgeInsets.fromLTRB(10, 7, 10, 9),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (onToggleExpanded == null)
+            header
+          else
+            InkWell(
+              onTap: onToggleExpanded,
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: header,
+              ),
+            ),
+          const SizedBox(height: 7),
+          child,
+        ],
+      ),
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-      child: Container(
-        decoration: BoxDecoration(
-          // A raised surface rather than the page colour: in dark mode a shadow
-          // alone carries no elevation against a near-black background, so the
-          // sheet needs its own fill and a border to read as a panel at all.
-          color: scheme.surface.withAlpha(235),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: scheme.primary.withAlpha(55)),
-        ),
-        padding: const EdgeInsets.fromLTRB(10, 7, 10, 9),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (onToggleExpanded == null)
-              header
-            else
-              InkWell(
-                onTap: onToggleExpanded,
-                borderRadius: BorderRadius.circular(4),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: header,
-                ),
-              ),
-            const SizedBox(height: 7),
-            child,
-          ],
-        ),
-      ),
+      // `IntrinsicWidth` rather than a `Row` with a spacer: the panel's own
+      // children (the header, and rows with a flexible name column) all want to
+      // fill whatever width they are handed, so only asking them what they
+      // *need* shrinks the panel. Bounded by the terminal width as usual, so a
+      // long item name still wraps instead of overflowing.
+      child: fitContent
+          ? Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: IntrinsicWidth(child: panel),
+            )
+          : panel,
     );
   }
 }
@@ -117,11 +135,15 @@ class SheetRow extends StatelessWidget {
   /// Draws the value in the accent colour, for the fields that matter most.
   final bool emphasised;
 
+  /// Shown after the value — a `+ 600` / `- 3000` change since last time.
+  final Widget? trailing;
+
   const SheetRow({
     super.key,
     required this.label,
     required this.value,
     this.emphasised = false,
+    this.trailing,
   });
 
   @override
@@ -143,7 +165,7 @@ class SheetRow extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(
+          Flexible(
             child: Text(
               value,
               style: TextStyle(
@@ -156,6 +178,10 @@ class SheetRow extends StatelessWidget {
               ),
             ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            trailing!,
+          ],
         ],
       ),
     );

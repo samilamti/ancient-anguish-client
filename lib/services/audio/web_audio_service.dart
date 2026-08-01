@@ -82,6 +82,9 @@ class WebAudioService implements AudioInterface {
       _currentAudio = audio;
       _currentTrackPath = filePath;
       _isPlaying = true;
+      // The session's rate is a property of how the fight is going, not of the
+      // file — re-apply it so a track change mid-fight doesn't reset it.
+      _applyPlaybackSpeed();
 
       // Listen for track end (non-looping).
       if (!looping) {
@@ -221,6 +224,27 @@ class WebAudioService implements AudioInterface {
     if (_currentAudio != null) {
       _currentAudio!.volume = _effectiveVolume;
     }
+  }
+
+  double _playbackSpeed = 1.0;
+
+  @override
+  double get playbackSpeed => _playbackSpeed;
+
+  @override
+  void setPlaybackSpeed(double speed) {
+    _playbackSpeed = speed.clamp(0.25, 4.0);
+    _applyPlaybackSpeed();
+  }
+
+  void _applyPlaybackSpeed() {
+    // `preservesPitch` defaults to true in browsers, which is the *wrong*
+    // default here: pitch rising with tempo is the effect being asked for, and
+    // without it a sped-up track reads as a glitch rather than as pressure.
+    final audio = _currentAudio;
+    if (audio == null) return;
+    audio.preservesPitch = false;
+    audio.playbackRate = _playbackSpeed;
   }
 
   @override

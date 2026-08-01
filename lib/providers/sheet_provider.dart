@@ -17,18 +17,49 @@ final sheetsProvider = NotifierProvider<SheetsNotifier, Map<int, Sheet>>(
 class SheetsNotifier extends Notifier<Map<int, Sheet>> {
   int _nextId = 0;
 
+  /// Exp and Money as of the last `score`, so the next one can show what
+  /// changed. Held here rather than in the parser because a delta is a fact
+  /// about the sequence of sheets, and a parser only ever sees one block.
+  int? _lastExp;
+  int? _lastMoney;
+
   @override
   Map<int, Sheet> build() => const {};
 
   /// Registers a sheet and returns the id to embed in the sentinel line.
   int put(Sheet sheet) {
+    final resolved = sheet is ScoreSheet ? _withScoreDeltas(sheet) : sheet;
     final id = _nextId++;
-    state = {...state, id: sheet};
+    state = {...state, id: resolved};
     return id;
+  }
+
+  /// Fills in [ScoreSheet.expDelta] / [ScoreSheet.moneyDelta] against the
+  /// previous sheet and remembers this one's values for the next.
+  ///
+  /// A field that didn't parse leaves both the delta and the remembered value
+  /// alone, so one unreadable `score` doesn't turn the following sheet's delta
+  /// into a jump measured from nothing.
+  ScoreSheet _withScoreDeltas(ScoreSheet sheet) {
+    final exp = sheet.expValue;
+    final money = sheet.moneyValue;
+    final withDeltas = sheet.withDeltas(
+      expDelta: (exp != null && _lastExp != null) ? exp - _lastExp! : null,
+      moneyDelta:
+          (money != null && _lastMoney != null) ? money - _lastMoney! : null,
+    );
+    if (exp != null) _lastExp = exp;
+    if (money != null) _lastMoney = money;
+    return withDeltas;
   }
 
   void clear() {
     _nextId = 0;
+    // Clearing the buffer throws away the sheets a delta would be measured
+    // from, and it is also what a disconnect does — so the next score starts a
+    // fresh baseline rather than reporting a jump across two sessions.
+    _lastExp = null;
+    _lastMoney = null;
     state = const {};
   }
 }

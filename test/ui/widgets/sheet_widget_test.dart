@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/core/theme/app_theme.dart';
 import 'package:ancient_anguish_client/models/sheet.dart';
+import 'package:ancient_anguish_client/providers/link_command_provider.dart';
 import 'package:ancient_anguish_client/providers/sheet_provider.dart';
+import 'package:ancient_anguish_client/ui/widgets/terminal/sheets/sheet_frame.dart';
 import 'package:ancient_anguish_client/ui/widgets/terminal/sheets/sheet_widget.dart';
 
 /// The sheet widgets, driven through the same provider path the terminal uses:
@@ -193,6 +195,72 @@ void main() {
 
       expect(chipColour('Hungry'), isNot(chipColour('Unpoisoned')));
     });
+
+    testWidgets('Wimpy is one of the fields shown collapsed', (tester) async {
+      await pumpSheet(
+        tester,
+        const ScoreSheet(
+          fields: [
+            ScoreField('Str', '16 (16)'),
+            ScoreField('Exp', '647,031'),
+            ScoreField('Wimpy', '53 hits'),
+          ],
+          statuses: [],
+        ),
+      );
+      expect(find.text('Wimpy'), findsOneWidget);
+      expect(find.text('53 hits'), findsOneWidget);
+      expect(find.text('16 (16)'), findsNothing);
+    });
+
+    testWidgets('shows what Exp and Money did since the last score',
+        (tester) async {
+      // Registered through the notifier, which is what computes the delta —
+      // the parser only ever sees one block.
+      container.read(sheetsProvider.notifier).put(const ScoreSheet(
+            fields: [
+              ScoreField('Exp', '646,431'),
+              ScoreField('Money', '10,118 coins'),
+            ],
+            statuses: [],
+          ));
+      await pumpSheet(
+        tester,
+        const ScoreSheet(
+          fields: [
+            ScoreField('Exp', '647,031'),
+            ScoreField('Money', '7,118 coins'),
+          ],
+          statuses: [],
+        ),
+      );
+
+      expect(find.text('+ 600'), findsOneWidget);
+      expect(find.text('- 3,000'), findsOneWidget);
+    });
+
+    testWidgets('the first score of a session has nothing to compare against',
+        (tester) async {
+      await pumpSheet(
+        tester,
+        const ScoreSheet(
+          fields: [ScoreField('Exp', '647,031'), ScoreField('Money', '10')],
+          statuses: [],
+        ),
+      );
+      expect(find.textContaining('+ '), findsNothing);
+      expect(find.textContaining('- '), findsNothing);
+    });
+
+    testWidgets('a value that held still shows no delta', (tester) async {
+      const same = ScoreSheet(
+        fields: [ScoreField('Exp', '647,031'), ScoreField('Money', '10')],
+        statuses: [],
+      );
+      container.read(sheetsProvider.notifier).put(same);
+      await pumpSheet(tester, same);
+      expect(find.textContaining('+ 0'), findsNothing);
+    });
   });
 
   group('ShopListSheetWidget', () {
@@ -264,6 +332,68 @@ void main() {
         ShopListSheet([
           for (var i = 0; i < 25; i++)
             ShopItem(count: 1, name: 'A very long item name $i', cost: 1000 + i),
+        ]),
+        size: const Size(375, 812),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('an item name buys it', (tester) async {
+      final sent = <String>[];
+      // The buy goes through the same sender a tapped terminal link uses.
+      container.dispose();
+      container = ProviderContainer(overrides: [
+        linkCommandSenderProvider.overrideWithValue(sent.add),
+      ]);
+      addTearDown(container.dispose);
+
+      await pumpSheet(
+        tester,
+        const ShopListSheet([
+          ShopItem(count: 1, name: 'An antique staff', cost: 900),
+          ShopItem(count: 1, name: 'A dark spear', cost: 1075),
+        ]),
+      );
+
+      await tester.tap(find.text('An antique staff'));
+      await tester.pump();
+      // The leading article is display wording, not part of the object name.
+      expect(sent, ['buy antique staff']);
+    });
+
+    testWidgets('takes only the width its list needs', (tester) async {
+      await pumpSheet(
+        tester,
+        const ShopListSheet([
+          ShopItem(count: 1, name: 'A knife', cost: 40),
+          ShopItem(count: 1, name: 'A club', cost: 70),
+        ]),
+        size: const Size(900, 600),
+      );
+
+      // The frame's own Padding still spans the terminal; the panel inside it
+      // is what shrinks. Not "narrower by a hair" — a full-width panel is the
+      // bug, so assert it is nowhere near 900.
+      final panel = tester.getRect(find.descendant(
+        of: find.byType(SheetFrame),
+        matching: find.byType(IntrinsicWidth),
+      ));
+      expect(panel.width, lessThan(400));
+      expect(panel.left, lessThan(20), reason: 'hugs the left edge');
+    });
+
+    testWidgets('a long item name still wraps inside the terminal',
+        (tester) async {
+      await pumpSheet(
+        tester,
+        const ShopListSheet([
+          ShopItem(
+            count: 1,
+            name: 'A preposterously long ceremonial two handed greatsword of '
+                'the seventh dawn',
+            cost: 40,
+          ),
+          ShopItem(count: 1, name: 'A club', cost: 70),
         ]),
         size: const Size(375, 812),
       );

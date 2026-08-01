@@ -109,6 +109,72 @@ void main() {
     });
   });
 
+  group("Sami's second report — the pattern was too greedy", () {
+    /// Every line here contains a word that really is a killable target
+    /// (`orc`), which is the point: a creature's *name* appearing is not the
+    /// creature being offered.
+    void neverLinks(String line) {
+      final container = freshContainer();
+      final processor = container.read(killTargetLinkProcessorProvider);
+      expect(
+        links(processor.processLine(plain(line))),
+        isEmpty,
+        reason: line,
+      );
+    }
+
+    test('what a creature says is not an offer to attack it', () {
+      neverLinks('An orc seems to exclaim: An trp!  Par, skxxa!');
+    });
+
+    test('a blow that landed is not an introduction', () {
+      neverLinks("Your Fireball broils Orc's leg to well-done!");
+    });
+
+    test('a creature already in the fight is not a new target', () {
+      neverLinks('Orc is panicking and trying to flee.');
+    });
+
+    test('the dead are not targets', () {
+      neverLinks('Orc died.');
+      neverLinks('You killed Orc.');
+      neverLinks('The corpse of Orc');
+    });
+
+    test('an item that is named after an animal is not the animal', () {
+      // The head noun is refused (`kill meat`), and before this the line fell
+      // through to the catalogue scan and offered `kill goat` instead.
+      neverLinks('Some goat meat');
+      neverLinks('A cigar butt.');
+    });
+
+    test('a creature standing in the room still links, articles and all', () {
+      // The state rule keys off the *missing* article as well as the
+      // progressive, so a room listing phrased as a sentence is untouched.
+      final container = freshContainer();
+      final processor = container.read(killTargetLinkProcessorProvider);
+      expect(
+        links(processor.processLine(plain('A large orc is standing here.'))),
+        [('orc', 'kill orc')],
+      );
+    });
+
+    test('but prose that merely mentions a creature still links it', () {
+      // The loose end of the same change: a *sentence* about a creature is
+      // exactly when a kill link earns its place.
+      final container = freshContainer();
+      final processor = container.read(killTargetLinkProcessorProvider);
+      expect(
+        links(processor.processLine(plain('The goblin hits you.'))),
+        [('goblin', 'kill goblin')],
+      );
+      expect(
+        links(processor.processLine(plain('Troll blocks your way.'))),
+        [('Troll', 'kill troll')],
+      );
+    });
+  });
+
   group('article announcements — `A/An <adjectives> <target>`', () {
     /// The three shapes Sami reported. All arrive *without* a trailing
     /// period, which is how Ancient Anguish prints most short descriptions.

@@ -112,7 +112,30 @@ class RoomLineClassifier {
     'anvil', 'forge', 'furnace', 'cart', 'wagon', 'boat', 'raft', 'ship',
     // What's left of something already killed.
     'corpse', 'corpses', 'body', 'remains', 'carcass', 'bones', 'skull',
-    'grave', 'tombstone', 'gravestone',
+    'grave', 'tombstone', 'gravestone', 'skeleton', 'hide', 'pelt', 'fur',
+    // Food and drink. A creature's name routinely survives into the item
+    // butchered from it ("Some goat meat"), so these matter more than their
+    // mundanity suggests: without them the head noun is rejected and the
+    // catalogue scan links the *animal* in an item's name.
+    'meat', 'steak', 'flesh', 'fish', 'bread', 'loaf', 'cheese', 'apple',
+    'pie', 'cake', 'egg', 'eggs', 'stew', 'soup', 'ration', 'rations',
+    'food', 'fruit', 'berry', 'berries', 'mushroom', 'mushrooms', 'herb',
+    'herbs', 'root', 'leaf', 'honey', 'milk', 'ale', 'beer', 'wine', 'mead',
+    'grog', 'rum', 'brandy', 'whisky', 'whiskey', 'drink', 'bottle', 'flask',
+    'waterskin', 'canteen', 'mug', 'cup', 'goblet', 'tankard', 'jug', 'keg',
+    // Everyday objects and litter.
+    'butt', 'stub', 'cigar', 'cigarette', 'pipe', 'match', 'matches', 'rag',
+    'cloth', 'string', 'twine', 'wire', 'nail', 'nails', 'key', 'keys',
+    'coin', 'coins', 'gem', 'gems', 'jewel', 'ring', 'amulet', 'necklace',
+    'bracelet', 'crown', 'idol', 'trinket', 'token', 'shard', 'fragment',
+    'piece', 'pieces', 'chunk', 'lump', 'bar', 'ingot', 'ore', 'powder',
+    'potion', 'vial', 'phial', 'elixir', 'salve', 'ointment', 'bandage',
+    'candlestick', 'basket', 'bowl', 'plate', 'pot', 'pan', 'kettle',
+    // Worn and wielded gear. Not attackable, and a shop listing is full of it.
+    'sword', 'blade', 'dagger', 'knife', 'axe', 'mace', 'club', 'staff',
+    'spear', 'bow', 'arrow', 'arrows', 'shield', 'helmet', 'helm', 'armour',
+    'armor', 'boots', 'gloves', 'gauntlets', 'cloak', 'robe', 'cape', 'belt',
+    'pack', 'backpack', 'shoes', 'hat', 'tunic', 'shirt', 'trousers',
     // Terrain and weather.
     'path', 'paths', 'road', 'roads', 'trail', 'track', 'wall', 'walls',
     'floor', 'ceiling', 'roof', 'ground', 'grass', 'tree', 'trees', 'bush',
@@ -154,6 +177,26 @@ class RoomLineClassifier {
   /// Callers are responsible for the room-block gate: this is a pure shape
   /// test, and plenty of combat text shares the shape.
   static String? npcKeywordIn(String line) {
+    final keyword = nounPhraseHead(line);
+    if (keyword == null) return null;
+    if (nonTargetNouns.contains(keyword)) return null;
+    if (nonTargetVerbs.contains(keyword)) return null;
+    // An adverb ends a sentence, never a noun phrase ("swings wildly"). No
+    // Ancient Anguish creature is named `-ly`, so the suffix is safe to drop
+    // wholesale rather than enumerated like [nonTargetVerbs].
+    if (keyword.length > 3 && keyword.endsWith('ly')) return null;
+    return keyword;
+  }
+
+  /// The head noun of [line] when it has the *shape* of a short description —
+  /// an article plus a run of adjectives — with no judgement yet about whether
+  /// that noun is attackable. `A cigar butt.` → `butt`, `A giant orc.` →
+  /// `orc`, `The goblin hits you.` → null.
+  ///
+  /// Split out of [npcKeywordIn] so callers can tell the two reasons that one
+  /// returns null apart: *this isn't a listing at all* versus *this is a
+  /// listing of something you can't attack*. See [announcesNonTarget].
+  static String? nounPhraseHead(String line) {
     final trimmed = line.trimRight();
     if (!npcLinePattern.hasMatch(trimmed)) return null;
     if (descriptionGiveaway.hasMatch(trimmed)) return null;
@@ -168,19 +211,29 @@ class RoomLineClassifier {
     if (words.length < 2) return null;
 
     // Everything after the article must be an adjective or the noun itself.
-    // A function word means this is a sentence, not a room listing.
+    // A function word or a finite verb means this is a sentence, not a room
+    // listing — and the verb may sit anywhere in it, not just at the end
+    // (`The goblin hits you.`), which is why the whole tail is checked.
     for (final w in words.skip(1)) {
       if (sentenceFunctionWords.contains(w)) return null;
+      if (nonTargetVerbs.contains(w)) return null;
     }
 
-    final keyword = words.last;
-    if (nonTargetNouns.contains(keyword)) return null;
-    if (nonTargetVerbs.contains(keyword)) return null;
-    // An adverb ends a sentence, never a noun phrase ("swings wildly"). No
-    // Ancient Anguish creature is named `-ly`, so the suffix is safe to drop
-    // wholesale rather than enumerated like [nonTargetVerbs].
-    if (keyword.length > 3 && keyword.endsWith('ly')) return null;
-    return keyword;
+    return words.last;
+  }
+
+  /// Whether [line] is a listing of a *thing you cannot attack* — an item, a
+  /// piece of scenery, a leftover corpse: `Some goat meat`, `A cigar butt.`,
+  /// `A shimmering blue door.`
+  ///
+  /// Distinct from "not an NPC line": a sentence that merely mentions a
+  /// creature is still worth a kill link, whereas a line whose entire subject
+  /// is an unattackable object is not — including on the creature word inside
+  /// the object's own name, which is what `Some goat meat` would otherwise
+  /// offer.
+  static bool announcesNonTarget(String line) {
+    final head = nounPhraseHead(line);
+    return head != null && nonTargetNouns.contains(head);
   }
 
   /// Lowercases [word] and strips the punctuation that surrounds it in prose

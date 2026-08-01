@@ -86,6 +86,28 @@ class NativeAudioService implements AudioInterface {
     _applyVolume();
   }
 
+  // ── Playback speed ──
+
+  double _playbackSpeed = 1.0;
+
+  @override
+  double get playbackSpeed => _playbackSpeed;
+
+  @override
+  void setPlaybackSpeed(double speed) {
+    _playbackSpeed = speed.clamp(0.25, 4.0);
+    _applyPlaybackSpeed();
+  }
+
+  void _applyPlaybackSpeed() {
+    if (_testMode || _currentHandle == null) return;
+    try {
+      _soloud.setRelativePlaySpeed(_currentHandle!, _playbackSpeed);
+    } catch (e) {
+      debugPrint('AudioService._applyPlaybackSpeed error: $e');
+    }
+  }
+
   // ── Engine lifecycle ──
 
   Future<void> _ensureInitialized() async {
@@ -171,6 +193,9 @@ class NativeAudioService implements AudioInterface {
         _effectiveVolume,
         Duration(milliseconds: fadeInMs),
       );
+      // A new handle starts at 1.0, so the session's rate has to be re-applied
+      // or every track change would silently reset the tempo mid-fight.
+      _applyPlaybackSpeed();
       _currentTrackPath = filePath;
       _isPlaying = true;
     } catch (e) {

@@ -155,9 +155,11 @@ void main() {
 
     test('collapsed view shows only the fields that move', () {
       final sheet = parsed();
+      // Reading order down the block, so Wimpy lands between Money and
+      // Hunted by rather than at the end of the list.
       expect(
         sheet.frequentFields.map((f) => f.label),
-        ['Exp', 'Money', 'Hunted by'],
+        ['Exp', 'Money', 'Wimpy', 'Hunted by'],
       );
     });
 
@@ -176,6 +178,16 @@ void main() {
       }
       expect(labels, containsAll(['Race', 'Class', 'Guild', 'Language']));
       expect(labels, containsAll(['Hits', 'Sps', 'Wimpy', 'Dir']));
+    });
+
+    test('Exp and Money read as numbers, units and commas and all', () {
+      // What the deltas are measured from.
+      final sheet = parsed();
+      expect(sheet.expValue, 647031);
+      expect(sheet.moneyValue, 7118);
+      // A field with no number in it has no value to track.
+      expect(sheet.numericValueOf('Wounds'), isNull);
+      expect(sheet.numericValueOf('Nonexistent'), isNull);
     });
 
     test('a couple of stray colons is not a score sheet', () {
@@ -249,6 +261,30 @@ void main() {
       ]);
       expect(result.sheets, isEmpty);
       expect(result.released, hasLength(1));
+    });
+
+    test('an item names the command that buys it', () {
+      // The article is the shop's display wording; AA does not take it as part
+      // of an object name.
+      expect(
+        const ShopItem(count: 1, name: 'An antique staff', cost: 900)
+            .buyCommand,
+        'buy antique staff',
+      );
+      expect(
+        const ShopItem(count: 1, name: 'A green shield', cost: 800).buyCommand,
+        'buy green shield',
+      );
+      expect(
+        const ShopItem(count: 2, name: "A knight's pack", cost: 300)
+            .buyCommand,
+        "buy knight's pack",
+      );
+      // Nothing to strip.
+      expect(
+        const ShopItem(count: 1, name: 'Chainmail', cost: 50).buyCommand,
+        'buy Chainmail',
+      );
     });
 
     test('a header plus one row is enough', () {

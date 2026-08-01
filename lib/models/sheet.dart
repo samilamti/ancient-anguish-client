@@ -72,11 +72,33 @@ class ScoreSheet extends Sheet {
   /// The `You are:` values — Sober, Thirsty, Hungry, Very encumbered …
   final List<String> statuses;
 
-  const ScoreSheet({required this.fields, required this.statuses});
+  /// Change in `Exp` / `Money` since the previous score sheet of the session,
+  /// or null when this is the first one (or the field was unreadable).
+  ///
+  /// Filled in by `SheetsNotifier.put`, not by the parser: a delta is a fact
+  /// about the *sequence* of sheets, and the parser only ever sees one block.
+  final int? expDelta;
+  final int? moneyDelta;
+
+  const ScoreSheet({
+    required this.fields,
+    required this.statuses,
+    this.expDelta,
+    this.moneyDelta,
+  });
 
   /// Labels worth showing while collapsed, per the fields that actually move
   /// during play. Statuses are always shown — they change the most of all.
-  static const Set<String> frequentLabels = {'Exp', 'Money', 'Hunted by'};
+  static const Set<String> frequentLabels = {
+    'Exp',
+    'Money',
+    'Wimpy',
+    'Hunted by',
+  };
+
+  /// Labels whose value is tracked across sheets so a delta can be shown.
+  static const String expLabel = 'Exp';
+  static const String moneyLabel = 'Money';
 
   /// Collapsed view: the movers only.
   List<ScoreField> get frequentFields =>
@@ -86,6 +108,36 @@ class ScoreSheet extends Sheet {
   /// with no duplicates and nothing dropped.
   List<ScoreField> get restFields =>
       fields.where((f) => !frequentLabels.contains(f.label)).toList();
+
+  int? get expValue => numericValueOf(expLabel);
+  int? get moneyValue => numericValueOf(moneyLabel);
+
+  /// The leading number of the field labelled [label], with AA's thousands
+  /// commas removed and any trailing unit ignored (`7,118 coins` → 7118).
+  /// Null when the field is absent or carries no number (`Wounds : none`).
+  int? numericValueOf(String label) {
+    for (final field in fields) {
+      if (field.label != label) continue;
+      final m = RegExp(r'-?[\d,]*\d').firstMatch(field.value);
+      if (m == null) return null;
+      return int.tryParse(m.group(0)!.replaceAll(',', ''));
+    }
+    return null;
+  }
+
+  /// The delta shown next to [label], or null when there is none to show.
+  int? deltaFor(String label) => switch (label) {
+        expLabel => expDelta,
+        moneyLabel => moneyDelta,
+        _ => null,
+      };
+
+  ScoreSheet withDeltas({int? expDelta, int? moneyDelta}) => ScoreSheet(
+        fields: fields,
+        statuses: statuses,
+        expDelta: expDelta,
+        moneyDelta: moneyDelta,
+      );
 }
 
 /// One row of a shop's `list` output.
@@ -99,6 +151,16 @@ class ShopItem {
     required this.name,
     required this.cost,
   });
+
+  /// The command that buys this item: the shop's own wording minus the
+  /// leading article, which AA prints for display and does not accept as part
+  /// of an object name (`An antique staff` → `buy antique staff`).
+  String get buyCommand => 'buy $buyTarget';
+
+  /// The item name as an object reference — see [buyCommand].
+  String get buyTarget => name
+      .replaceFirst(RegExp(r'^(?:an|a|the|some)\s+', caseSensitive: false), '')
+      .trim();
 
   @override
   bool operator ==(Object other) =>

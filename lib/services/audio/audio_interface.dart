@@ -54,6 +54,18 @@ abstract class AudioInterface {
   /// Sets mute state explicitly.
   void setMuted(bool muted);
 
+  /// Sets the playback rate, 1.0 being the track's own speed.
+  ///
+  /// Applies to whatever is playing now *and* to tracks started afterwards:
+  /// the rate is a property of the session, not of the file, so a crossfade
+  /// into the next area's theme mid-fight must not quietly reset it. Both
+  /// backends resample, so the pitch rises with the speed — see [HealthTempo]
+  /// for why that is the intended effect and why the range is kept narrow.
+  void setPlaybackSpeed(double speed);
+
+  /// The current playback rate.
+  double get playbackSpeed;
+
   /// Whether the given track path can be played.
   ///
   /// Desktop: checks that the local file exists.

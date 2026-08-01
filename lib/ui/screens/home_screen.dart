@@ -261,16 +261,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               () => _focusSocialTab(ref, 3),
           const SingleActivator(LogicalKeyboardKey.digit4, meta: true):
               () => _focusSocialTab(ref, 3),
-          // Ctrl/Cmd + L → fire the most recently rendered text link.
+          // Ctrl/Cmd + L → fire the most recently rendered link of any kind.
           const SingleActivator(LogicalKeyboardKey.keyL, control: true):
               _invokeMostRecentLink,
           const SingleActivator(LogicalKeyboardKey.keyL, meta: true):
               _invokeMostRecentLink,
-          // Ctrl/Cmd + R → reply to the latest received tell.
+          // Ctrl/Cmd + K → the most recent kill-target link.
+          const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+              _invokeMostRecentKill,
+          const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+              _invokeMostRecentKill,
+          // Ctrl/Cmd + T → the most recent text link that isn't a kill.
+          const SingleActivator(LogicalKeyboardKey.keyT, control: true):
+              _invokeMostRecentTextLink,
+          const SingleActivator(LogicalKeyboardKey.keyT, meta: true):
+              _invokeMostRecentTextLink,
+          // Ctrl/Cmd + R → reply to the latest tell, or reconnect when
+          // there's no connection to reply over.
           const SingleActivator(LogicalKeyboardKey.keyR, control: true):
-              _replyToLatestTell,
+              _replyOrReconnect,
           const SingleActivator(LogicalKeyboardKey.keyR, meta: true):
-              _replyToLatestTell,
+              _replyOrReconnect,
         },
         child: SafeArea(
         child: Stack(
@@ -354,6 +365,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final cmd = ref.read(terminalBufferProvider.notifier).mostRecentLinkCommand;
     if (cmd == null) return;
     ref.read(linkCommandSenderProvider)(cmd);
+  }
+
+  /// Ctrl/Cmd+K — attacks whatever the terminal most recently offered as a
+  /// kill target, so a fight can be started without leaving the keyboard.
+  /// Silent no-op when no kill link is in scrollback.
+  void _invokeMostRecentKill() {
+    final cmd = ref.read(terminalBufferProvider.notifier).mostRecentKillCommand;
+    if (cmd == null) return;
+    ref.read(linkCommandSenderProvider)(cmd);
+  }
+
+  /// Ctrl/Cmd+T — fires the most recent link that *isn't* a kill target: the
+  /// player's own text-link rules. Separate from Ctrl/Cmd+K because during
+  /// combat the newest link is nearly always a kill target, which left the
+  /// generic Ctrl/Cmd+L unable to reach anything else.
+  void _invokeMostRecentTextLink() {
+    final cmd =
+        ref.read(terminalBufferProvider.notifier).mostRecentTextLinkCommand;
+    if (cmd == null) return;
+    ref.read(linkCommandSenderProvider)(cmd);
+  }
+
+  /// Ctrl/Cmd+R — replies to the latest tell while connected, and reconnects
+  /// when not.
+  ///
+  /// The two readings of "R" don't collide in practice: replying to a tell
+  /// requires a connection to send it over, so while the client is down the
+  /// shortcut has nothing to do and reconnecting is the only thing the player
+  /// wants from that screen anyway.
+  void _replyOrReconnect() {
+    if (ref.read(connectionServiceProvider).isConnected) {
+      _replyToLatestTell();
+      return;
+    }
+    ref.read(connectionServiceProvider).connect();
   }
 
   /// Replies to the most recent *received* tell — keyboard equivalent of

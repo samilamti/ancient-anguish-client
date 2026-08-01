@@ -6,14 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
 import '../core/web_config.dart';
 import '../models/auth_state.dart';
-import '../models/battle_state.dart';
 import '../models/game_state.dart';
+import '../models/health_tempo.dart';
 import '../services/area/area_detector.dart';
 import '../services/audio/area_audio_manager.dart';
 import '../services/audio/audio_interface.dart';
 import '../services/audio/create_audio.dart';
 import 'auth_provider.dart';
-import 'battle_provider.dart';
+import 'battle_stats_provider.dart';
 import 'game_state_provider.dart';
 import 'unified_area_config_provider.dart';
 
@@ -147,6 +147,11 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
 
     // Listen for game state changes to trigger area audio.
     ref.listen<GameState>(gameStateProvider, (previous, next) {
+      // Ahead of the area logic and outside its early returns: the tempo
+      // tracks the player, not the track, and has to update on every vitals
+      // change rather than only on the ones that also move them to a new area.
+      _updateMusicTempo(next);
+
       // Check coordinate config for audio path (highest priority).
       // Only trigger when coordinates actually change to avoid race conditions.
       if (next.hasCoordinates &&
@@ -192,13 +197,22 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
       }
     });
 
-    // Listen for battle state transitions to trigger battle audio.
-    ref.listen<BattleState>(battleStateProvider, (previous, next) {
-      final wasInBattle = previous?.inBattle ?? false;
-      if (wasInBattle != next.inBattle) {
-        _onBattleStateChanged(next.inBattle);
-      }
-    });
+    // Battle audio follows the HUD, not battle mode.
+    //
+    // Battle mode flips on the first classified combat line, which is a stray
+    // NPC's opening swing as often as it is a fight — so keying the music off
+    // it meant the soundtrack lurched into a battle theme, and then back out
+    // five seconds later, for encounters the player never registered as one.
+    // `hudVisible` waits for `BattleStats.confirmRounds`, so the music and the
+    // panel arrive together and the theme only plays for fights that are
+    // actually happening.
+    ref.listen<bool>(
+      battleStatsProvider.select((stats) => stats.hudVisible),
+      (wasFighting, isFighting) {
+        if (wasFighting == isFighting) return;
+        _onBattleStateChanged(isFighting);
+      },
+    );
 
     return const AudioUiState();
   }
@@ -243,6 +257,43 @@ class AudioUiNotifier extends Notifier<AudioUiState> {
     if (_pendingFadeOut) {
       _pendingFadeOut = false;
       _fadeOutIfPlaying();
+    }
+  }
+
+  /// The tempo step the soundtrack is currently playing at.
+  HealthTempo _tempo = HealthTempo.calm;
+
+  /// Which tempo step the music is at. Exposed for tests and diagnostics.
+  @visibleForTesting
+  HealthTempo get musicTempo => _tempo;
+
+  /// Speeds the soundtrack up as the player's health falls, and back down as
+  /// they heal. See [HealthTempo] for the steps and the hysteresis.
+  ///
+  /// Vitals-less states are ignored rather than treated as 0% — before the
+  /// first prompt arrives `maxHp` is zero, and reading that as "nearly dead"
+  /// would have every session open at the fastest tempo.
+  void _updateMusicTempo(GameState next) {
+    if (!next.hasVitals) return;
+    final tempo = HealthTempo.forFraction(next.hpFraction, current: _tempo);
+    if (tempo == _tempo) return;
+    _tempo = tempo;
+    try {
+      ref.read(audioServiceProvider).setPlaybackSpeed(tempo.speed);
+    } catch (e) {
+      debugPrint('AudioUiNotifier._updateMusicTempo error: $e');
+    }
+  }
+
+  /// Puts the soundtrack back to its recorded speed — for a disconnect, where
+  /// the last vitals seen are whatever the player logged out on and no further
+  /// update will arrive to reset the tempo.
+  void resetMusicTempo() {
+    _tempo = HealthTempo.calm;
+    try {
+      ref.read(audioServiceProvider).setPlaybackSpeed(HealthTempo.calm.speed);
+    } catch (e) {
+      debugPrint('AudioUiNotifier.resetMusicTempo error: $e');
     }
   }
 

@@ -192,11 +192,20 @@ void main() {
     expect(find.text('75'), findsOneWidget);
     expect(find.text('-6'), findsOneWidget);
 
-    // One round per batch of combat output — eight batches above — spelled out
-    // rather than abbreviated. Not the two `HP:/SP:` lines: those set the
-    // vitals, but AA doesn't reliably print one per round, which is what used
-    // to leave this stuck on nothing for a whole fight.
-    expect(find.textContaining('round 8'), findsOneWidget);
+    // No round counter. Rounds are still counted — they gate the HUD via
+    // `BattleStats.confirmed` — but the number was never one the player could
+    // reconcile with the fight they were watching, so it isn't shown.
+    expect(find.textContaining('round'), findsNothing);
+
+    // Evading is the one figure on the threat-coloured row that is good news,
+    // so it is green rather than red.
+    Color? colourOf(String text) =>
+        tester.widget<Text>(find.text(text)).style?.color;
+    final evade = colourOf('33% evade');
+    expect(evade, isNotNull);
+    expect(evade!.g, greaterThan(evade.r), reason: 'reads as green');
+    expect(evade.g, greaterThan(evade.b));
+    expect(evade, isNot(colourOf('67% accuracy')));
 
     await drainIdleTimer(tester);
   });

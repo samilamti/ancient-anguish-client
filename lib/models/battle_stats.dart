@@ -88,6 +88,14 @@ class BattleStats {
   /// swallowed by a panel that isn't on screen yet.
   bool get confirmed => rounds >= confirmRounds;
 
+  /// Whether the battle HUD is on screen: a fight both running and confirmed.
+  ///
+  /// The single definition of "a fight is visibly happening". The HUD dock
+  /// keys its fade off it, and so does the battle soundtrack — music that
+  /// started on a threshold of its own would strike up for a stray NPC's two
+  /// swings, and the player would hear a fight the client never showed them.
+  bool get hudVisible => active && confirmed;
+
   /// Your swings that connected, as a percentage, or `null` before you've
   /// swung at all.
   int? get accuracy {

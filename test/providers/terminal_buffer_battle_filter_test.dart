@@ -346,4 +346,28 @@ void main() {
       ]);
     });
   });
+
+  group('kill-target links during a fight', () {
+    /// Every `kill …` command rendered into the buffer.
+    List<String> killLinks() => [
+          for (final line in container.read(terminalBufferProvider))
+            for (final span in line.spans)
+              if (span.command != null && span.command!.startsWith('kill '))
+                span.command!,
+        ];
+
+    test('a room listing links its creature outside combat', () async {
+      container = newContainer(BattleFilterMode.off);
+      await feed(['Light pine forest (n,e,s)', 'A giant eagle.']);
+      expect(killLinks(), ['kill eagle']);
+    });
+
+    test('nothing new is linked while a fight is running', () async {
+      container = newContainer(BattleFilterMode.off);
+      await feed(combatRounds.first);
+      // Battle mode is live — a room listing arriving mid-fight gets no link.
+      await feed(['Light pine forest (n,e,s)', 'A giant eagle.']);
+      expect(killLinks(), isEmpty);
+    });
+  });
 }

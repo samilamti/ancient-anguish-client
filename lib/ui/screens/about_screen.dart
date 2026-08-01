@@ -197,7 +197,23 @@ class _AboutScreenState extends State<AboutScreen> {
                   const SizedBox(height: 12),
                   _ShortcutRow(
                     keys: _shortcutLabel(context, 'L'),
-                    description: 'Fire the most recently rendered text link',
+                    description: 'Fire the most recently rendered link',
+                  ),
+                  const SizedBox(height: 6),
+                  _ShortcutRow(
+                    keys: _shortcutLabel(context, 'K'),
+                    description: 'Attack the most recent kill target',
+                  ),
+                  const SizedBox(height: 6),
+                  _ShortcutRow(
+                    keys: _shortcutLabel(context, 'T'),
+                    description: 'Fire the most recent text link',
+                  ),
+                  const SizedBox(height: 6),
+                  _ShortcutRow(
+                    keys: _shortcutLabel(context, 'R'),
+                    description:
+                        'Reply to the latest tell — or reconnect when offline',
                   ),
                   const SizedBox(height: 6),
                   _ShortcutRow(

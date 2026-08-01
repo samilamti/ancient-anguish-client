@@ -44,6 +44,7 @@ class ScoreSheetWidget extends StatelessWidget {
               label: field.label,
               value: field.value,
               emphasised: true,
+              trailing: _delta(sheet.deltaFor(field.label)),
             ),
           if (sheet.statuses.isNotEmpty) ...[
             const SizedBox(height: 5),
@@ -57,6 +58,46 @@ class ScoreSheetWidget extends StatelessWidget {
               SheetRow(label: field.label, value: field.value),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// The change since the last `score`, or nothing at all when there is no
+/// previous sheet to compare against — and nothing when the value held still,
+/// since a `+ 0` next to every field is noise rather than information.
+Widget? _delta(int? delta) {
+  if (delta == null || delta == 0) return null;
+  return _DeltaChip(delta: delta);
+}
+
+class _DeltaChip extends StatelessWidget {
+  final int delta;
+
+  const _DeltaChip({required this.delta});
+
+  /// `1234` → `1,234`, matching the grouping the MUD itself uses for Exp and
+  /// Money so the delta reads in the same units as the value beside it.
+  static String _grouped(int value) {
+    final digits = value.abs().toString();
+    final out = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) out.write(',');
+      out.write(digits[i]);
+    }
+    return out.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final up = delta > 0;
+    return Text(
+      '${up ? '+' : '-'} ${_grouped(delta)}',
+      style: TextStyle(
+        fontFamily: 'JetBrainsMono',
+        fontSize: 10.5,
+        fontWeight: FontWeight.bold,
+        color: up ? const Color(0xFF55AA55) : const Color(0xFFCC4444),
       ),
     );
   }

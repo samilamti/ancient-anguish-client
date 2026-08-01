@@ -29,6 +29,7 @@ import 'text_link_rule_provider.dart';
 import '../models/social_message.dart';
 import '../services/command_history_service.dart';
 import '../services/platform/window_service.dart';
+import 'audio_provider.dart';
 import 'auth_provider.dart';
 import 'storage_provider.dart';
 import '../services/social/social_message_parser.dart';
@@ -667,6 +668,10 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         ref.read(gameStateProvider.notifier).reset();
         ref.read(battleStateProvider.notifier).reset();
         ref.read(battleStatsProvider.notifier).reset();
+        // The last vitals seen are whatever the player disconnected on, and no
+        // further update will arrive to walk the tempo back — so a logout at
+        // 20% HP would leave the menu music sprinting.
+        ref.read(audioUiStateProvider.notifier).resetMusicTempo();
         ref.read(loginProvider.notifier).reset();
         _loginDetected = false;
         _lastSocialType = null;
@@ -945,12 +950,21 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     // Kill-target links run last so the user's own rules claim a contested
     // region first — the promoter leaves spans that already carry a command
     // or URL untouched.
+    //
+    // …and not at all while a fight is running. Mid-combat the player already
+    // has a target; every creature word that scrolls past is either the one
+    // they are hitting or something they are pointedly not starting a second
+    // fight with, so painting fresh red `kill` links across the fight is noise
+    // at exactly the moment the screen can least afford it. Battle mode lapses
+    // `BattleNotifier.battleTimeout` after the last exchange, so links come
+    // back on their own.
+    final inBattle = ref.read(battleStateProvider).inBattle;
     final killTargets = ref.read(killTargetLinkProcessorProvider);
     final newState = [...state];
     for (final line in lines) {
       var out = LinkParser.processLine(line);
       if (!linkRules.isEmpty) out = linkRules.processLine(out);
-      if (!killTargets.isEmpty) {
+      if (!inBattle && !killTargets.isEmpty) {
         out = killTargets.processLine(out, npcKeyword: npcKeywords?[line]);
       }
 
@@ -977,12 +991,36 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// the Ctrl/Cmd+L shortcut to fire the latest tappable rule without the
   /// user having to reach for the mouse. Tail-first scan short-circuits on
   /// the first hit, so the common case (last line has the link) is O(1).
-  String? get mostRecentLinkCommand {
+  String? get mostRecentLinkCommand => _mostRecentCommandWhere((_) => true);
+
+  /// The most recent kill-target link's command (Ctrl/Cmd+K), or null.
+  ///
+  /// Kill links are identified by the command they carry rather than by a flag
+  /// on the span — the same test `TerminalView` already uses to decide whether
+  /// a long press can offer to mute the target. A user-authored rule that
+  /// happens to emit `kill …` is therefore eligible too, which is the right
+  /// answer for a shortcut described as "the most recent kill command".
+  String? get mostRecentKillCommand =>
+      _mostRecentCommandWhere(_isKillCommand);
+
+  /// The most recent *non-kill* link command (Ctrl/Cmd+T), or null — the
+  /// user's own text-link rules, and the URL-free links the client generates.
+  /// Split from [mostRecentKillCommand] so a screen full of red kill links
+  /// can't bury the door the player actually wanted to open.
+  String? get mostRecentTextLinkCommand =>
+      _mostRecentCommandWhere((cmd) => !_isKillCommand(cmd));
+
+  static bool _isKillCommand(String command) =>
+      command.trimLeft().toLowerCase().startsWith('kill ');
+
+  /// Tail-first scan for the newest command span satisfying [test], so the
+  /// common case (the last line carries it) short-circuits immediately.
+  String? _mostRecentCommandWhere(bool Function(String) test) {
     for (var i = state.length - 1; i >= 0; i--) {
       final spans = state[i].spans;
       for (var j = spans.length - 1; j >= 0; j--) {
         final cmd = spans[j].command;
-        if (cmd != null && cmd.isNotEmpty) return cmd;
+        if (cmd != null && cmd.isNotEmpty && test(cmd)) return cmd;
       }
     }
     return null;

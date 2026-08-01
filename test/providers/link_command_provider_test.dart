@@ -3,6 +3,7 @@ import 'package:ancient_anguish_client/providers/alias_provider.dart';
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
 import 'package:ancient_anguish_client/providers/link_command_provider.dart';
 import 'package:ancient_anguish_client/services/alias/alias_engine.dart';
+import 'package:ancient_anguish_client/services/command_counterparts.dart';
 import 'package:ancient_anguish_client/services/connection/connection_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -87,6 +88,41 @@ void main() {
       container = containerWith();
       tap('killer hare');
       expect(service.sent, ['killer hare']);
+    });
+  });
+
+  group('a tapped link counts as having been typed', () {
+    test('it lands in the command history', () {
+      container = containerWith();
+      tap('open north door');
+      expect(container.read(commandHistoryProvider), ['open north door']);
+    });
+
+    test('history holds the link, not what the alias expanded it to', () {
+      // Same as typed input: `_send` records the raw line so Up-arrow recalls
+      // what the player actually invoked.
+      container = containerWith();
+      tap('k hare');
+      expect(service.sent, ['kill hare']);
+      expect(container.read(commandHistoryProvider), ['k hare']);
+    });
+
+    test('which is what puts its counterparts in the Recent sheet', () {
+      // The whole point: counterparts are derived from history, so a link that
+      // never reached history left its other half unreachable.
+      container = containerWith();
+      tap('open north door');
+      final counterparts = [
+        for (final cmd in container.read(commandHistoryProvider))
+          ...CommandCounterparts.counterpartsOf(cmd),
+      ];
+      expect(counterparts, containsAll(['close north door', 'close south door']));
+    });
+
+    test('a blank command records nothing', () {
+      container = containerWith();
+      tap('   ');
+      expect(container.read(commandHistoryProvider), isEmpty);
     });
   });
 }

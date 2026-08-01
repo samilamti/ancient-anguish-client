@@ -170,6 +170,95 @@ void main() {
       expect(rose.width, lessThan(kCompassSize));
       expect(tester.takeException(), isNull);
     });
+
+    /// The disc inside the opened rose, after tapping the strip.
+    Future<Rect> openDisc(WidgetTester tester) async {
+      await tester.tap(find.byType(CompassStrip));
+      await tester.pumpAndSettle();
+      return tester.getRect(find
+          .descendant(
+            of: find.byType(CompassRose),
+            matching: find.byType(CustomPaint),
+          )
+          .first);
+    }
+
+    testWidgets('the opened disc is half of what would fit', (tester) async {
+      // Filling the screen was too big for something you open for a glance.
+      moveTo(0, -3);
+      await pumpStrip(tester);
+      final disc = await openDisc(tester);
+
+      expect(disc.width, closeTo((375 - 32) / 2, 0.5));
+      expect(disc.width, lessThan(kCompassSize / 2 + 0.5));
+    });
+
+    testWidgets('the opened disc carries no location text', (tester) async {
+      // At this size there is no room for names, and the strip that opened it
+      // already names the nearest. The chip keeps its own combined string.
+      moveTo(0, 0); // Tantallon: the most crowded spot on the map.
+      await pumpStrip(tester);
+      await openDisc(tester);
+
+      // Scoped to the rose: the strip that opened it names the nearest too, and
+      // an unscoped finder matches that instead — which is a pass that proves
+      // nothing about the disc.
+      for (final entry in container.read(nearbyLocationsProvider)) {
+        expect(
+          find.descendant(
+            of: find.byType(CompassRose),
+            matching: find.text(entry.location.shortName),
+          ),
+          findsNothing,
+          reason: '${entry.location.shortName} labelled on the phone disc',
+        );
+      }
+      expect(find.text('Tantallon · here'), findsOneWidget); // The chip.
+    });
+
+    testWidgets('the opened disc marks only the nearest place each way',
+        (tester) async {
+      moveTo(0, 0);
+      await pumpStrip(tester);
+      await openDisc(tester);
+
+      // One marker per 8-wind direction, not one per location: at (0,0) three
+      // of the nine in range double up on a bearing another already covers.
+      final nearby = container.read(nearbyLocationsProvider);
+      final directions = nearby.map((e) => e.direction).toSet();
+      expect(directions.length, lessThan(nearby.length),
+            reason: 'coordinate does not actually exercise the filter');
+      expect(find.byType(Image), findsNWidgets(directions.length));
+    });
+
+    testWidgets('a text-free disc leaves every icon on its own dot',
+        (tester) async {
+      // De-collision exists to keep labels readable; with no labels there is
+      // nothing to solve, so moving the art off its point would be a pure lie.
+      moveTo(0, 0);
+      await pumpStrip(tester);
+      final disc = await openDisc(tester);
+
+      // Nearest per direction, in the order the rose renders them.
+      final seen = <String>{};
+      final shown = container
+          .read(nearbyLocationsProvider)
+          .where((e) => seen.add(e.direction))
+          .toList();
+
+      final minRadius = disc.width * 32 / kCompassSize;
+      final span = disc.width * (152 - 32) / kCompassSize;
+
+      for (var i = 0; i < shown.length; i++) {
+        final entry = shown[i];
+        final radius =
+            minRadius + (entry.distance / kCompassRangeStadia) * span;
+        final expected = disc.center.dx + math.sin(entry.bearing) * radius;
+        final icon = tester.getRect(find.byType(Image).at(i));
+        expect(icon.center.dx, closeTo(expected, 0.5),
+            reason: 'icon for ${entry.location.shortName} drifted off its dot');
+      }
+    });
   });
 
   group('CompassRose scaling', () {

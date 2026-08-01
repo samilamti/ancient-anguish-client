@@ -105,38 +105,62 @@ class CompassOverlay extends ConsumerWidget {
 class CompassRose extends ConsumerWidget {
   final double size;
 
-  /// How many locations get an icon + name. Worth lowering along with [size]:
-  /// the labels crowd the disc, and six of them on a phone-sized rose overlap.
+  /// How many locations get a marker. Worth lowering along with [size]: the
+  /// labels crowd the disc, and six of them on a phone-sized rose overlap.
   final int maxLabeledMarkers;
+
+  /// Whether the disc carries any text — both the marker names and the cardinal
+  /// letters. Off on a phone, where at half diameter there is room for neither;
+  /// the north tick is emphasised instead so the rose still reads north-up, and
+  /// the nearest-location chip below the disc still names somewhere.
+  final bool showText;
+
+  /// Show only the nearest location in each of the eight compass directions,
+  /// dots included. In town a dozen entries share a couple of bearings, and on
+  /// a small disc "what is the closest thing that way" is the whole question.
+  final bool nearestPerDirection;
 
   const CompassRose({
     super.key,
     this.size = kCompassSize,
     this.maxLabeledMarkers = kMaxLabeledMarkers,
+    this.showText = true,
+    this.nearestPerDirection = false,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final nearby = ref.watch(nearbyLocationsProvider);
+    final all = ref.watch(nearbyLocationsProvider);
+    final nearby = nearestPerDirection ? _nearestPerDirection(all) : all;
     final scheme = Theme.of(context).colorScheme;
     final nearest = nearby.isEmpty ? null : nearby.first;
     final scale = size / kCompassSize;
 
     final labeled = nearby.take(maxLabeledMarkers).toList();
-    final style = DefaultTextStyle.of(context)
-        .style
-        .merge(_labelStyle(scheme.onSurface));
-    final textScaler = MediaQuery.textScalerOf(context);
-    final markers = _placeMarkers(
-      entries: labeled,
-      labelSizes: [
-        for (final entry in labeled)
-          _measureLabel(entry.location.shortName, style,
-              _kMarkerWidth * scale, textScaler),
-      ],
-      size: size,
-      scale: scale,
-    );
+    final markers = showText
+        ? _placeMarkers(
+            entries: labeled,
+            labelSizes: [
+              for (final entry in labeled)
+                _measureLabel(
+                  entry.location.shortName,
+                  DefaultTextStyle.of(context)
+                      .style
+                      .merge(_labelStyle(scheme.onSurface)),
+                  _kMarkerWidth * scale,
+                  MediaQuery.textScalerOf(context),
+                ),
+            ],
+            size: size,
+            scale: scale,
+          )
+        // Nothing to de-collide without labels, so every icon stays exactly on
+        // its own dot — nudging them would move the art off the point for
+        // no reason, and would draw leader lines to nowhere.
+        : [
+            for (final entry in labeled)
+              _PlacedMarker(entry, Offset.zero, showLabel: false),
+          ];
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -153,6 +177,7 @@ class CompassRose extends ConsumerWidget {
                   painter: _CompassRosePainter(
                     nearby: nearby,
                     placed: markers,
+                    showCardinals: showText,
                     primary: scheme.primary,
                     surface: scheme.surface,
                     onSurface: scheme.onSurface,
@@ -168,6 +193,19 @@ class CompassRose extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// The nearest entry in each 8-wind direction, keeping the nearest-first order.
+///
+/// [nearbyLocationsProvider] is already sorted by distance, so the first entry
+/// seen for a direction is the one to keep and the overall nearest stays first
+/// (which is what the chip under the disc reads).
+List<NearbyLocation> _nearestPerDirection(List<NearbyLocation> entries) {
+  final directions = <String>{};
+  return [
+    for (final entry in entries)
+      if (directions.add(entry.direction)) entry,
+  ];
 }
 
 /// A marker's resolved placement, once labels have been de-collided.
@@ -477,6 +515,10 @@ class _CompassRosePainter extends CustomPainter {
   /// to move can be tied back to its dot with a leader line.
   final List<_PlacedMarker> placed;
 
+  /// Draw the N/E/S/W letters. When false the north tick carries the
+  /// orientation on its own, so a text-free disc still reads north-up.
+  final bool showCardinals;
+
   final Color primary;
   final Color surface;
   final Color onSurface;
@@ -484,6 +526,7 @@ class _CompassRosePainter extends CustomPainter {
   _CompassRosePainter({
     required this.nearby,
     required this.placed,
+    required this.showCardinals,
     required this.primary,
     required this.surface,
     required this.onSurface,
@@ -495,6 +538,7 @@ class _CompassRosePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final ringRadius = size.width / 2 - 12;
+    final scale = size.width / kCompassSize;
 
     // Disc + outer ring.
     canvas.drawCircle(
@@ -523,23 +567,27 @@ class _CompassRosePainter extends CustomPainter {
     canvas.drawCircle(center, minRadius + (maxRadius - minRadius) / 2, rangePaint);
     canvas.drawCircle(center, maxRadius, rangePaint);
 
-    // 16-wind ticks; the 8 major ones longer and brighter.
+    // 16-wind ticks; the 8 major ones longer and brighter. Without the cardinal
+    // letters the north tick is the only thing saying which way is up, so it
+    // reaches further in and is drawn at full strength.
     for (var i = 0; i < 16; i++) {
       final angle = i * math.pi / 8;
       final isMajor = i.isEven;
-      final inner = ringRadius - (isMajor ? 15 : 8);
+      final isNorth = i == 0 && !showCardinals;
+      final inner =
+          ringRadius - (isNorth ? 24 * scale : (isMajor ? 15 : 8));
       final direction = Offset(math.sin(angle), -math.cos(angle));
       canvas.drawLine(
         center + direction * inner,
         center + direction * ringRadius,
         Paint()
-          ..strokeWidth = isMajor ? 2.6 : 1.6
-          ..color = primary.withAlpha(isMajor ? 150 : 70),
+          ..strokeWidth = isNorth ? 3.4 : (isMajor ? 2.6 : 1.6)
+          ..color = primary.withAlpha(isNorth ? 255 : (isMajor ? 150 : 70)),
       );
     }
 
     // Cardinal letters just inside the ticks.
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; showCardinals && i < 4; i++) {
       final angle = i * math.pi / 2;
       final position = center +
           Offset(math.sin(angle), -math.cos(angle)) * (ringRadius - 30);
@@ -561,11 +609,17 @@ class _CompassRosePainter extends CustomPainter {
       );
     }
 
-    // Player dot at the center.
-    canvas.drawCircle(center, 5.5, Paint()..color = primary);
+    // Player dot at the center. The radii scale with the disc, with a floor so
+    // they stay visible: left absolute they swell to blobs on the phone rose,
+    // where the disc is half the size but every dot would still be full width.
     canvas.drawCircle(
       center,
-      10,
+      math.max(5.5 * scale, 3.0),
+      Paint()..color = primary,
+    );
+    canvas.drawCircle(
+      center,
+      math.max(10 * scale, 5.5),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.4
@@ -574,7 +628,6 @@ class _CompassRosePainter extends CustomPainter {
 
     // Leader lines, for the markers de-collision had to move off their point.
     // Drawn before the dots so the dot stays the brightest thing on the ray.
-    final scale = size.width / kCompassSize;
     final iconRadius = _kMarkerIconSize * scale / 2;
     final leaderPaint = Paint()
       ..strokeWidth = 1.2
@@ -597,8 +650,10 @@ class _CompassRosePainter extends CustomPainter {
     // One dot per nearby location — the true plotted point, and the only trace
     // of locations beyond the label cap.
     final dotPaint = Paint()..color = primary.withAlpha(210);
+    final dotRadius = math.max(3.6 * scale, 2.0);
     for (final entry in nearby) {
-      canvas.drawCircle(center + _markerOffset(entry, size.width), 3.6, dotPaint);
+      canvas.drawCircle(
+          center + _markerOffset(entry, size.width), dotRadius, dotPaint);
     }
   }
 
@@ -606,6 +661,7 @@ class _CompassRosePainter extends CustomPainter {
   bool shouldRepaint(_CompassRosePainter oldDelegate) =>
       oldDelegate.nearby != nearby ||
       oldDelegate.placed != placed ||
+      oldDelegate.showCardinals != showCardinals ||
       oldDelegate.primary != primary ||
       oldDelegate.surface != surface ||
       oldDelegate.onSurface != onSurface;

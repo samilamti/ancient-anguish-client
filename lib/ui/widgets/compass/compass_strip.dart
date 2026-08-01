@@ -131,13 +131,12 @@ Future<void> showCompassRose(BuildContext context) {
     barrierColor: Colors.black54,
     builder: (dialogContext) {
       final media = MediaQuery.of(dialogContext);
-      // Leave room for the chip under the disc and the screen margins. Never
-      // larger than the desktop size — beyond that it just gets blurry.
-      final available = media.size.shortestSide - 32;
-      final size = available.clamp(220.0, kCompassSize);
-      // A phone-sized rose can't legibly carry six labels; drop to four when
-      // the disc is much smaller than the desktop one.
-      final labels = size < kCompassSize * 0.75 ? 4 : kMaxLabeledMarkers;
+      // Half of what would fit: filling the screen was too large for a glance
+      // (Sami, 2026-07-31). It can afford to be small because the phone rose
+      // carries no text and at most one marker per direction — it reads as a
+      // radar, not a map, and the strip underneath already names the nearest.
+      final available = (media.size.shortestSide - 32) / 2;
+      final size = available.clamp(140.0, kCompassSize / 2);
 
       return GestureDetector(
         // Tapping the rose itself dismisses too — it is a glance, not a screen.
@@ -146,7 +145,14 @@ Future<void> showCompassRose(BuildContext context) {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Center(
-            child: CompassRose(size: size, maxLabeledMarkers: labels),
+            child: CompassRose(
+              size: size,
+              showText: false,
+              nearestPerDirection: true,
+              // One per direction already caps it at eight, so this is just a
+              // backstop rather than the thing doing the thinning.
+              maxLabeledMarkers: 8,
+            ),
           ),
         ),
       );

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/battle_provider.dart';
 import '../../../providers/game_state_provider.dart';
+import '../../../providers/notification_provider.dart';
 import '../../../providers/unified_area_config_provider.dart';
 import 'character_card_panel.dart';
 import 'combat_stats_panel.dart';
@@ -157,13 +158,9 @@ class _StatusBarState extends ConsumerState<StatusBar>
   void _onNameAreaPressed() {
     final battleState = ref.read(battleStateProvider);
     if (battleState.inBattle) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cannot name areas during battle — wait until '
-              'combat ends.'),
-          duration: Duration(seconds: 3),
-        ),
-      );
+      ref.read(appNotificationsProvider.notifier).show(
+            'Cannot name areas during battle — wait until combat ends.',
+          );
       return;
     }
     _showNameAreaDialog();

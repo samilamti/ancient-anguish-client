@@ -74,7 +74,7 @@ const Map<LocationKind, String> _kKindEmoji = {
   LocationKind.landmark: '📍',
 };
 
-/// Navigation compass floating over the terminal on desktop.
+/// Navigation compass floating over the terminal's top-right corner.
 ///
 /// Compares the player's live position (from the CLIENT prompt line) with
 /// the named locations of the official map and shows everything within
@@ -82,10 +82,17 @@ const Map<LocationKind, String> _kKindEmoji = {
 /// locations closer to the center. Hidden while coordinates are unknown
 /// (indoors, not logged in, disconnected).
 ///
-/// On mobile the same information arrives via [CompassStrip] instead: the disc
-/// is wider than a phone screen, so there it is opened on demand.
+/// [IgnorePointer] because it overlays the output: the terminal underneath still
+/// takes taps for selection, links and focus, everywhere including behind the
+/// disc.
 class CompassOverlay extends ConsumerWidget {
-  const CompassOverlay({super.key});
+  /// The phone presentation of the same rose: [phoneCompassSize] across instead
+  /// of the 432px disc that does not fit, textless, and thinned to the nearest
+  /// location per direction. Reads as a radar rather than a map — see
+  /// [CompassRose.showText].
+  final bool compact;
+
+  const CompassOverlay({super.key, this.compact = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -93,8 +100,32 @@ class CompassOverlay extends ConsumerWidget {
         ref.watch(gameStateProvider.select((s) => s.hasCoordinates));
     if (!hasCoordinates) return const SizedBox.shrink();
 
-    return const IgnorePointer(child: CompassRose());
+    return IgnorePointer(
+      child: compact
+          ? CompassRose(
+              size: phoneCompassSize(MediaQuery.of(context)),
+              showText: false,
+              nearestPerDirection: true,
+              // One per direction already caps it at eight, so this is just a
+              // backstop rather than the thing doing the thinning.
+              maxLabeledMarkers: 8,
+              // [CompassStrip] names the nearest location a few pixels above.
+              showNearestChip: false,
+            )
+          : const CompassRose(),
+    );
   }
+}
+
+/// Diameter for the phone rose: half of what would fit on screen.
+///
+/// Filling the screen was too large for a glance (Sami, 2026-07-31). It can
+/// afford to be small because this presentation carries no text and at most one
+/// marker per direction, and because the chip under the disc still names the
+/// nearest location.
+double phoneCompassSize(MediaQueryData media) {
+  final available = (media.size.shortestSide - 32) / 2;
+  return available.clamp(140.0, kCompassSize / 2);
 }
 
 /// The rose itself: disc, markers and the nearest-location chip.
@@ -120,12 +151,19 @@ class CompassRose extends ConsumerWidget {
   /// a small disc "what is the closest thing that way" is the whole question.
   final bool nearestPerDirection;
 
+  /// The chip under the disc naming the nearest location. Off where something
+  /// else already says it — the phone corner rose sits directly under
+  /// [CompassStrip], and the chip is far wider than a phone-sized disc, which
+  /// dragged the whole rose out of the corner it is supposed to float in.
+  final bool showNearestChip;
+
   const CompassRose({
     super.key,
     this.size = kCompassSize,
     this.maxLabeledMarkers = kMaxLabeledMarkers,
     this.showText = true,
     this.nearestPerDirection = false,
+    this.showNearestChip = true,
   });
 
   @override
@@ -189,7 +227,7 @@ class CompassRose extends ConsumerWidget {
             ],
           ),
         ),
-        if (nearest != null) _NearestChip(nearest: nearest),
+        if (nearest != null && showNearestChip) _NearestChip(nearest: nearest),
       ],
     );
   }

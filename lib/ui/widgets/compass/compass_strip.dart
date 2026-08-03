@@ -130,13 +130,7 @@ Future<void> showCompassRose(BuildContext context) {
     barrierDismissible: true,
     barrierColor: Colors.black54,
     builder: (dialogContext) {
-      final media = MediaQuery.of(dialogContext);
-      // Half of what would fit: filling the screen was too large for a glance
-      // (Sami, 2026-07-31). It can afford to be small because the phone rose
-      // carries no text and at most one marker per direction — it reads as a
-      // radar, not a map, and the strip underneath already names the nearest.
-      final available = (media.size.shortestSide - 32) / 2;
-      final size = available.clamp(140.0, kCompassSize / 2);
+      final size = phoneCompassSize(MediaQuery.of(dialogContext));
 
       return GestureDetector(
         // Tapping the rose itself dismisses too — it is a glance, not a screen.

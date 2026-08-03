@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ancient_anguish_client/core/theme/app_theme.dart';
 import 'package:ancient_anguish_client/protocol/ansi/styled_span.dart';
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
+import 'package:ancient_anguish_client/providers/notification_provider.dart';
+import 'package:ancient_anguish_client/ui/widgets/common/notification_overlay.dart';
 import 'package:ancient_anguish_client/ui/widgets/terminal/terminal_view.dart';
 
 /// Creates [StyledLine] objects from plain text strings (no ANSI styling).
@@ -52,7 +54,22 @@ Future<ProviderContainer> pumpTerminalView(
         home: Scaffold(
           body: Column(
             children: [
-              const Expanded(child: TerminalView()),
+              Expanded(
+                // Stacked the way [HomeScreen] does it, so notifications the
+                // terminal raises (e.g. the ignore confirmation and its Undo)
+                // are reachable here too.
+                child: const Stack(
+                  children: [
+                    TerminalView(),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: NotificationOverlay(),
+                    ),
+                  ],
+                ),
+              ),
               // Attach the input FocusNode to a real widget so requestFocus
               // works in tests.
               Focus(focusNode: inputFocus, child: const SizedBox(height: 1)),
@@ -64,6 +81,15 @@ Future<ProviderContainer> pumpTerminalView(
   );
 
   return container;
+}
+
+/// Runs any showing notification through its hold and fade, so a test that
+/// raised one doesn't fail at teardown on the card's pending timer.
+Future<void> settleNotifications(WidgetTester tester) async {
+  await tester.pump(kNotificationDuration);
+  await tester.pump(
+    kNotificationFadeDuration + const Duration(milliseconds: 50),
+  );
 }
 
 /// Sets up a mock clipboard handler on the platform channel.

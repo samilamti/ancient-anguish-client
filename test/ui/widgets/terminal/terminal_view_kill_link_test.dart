@@ -32,6 +32,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(container.read(settingsProvider).ignoredKillTargets, ['goblin']);
+    expect(find.text("Ignoring 'goblin'"), findsOneWidget);
+
+    // The confirmation clears itself — no tap needed, and none possible once
+    // it has faded.
+    await settleNotifications(tester);
+    expect(find.text("Ignoring 'goblin'"), findsNothing);
   });
 
   testWidgets('the confirmation can be undone', (tester) async {

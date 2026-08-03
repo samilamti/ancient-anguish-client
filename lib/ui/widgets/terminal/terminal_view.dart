@@ -11,6 +11,7 @@ import '../../../providers/background_image_provider.dart';
 import '../../../providers/connection_provider.dart'
     show terminalBufferProvider, inputFocusProvider;
 import '../../../providers/link_command_provider.dart';
+import '../../../providers/notification_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
@@ -357,17 +358,13 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   /// mis-aimed long-press should be one tap to reverse.
   void _confirmIgnored(String target) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Ignoring '$target'"),
-        action: SnackBarAction(
-          label: 'Undo',
-          onPressed: () => ref
+    ref.read(appNotificationsProvider.notifier).show(
+          "Ignoring '$target'",
+          actionLabel: 'Undo',
+          onAction: () => ref
               .read(settingsProvider.notifier)
               .removeIgnoredKillTarget(target),
-        ),
-      ),
-    );
+        );
   }
 
   // ---------------------------------------------------------------------------

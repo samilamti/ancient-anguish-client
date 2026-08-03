@@ -10,6 +10,7 @@ import '../../../providers/game_state_provider.dart';
 import '../../../providers/login_provider.dart'
     show loginProvider, LoginPromptDetected;
 import '../../../providers/completion_rules_provider.dart';
+import '../../../providers/notification_provider.dart';
 import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
@@ -595,7 +596,7 @@ const int _recentSheetCountDesktop = 20;
 
 /// Presents the Recent-commands sheet and resolves with the user's pick, or
 /// null if they dismissed it (or there was nothing to show — in which case a
-/// snackbar explains why).
+/// notification explains why).
 ///
 /// Public so callers other than the input bar's History button can open it —
 /// notably `AA_DEMO` screenshot builds, which need the sheet on screen
@@ -619,12 +620,7 @@ Future<HistoryChoice?> showRecentCommandsSheet(
   counterparts.removeAll(recent);
 
   if (recent.isEmpty && counterparts.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('No command history yet'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    ref.read(appNotificationsProvider.notifier).show('No command history yet');
     return null;
   }
 

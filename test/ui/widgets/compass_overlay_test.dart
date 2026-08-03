@@ -228,4 +228,98 @@ void main() {
       expect(label.center.dx, closeTo(expected, 0.5));
     });
   });
+
+  // The phone gets the same overlay in the same top-right corner as desktop —
+  // just the small presentation of the rose, since the 432px disc is wider than
+  // the screen.
+  group('compact presentation', () {
+    const phone = Size(390, 800);
+
+    Future<void> pumpCompact(WidgetTester tester) async {
+      tester.view.physicalSize = phone * 3;
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  Positioned.fill(child: ColoredBox(color: Colors.black)),
+                  Positioned(
+                    top: 8,
+                    right: 12,
+                    child: CompassOverlay(compact: true),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('fits the phone and sits in the top-right corner',
+        (tester) async {
+      await pumpCompact(tester);
+      moveTo(0, 0); // Tantallon.
+      await tester.pump();
+
+      final disc = tester.getRect(roseFinder().first);
+      expect(disc.width, phoneCompassSize(const MediaQueryData(size: phone)));
+      expect(disc.width, lessThan(phone.width));
+
+      // Hard against the top-right, where the desktop rose floats. The disc
+      // itself, not just the overlay box: with the nearest-location chip under
+      // it the rose was wider than the disc and the disc came out mid-screen.
+      expect(disc.right, closeTo(phone.width - 12, 0.5));
+      expect(disc.top, closeTo(8, 0.5));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('carries no text at all, so it stays a disc in the corner',
+        (tester) async {
+      await pumpCompact(tester);
+      moveTo(11, 42); // Standing in Norton.
+      await tester.pump();
+
+      // No marker labels and no cardinal letters at half diameter, and no
+      // nearest-location chip either — [CompassStrip] names the place, and the
+      // chip is wide enough to drag the disc off the corner.
+      expect(find.text('Norton'), findsNothing);
+      expect(find.text('Sands bridge'), findsNothing);
+      expect(find.text('N'), findsNothing);
+      expect(find.text('Norton · here'), findsNothing);
+      expect(find.byType(Text), findsNothing);
+    });
+
+    testWidgets('shows at most one marker per direction', (tester) async {
+      await pumpCompact(tester);
+      moveTo(0, 0); // Tantallon: the densest spot on the map.
+      await tester.pump();
+
+      final directions = container
+          .read(nearbyLocationsProvider)
+          .map((e) => e.direction)
+          .toSet();
+      expect(find.byType(Image), findsNWidgets(directions.length));
+    });
+
+    testWidgets('lets terminal taps through to the output underneath',
+        (tester) async {
+      await pumpCompact(tester);
+      moveTo(0, 0);
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byType(CompassOverlay),
+          matching: find.byType(IgnorePointer),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
 }

@@ -26,6 +26,7 @@ import '../../providers/subscription_provider.dart';
 import '../widgets/audio/audio_controls.dart';
 import '../widgets/compass/compass_overlay.dart';
 import '../widgets/compass/compass_strip.dart';
+import '../widgets/common/notification_overlay.dart';
 import '../widgets/login/login_dialog.dart';
 import '../widgets/mobile/d_pad.dart';
 import '../widgets/social/social_windows_overlay.dart';
@@ -95,12 +96,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         isMobile && MediaQuery.viewInsetsOf(context).bottom > 0;
     final playerName = gameState.playerName;
 
-    // Navigation compass floats over the terminal's top-right corner on
-    // large desktop screens only. On mobile the same setting shows the compact
-    // strip instead — the 432px disc is wider than a phone screen, so there it
-    // opens on demand (see [CompassStrip]).
-    final showCompass =
-        !isMobile && isDesktopPlatform() && settings.compassEnabled;
+    // Navigation compass floats over the terminal's top-right corner on every
+    // platform. Mobile gets the compact presentation of the same rose — the
+    // 432px disc is wider than a phone screen, so there it renders at phone
+    // size, without text and one marker per direction (see [CompassOverlay]).
+    final showCompass = settings.compassEnabled;
     final showCompassStrip = isMobile && settings.compassEnabled;
     // The battle HUD stands in for the combat text it gags, so it goes
     // wherever that text would have been read — every platform, directly under
@@ -108,14 +108,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // output lines; see [BattleHudDock]. It hides itself when no fight has
     // started.
     final showBattleHud = settings.battleFilterMode == BattleFilterMode.hud;
-    final terminal = showCompass
-        ? Stack(
-            children: [
-              const TerminalView(),
-              const Positioned(top: 8, right: 12, child: CompassOverlay()),
-            ],
-          )
-        : const TerminalView();
+    // Notifications float over the *top* of the output, so they never cover the
+    // newest lines or the input bar the way a bottom SnackBar did. Last in the
+    // stack: a message hidden behind the compass would be unreadable, and it is
+    // gone again in two seconds.
+    final terminal = Stack(
+      children: [
+        const TerminalView(),
+        if (showCompass)
+          Positioned(
+            top: 8,
+            right: 12,
+            child: CompassOverlay(compact: isMobile),
+          ),
+        const Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: NotificationOverlay(),
+        ),
+      ],
+    );
 
     return Scaffold(
       key: _scaffoldKey,

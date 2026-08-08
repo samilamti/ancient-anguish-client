@@ -459,4 +459,64 @@ void main() {
       expect(match?.opponent, 'Bugbear');
     });
   });
+
+  group("Sami's Cleaver and Thing transcript (animate-object anatomy)", () {
+    // Both fights reached the terminal unfiltered, and for the same reason:
+    // the creature is an animated object, so its hit locations are the parts
+    // it is made of. `palm` was a plain gap in the anatomy list; `blade`
+    // belongs to the weapon-creature and to nothing the player is hit on.
+    const yourHits = {
+      "You slit Cleaver's blade.": 'Cleaver',
+      "You pricked Cleaver's blade.": 'Cleaver',
+      "You notched Cleaver's blade.": 'Cleaver',
+      "You gashed Thing's palm.": 'Thing',
+      "You sliced Thing's thumb deeply.": 'Thing',
+      "You pierced Thing's palm keenly.": 'Thing',
+      "You chopped Thing's palm bluntly.": 'Thing',
+      "You pounded Thing's palm heartlessly.": 'Thing',
+    };
+
+    yourHits.forEach((line, opponent) {
+      test('reads "$line" as your hit on $opponent', () {
+        final match = BattleTextClassifier.classify(line);
+        expect(match?.kind, BattleLineKind.yourHit);
+        expect(match?.opponent, opponent);
+      });
+    });
+
+    test('an incoming miss from each', () {
+      expect(
+        BattleTextClassifier.classify('Cleaver missed you.')?.kind,
+        BattleLineKind.incomingMiss,
+      );
+      expect(
+        BattleTextClassifier.classify('Thing missed you.')?.opponent,
+        'Thing',
+      );
+    });
+
+    test('a creature-only part still counts when a creature is struck', () {
+      // Third parties and incoming blows go through the same gate.
+      final match =
+          BattleTextClassifier.classify("Mummy lacerated Cleaver's blade.");
+      expect(match?.kind, BattleLineKind.otherHit);
+      expect(match?.opponent, 'Cleaver');
+    });
+
+    test('your own blade is your weapon, not a hit location', () {
+      // The whole reason `blade` is creature-only: gagged, this would vanish
+      // mid-fight, and it is the player's weapon being reported on.
+      expect(BattleTextClassifier.classify('You sharpen your blade.'), isNull);
+      expect(
+        BattleTextClassifier.classify("Cleaver notched your blade."),
+        isNull,
+      );
+    });
+
+    test('palm is ordinary anatomy, so it works in both directions', () {
+      final incoming = BattleTextClassifier.classify('Thing gashed your palm.');
+      expect(incoming?.kind, BattleLineKind.incomingHit);
+      expect(incoming?.opponent, 'Thing');
+    });
+  });
 }

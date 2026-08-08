@@ -18,6 +18,10 @@
 /// Anatomy is a genuinely closed set, so [bodyParts] anchors the match and
 /// the verb is left unconstrained. That is what lets `You skewered Nurse's
 /// thigh gruesomely.` classify without anyone having taught it "skewered".
+///
+/// [creatureOnlyParts] is the one qualification: AA animates objects, so a
+/// living cleaver is struck on its `blade` — a word that means something else
+/// entirely when the player owns it.
 library;
 
 /// What a single line of combat output represents.
@@ -221,7 +225,7 @@ class BattleTextClassifier {
     'groin', 'hip', 'hips', 'shoulder', 'shoulders', 'collarbone',
     // Arms and hands.
     'arm', 'arms', 'elbow', 'forearm', 'wrist', 'hand', 'hands', 'fist',
-    'finger', 'fingers', 'thumb', 'knuckles',
+    'finger', 'fingers', 'thumb', 'knuckles', 'palm', 'palms',
     // Legs and feet.
     'leg', 'legs', 'thigh', 'knee', 'shin', 'calf', 'ankle', 'foot', 'feet',
     'heel', 'toe', 'toes', 'shank',
@@ -231,6 +235,16 @@ class BattleTextClassifier {
     'carapace', 'scales', 'mane', 'trunk', 'beak', 'talon', 'talons',
     'stinger', 'antenna', 'antennae', 'mandible', 'mandibles',
   };
+
+  /// Anatomy that only counts when a *creature* owns it.
+  ///
+  /// Ancient Anguish animates objects, and a living weapon is struck on the
+  /// parts it is made of: `You notched Cleaver's blade.` is a blow landing.
+  /// The same word owned by the player is the sword in their hand, so
+  /// `You sharpen your blade.` must stay ordinary output — putting these in
+  /// [bodyParts] would gag it mid-fight, which is the one direction this
+  /// classifier's mistakes are expensive in.
+  static const Set<String> creatureOnlyParts = {'blade'};
 
   /// Words that, standing where the opponent's name should be, mean the line
   /// named the player rather than a creature.
@@ -341,10 +355,12 @@ class BattleTextClassifier {
     if (hit != null) {
       final actor = hit.group(1)!;
       final owner = hit.group(3)!;
-      final part = hit.group(4)!;
-      if (!bodyParts.contains(part.toLowerCase())) return null;
-
+      final part = hit.group(4)!.toLowerCase();
       final struckPlayer = _isPlayer(owner);
+      final isAnatomy = bodyParts.contains(part) ||
+          (!struckPlayer && creatureOnlyParts.contains(part));
+      if (!isAnatomy) return null;
+
       if (struckPlayer) {
         return BattleLineMatch(
           kind: BattleLineKind.incomingHit,

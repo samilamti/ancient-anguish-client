@@ -40,7 +40,7 @@ dependencies:
   url_launcher: ^6.3.1
 
   # In-app purchases (Support tiers)
-  in_app_purchase: ^3.2.0
+  in_app_purchase: ^3.3.0
 
   # Utilities
   path_provider: ^2.1.5

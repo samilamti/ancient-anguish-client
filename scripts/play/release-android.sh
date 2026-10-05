@@ -20,6 +20,8 @@ MI=$(echo "$NAME" | cut -d. -f2)
 PA=$(echo "$NAME" | cut -d. -f3)
 VC=$((10#$MA * 10000 + 10#$MI * 100 + 10#$PA))
 
+bash scripts/check-no-local-features.sh
+
 echo "=== Building AAB v$NAME (versionCode $VC) ==="
 flutter build appbundle --release --build-number="$VC"
 

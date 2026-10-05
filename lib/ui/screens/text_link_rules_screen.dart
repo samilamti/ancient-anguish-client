@@ -2,36 +2,72 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/text_link_rule.dart';
+import '../../providers/command_trigger_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/text_link_rule_provider.dart';
 import '../widgets/common/escape_dismiss.dart';
 
+/// Which rule list a [TextLinkRulesScreen] edits. Both share the
+/// [TextLinkRule] model; text links render matches as tappable links, command
+/// triggers send the command on their own once the player has gone idle.
+enum RuleListKind {
+  textLink,
+  commandTrigger;
+
+  NotifierProvider<TextLinkRulesNotifier, List<TextLinkRule>> get provider =>
+      switch (this) {
+        textLink => textLinkRulesProvider,
+        commandTrigger => commandTriggerRulesProvider,
+      };
+
+  String get noun => switch (this) {
+        textLink => 'Text Link Rule',
+        commandTrigger => 'Command Trigger',
+      };
+
+  IconData get icon => switch (this) {
+        textLink => Icons.link,
+        commandTrigger => Icons.bolt,
+      };
+
+  String get idPrefix => switch (this) {
+        textLink => 'tlr',
+        commandTrigger => 'ctr',
+      };
+}
+
 /// Settings screen for managing text-to-link rules. Each rule promotes
 /// matching MUD output to a tappable command link so the user can act on
-/// it without typing.
+/// it without typing. With [kind] set to [RuleListKind.commandTrigger] it
+/// edits command triggers instead.
 class TextLinkRulesScreen extends ConsumerWidget {
-  const TextLinkRulesScreen({super.key});
+  const TextLinkRulesScreen({super.key, this.kind = RuleListKind.textLink});
+
+  final RuleListKind kind;
+
+  bool get _isTrigger => kind == RuleListKind.commandTrigger;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final rules = ref.watch(textLinkRulesProvider);
+    final rules = ref.watch(kind.provider);
     final theme = Theme.of(context);
 
     return EscapeDismiss(
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Text Link Rules'),
+          title: Text('${kind.noun}s'),
           actions: [
             IconButton(
               icon: const Icon(Icons.help_outline),
               onPressed: () => _showHelpDialog(context),
               tooltip: 'Help',
             ),
-            IconButton(
-              icon: const Icon(Icons.restore),
-              onPressed: () => _confirmResetDefaults(context, ref),
-              tooltip: 'Reset to defaults',
-            ),
+            if (!_isTrigger)
+              IconButton(
+                icon: const Icon(Icons.restore),
+                onPressed: () => _confirmResetDefaults(context, ref),
+                tooltip: 'Reset to defaults',
+              ),
           ],
         ),
         floatingActionButton: FloatingActionButton(
@@ -44,18 +80,20 @@ class TextLinkRulesScreen extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      Icons.link,
+                      kind.icon,
                       size: 64,
                       color: theme.colorScheme.primary.withAlpha(80),
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'No text link rules',
+                      'No ${kind.noun.toLowerCase()}s',
                       style: theme.textTheme.titleLarge,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Tap + to add a rule, or restore the bundled defaults.',
+                      _isTrigger
+                          ? 'Tap + to add a trigger.'
+                          : 'Tap + to add a rule, or restore the bundled defaults.',
                       style: TextStyle(
                         color: theme.colorScheme.onSurface.withAlpha(120),
                       ),
@@ -66,7 +104,10 @@ class TextLinkRulesScreen extends ConsumerWidget {
               )
             : Column(
                 children: [
-                  const _ShortcutHintBanner(),
+                  if (_isTrigger)
+                    const _TriggerIdleBanner()
+                  else
+                    const _ShortcutHintBanner(),
                   Expanded(
                     child: ListView.builder(
                       padding: const EdgeInsets.only(bottom: 80),
@@ -75,13 +116,14 @@ class TextLinkRulesScreen extends ConsumerWidget {
                         final rule = rules[index];
                         return _RuleTile(
                           rule: rule,
+                          icon: kind.icon,
                           onToggle: () => ref
-                              .read(textLinkRulesProvider.notifier)
+                              .read(kind.provider.notifier)
                               .toggleRule(rule.id),
                           onEdit: () => _openEditor(context, rule),
                           onDelete: () {
                             ref
-                                .read(textLinkRulesProvider.notifier)
+                                .read(kind.provider.notifier)
                                 .removeRule(rule.id);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Deleted "${rule.name}"')),
@@ -98,7 +140,7 @@ class TextLinkRulesScreen extends ConsumerWidget {
   }
 
   void _openEditor(BuildContext context, TextLinkRule? existing) {
-    openTextLinkRuleEditor(context, existing: existing);
+    openTextLinkRuleEditor(context, existing: existing, kind: kind);
   }
 
   void _confirmResetDefaults(BuildContext context, WidgetRef ref) {
@@ -128,6 +170,10 @@ class TextLinkRulesScreen extends ConsumerWidget {
   }
 
   void _showHelpDialog(BuildContext context) {
+    if (_isTrigger) {
+      _showTriggerHelpDialog(context);
+      return;
+    }
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
@@ -158,6 +204,34 @@ class TextLinkRulesScreen extends ConsumerWidget {
       ),
     );
   }
+
+  void _showTriggerHelpDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('About Command Triggers'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'A command trigger sends its command by itself when a line of '
+            'MUD output matches its pattern. Patterns and templates work '
+            'exactly like text link rules.\n\n'
+            'Triggers only fire once you have left the client alone for 3 '
+            'seconds: no typing, tapping or scrolling. Each trigger fires at '
+            'most once per second, so one that matches its own output can '
+            'not flood the MUD.\n\n'
+            'This is a local-only feature, enabled by the file '
+            '$commandTriggersMarkerAsset in your checkout.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Opens the text-link-rule create/edit screen as a pushed route.
@@ -172,12 +246,14 @@ Future<void> openTextLinkRuleEditor(
   BuildContext context, {
   TextLinkRule? existing,
   String? initialMatchText,
+  RuleListKind kind = RuleListKind.textLink,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => _TextLinkRuleEditScreen(
         existing: existing,
         initialMatchText: initialMatchText,
+        kind: kind,
       ),
     ),
   );
@@ -223,14 +299,46 @@ class _ShortcutHintBanner extends StatelessWidget {
   }
 }
 
+/// The command-trigger counterpart of [_ShortcutHintBanner]: says when
+/// triggers are allowed to act.
+class _TriggerIdleBanner extends StatelessWidget {
+  const _TriggerIdleBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: theme.colorScheme.primary.withAlpha(20),
+      child: Row(
+        children: [
+          Icon(Icons.timer_outlined, size: 18, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Triggers fire only after 3 seconds without input.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withAlpha(200),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _RuleTile extends StatelessWidget {
   final TextLinkRule rule;
+  final IconData icon;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _RuleTile({
     required this.rule,
+    required this.icon,
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
@@ -243,7 +351,7 @@ class _RuleTile extends StatelessWidget {
 
     return ListTile(
       leading: Icon(
-        compiles ? Icons.link : Icons.error_outline,
+        compiles ? icon : Icons.error_outline,
         color: !rule.enabled
             ? theme.colorScheme.onSurface.withAlpha(60)
             : compiles
@@ -324,7 +432,13 @@ class _TextLinkRuleEditScreen extends ConsumerStatefulWidget {
   /// [existing] is set (editing an existing rule wins).
   final String? initialMatchText;
 
-  const _TextLinkRuleEditScreen({this.existing, this.initialMatchText});
+  final RuleListKind kind;
+
+  const _TextLinkRuleEditScreen({
+    this.existing,
+    this.initialMatchText,
+    required this.kind,
+  });
 
   @override
   ConsumerState<_TextLinkRuleEditScreen> createState() =>
@@ -444,14 +558,14 @@ class _TextLinkRuleEditScreenState
 
     final rule = TextLinkRule(
       id: widget.existing?.id ??
-          'tlr_${DateTime.now().millisecondsSinceEpoch}',
+          '${widget.kind.idPrefix}_${DateTime.now().millisecondsSinceEpoch}',
       name: name,
       pattern: pattern,
       commandTemplate: command,
       enabled: widget.existing?.enabled ?? true,
     );
 
-    final notifier = ref.read(textLinkRulesProvider.notifier);
+    final notifier = ref.read(widget.kind.provider.notifier);
     if (widget.existing != null) {
       notifier.updateRule(rule);
     } else {
@@ -467,7 +581,9 @@ class _TextLinkRuleEditScreenState
 
     final scaffold = Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Text Link Rule' : 'New Text Link Rule'),
+        title: Text(
+          '${isEditing ? 'Edit' : 'New'} ${widget.kind.noun}',
+        ),
         actions: [
           TextButton(onPressed: _save, child: const Text('SAVE')),
         ],

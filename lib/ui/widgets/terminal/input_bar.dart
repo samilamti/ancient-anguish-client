@@ -9,6 +9,8 @@ import '../../../providers/connection_provider.dart'
 import '../../../providers/game_state_provider.dart';
 import '../../../providers/login_provider.dart'
     show loginProvider, LoginPromptDetected;
+import '../../../providers/command_trigger_provider.dart'
+    show userActivityTrackerProvider;
 import '../../../providers/completion_rules_provider.dart';
 import '../../../providers/notification_provider.dart';
 import '../../../providers/recent_words_provider.dart';
@@ -74,6 +76,7 @@ class _InputBarState extends ConsumerState<InputBar> {
 
   void _send() {
     final command = _controller.text;
+    ref.read(userActivityTrackerProvider).markInteraction();
 
     // Quick alias creation: `#al <alias> <expansion>`. Handled entirely
     // client-side and intercepted *before* alias expansion so semicolons in
@@ -370,7 +373,10 @@ class _InputBarState extends ConsumerState<InputBar> {
         // history walk has to be reset here instead. Programmatic
         // controller updates (e.g. _historyUp) don't fire onChanged, so
         // walking the chip back and forth stays consistent.
-        onChanged: (_) => _resetHistorySearch(),
+        onChanged: (_) {
+          _resetHistorySearch();
+          ref.read(userActivityTrackerProvider).markInteraction();
+        },
         onSubmitted: (_) => _send(),
       ),
     );

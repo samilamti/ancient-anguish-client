@@ -5,11 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import 'services/user_activity_tracker.dart';
 import 'services/platform/exit_app.dart';
 
 void main() {
   runZonedGuarded(() {
     WidgetsFlutterBinding.ensureInitialized();
+
+    // Command triggers wait for the player to go idle; start watching input
+    // now so the very first keystroke of a session is counted.
+    UserActivityTracker.instance.install();
 
     // Ensure the Dart VM exits when the native window is closed.
     // Without this, active sockets and FFI resources keep the process alive.

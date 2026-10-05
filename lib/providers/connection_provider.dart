@@ -35,6 +35,8 @@ import 'storage_provider.dart';
 import '../services/social/social_message_parser.dart';
 import 'battle_provider.dart';
 import 'battle_stats_provider.dart';
+import 'alias_provider.dart';
+import 'command_trigger_provider.dart';
 import 'game_state_provider.dart';
 import 'login_provider.dart';
 import 'framed_text_block_provider.dart';
@@ -271,9 +273,28 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           // line here advances the round counter, the rest of the batch
           // belongs to the same round. See [BattleStats.rounds].
           var battleRoundCounted = false;
+          // Command-trigger output, sent after this batch has been rendered
+          // so each command echoes below the line that caused it. Stays null
+          // (and costs nothing) unless the local-only marker asset exists.
+          final triggers = _loginDetected &&
+                  ref.read(commandTriggersAvailableProvider).value == true
+              ? ref.read(commandTriggerEngineProvider)
+              : null;
+          final triggeredCommands = <String>[];
+          final lastInteraction = triggers == null || triggers.isEmpty
+              ? null
+              : ref.read(userActivityTrackerProvider).lastInteraction;
 
           for (final line in newLines) {
             final plainText = line.plainText;
+
+            if (lastInteraction != null) {
+              triggeredCommands.addAll(triggers!.commandsFor(
+                plainText,
+                now: DateTime.now(),
+                lastInteraction: lastInteraction,
+              ));
+            }
 
             // Login dialog: detect "Password:" prompt.
             if (plainText.contains('Password:')) {
@@ -559,6 +580,15 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
               npcKeywords: npcKeywords,
               collapsible: collapsibleLines,
             );
+          }
+
+          // Alias-expanded like a tapped link, but kept out of the command
+          // history: the player didn't issue these, so they shouldn't crowd
+          // the Recent sheet or the up-arrow walk.
+          for (final command in triggeredCommands) {
+            for (final outgoing in ref.read(aliasEngineProvider).expand(command)) {
+              if (outgoing.trim().isNotEmpty) service.sendCommand(outgoing);
+            }
           }
         }
 

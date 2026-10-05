@@ -19,6 +19,7 @@ flutter test
 echo ""
 
 echo "=== Building $PLATFORM Release ==="
+bash scripts/check-no-local-features.sh
 flutter build "$PLATFORM" --release
 echo ""
 

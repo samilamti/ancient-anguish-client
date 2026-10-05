@@ -96,6 +96,8 @@ flutter:
   assets:
     - assets/data/
     - assets/images/compass/
+    # Local-only feature markers (gitignored; see lib/providers/command_trigger_provider.dart).
+    - assets/local/
 
   fonts:
     - family: JetBrainsMono

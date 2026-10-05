@@ -28,6 +28,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -f "$AAB" ] || { echo "AAB not found: $AAB (run flutter build appbundle)" >&2; exit 1; }
+bash "$(dirname "$0")/../check-no-local-features.sh" "$AAB"
 
 PLAY_TOKEN=$(play_token)
 [ -n "$PLAY_TOKEN" ] || { echo "Could not mint Play access token" >&2; exit 1; }

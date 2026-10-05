@@ -24,9 +24,22 @@ final textLinkProcessorProvider = Provider<TextLinkProcessor>((ref) {
 /// Manages text-to-link rules. Persists to `Text Link Rules.json` in the
 /// app documents directory; falls back to the bundled defaults when the
 /// file is missing or empty.
+///
+/// Command triggers reuse this notifier with their own [fileName] and an
+/// empty [defaults] list.
 class TextLinkRulesNotifier extends Notifier<List<TextLinkRule>> {
+  TextLinkRulesNotifier({
+    String fileName = 'Text Link Rules.json',
+    List<TextLinkRule>? defaults,
+  })  : _fileName = fileName,
+        _defaults = defaults;
+
   late final StorageService _storage;
-  static const _fileName = 'Text Link Rules.json';
+  final String _fileName;
+  final List<TextLinkRule>? _defaults;
+
+  List<TextLinkRule> get _defaultRules =>
+      _defaults ?? DefaultTextLinkRules.all();
 
   /// Set by [seedDemoRules]. The disk read is already in flight by then, so
   /// the flag is what stops it landing on top of the seeded list.
@@ -36,7 +49,7 @@ class TextLinkRulesNotifier extends Notifier<List<TextLinkRule>> {
   List<TextLinkRule> build() {
     _storage = ref.read(storageServiceProvider);
     _loadFromDisk();
-    return DefaultTextLinkRules.all();
+    return _defaultRules;
   }
 
   Future<void> _loadFromDisk() async {
@@ -108,7 +121,7 @@ class TextLinkRulesNotifier extends Notifier<List<TextLinkRule>> {
   /// Resets the list back to the bundled defaults. Used by the config
   /// screen's "Reset to defaults" affordance after a confirm dialog.
   void resetToDefaults() {
-    state = DefaultTextLinkRules.all();
+    state = List.unmodifiable(_defaultRules);
     _saveToDisk();
   }
 }

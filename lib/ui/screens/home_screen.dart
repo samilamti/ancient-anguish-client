@@ -19,6 +19,7 @@ import '../../providers/link_command_provider.dart';
 import '../../providers/login_provider.dart';
 import '../../models/social_panel_state.dart';
 import '../../providers/reply_request_provider.dart';
+import '../../providers/command_trigger_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/social_message_provider.dart';
 import '../../providers/social_panel_provider.dart';
@@ -854,6 +855,23 @@ class SettingsDrawer extends ConsumerWidget {
               onTap: () =>
                   _openScreen(context, const TextLinkRulesScreen()),
             ),
+
+            // Local-only: present just when the gitignored marker asset was
+            // bundled into this build.
+            Consumer(builder: (context, ref, _) {
+              final available =
+                  ref.watch(commandTriggersAvailableProvider).value ?? false;
+              if (!available) return const SizedBox.shrink();
+              return _DrawerNavTile(
+                icon: const Icon(Icons.bolt, size: 20),
+                title: 'Command Triggers',
+                subtitle: 'Local only · fires after 3s idle',
+                onTap: () => _openScreen(
+                  context,
+                  const TextLinkRulesScreen(kind: RuleListKind.commandTrigger),
+                ),
+              );
+            }),
 
             Consumer(builder: (context, ref, _) {
               final ignoredCount = ref.watch(

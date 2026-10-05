@@ -113,8 +113,10 @@ AS
 if [ "$GEOM" != "$ORIGIN_X,$ORIGIN_Y,$WIN_W,$WIN_H" ]; then
   echo "error: window is at '${GEOM:-none}', expected '$ORIGIN_X,$ORIGIN_Y,$WIN_W,$WIN_H'." >&2
   echo "       The capture would have photographed whatever else is there." >&2
-  echo "       Usually: the app needed longer to open, or macOS is withholding" >&2
-  echo "       Accessibility permission for System Events." >&2
+  echo "       Usually: the app needed longer to open, macOS is withholding" >&2
+  echo "       Accessibility permission for System Events, or the size is" >&2
+  echo "       bigger than the screen (macOS clamps it: 1600 wide came back" >&2
+  echo "       as 1436 on the built-in display; 1400 fits)." >&2
   exit 1
 fi
 echo "=== window at $GEOM ==="
@@ -127,6 +129,31 @@ else
   # A little slack around the frame so the shadow and title bar aren't clipped.
   REGION="$((ORIGIN_X - 5)),$((ORIGIN_Y - 5)),$((WIN_W + 10)),$((WIN_H + 10))"
 fi
+
+# Raise the client again right before capturing, and refuse if it is not the
+# frontmost app. Raising it once above was not enough on 2026-10-05: the shot
+# came out as the Claude desktop app, with the geometry check passing. Raising
+# again just before the capture is what worked by hand; the frontmost check is
+# so a repeat fails loudly instead of writing the wrong picture.
+FRONT="$(osascript 2>/dev/null <<'AS' || true
+tell application "System Events"
+  repeat with p in (every process whose name contains "ancient_anguish")
+    try
+      set frontmost of p to true
+    end try
+  end repeat
+  delay 1
+  return name of first process whose frontmost is true
+end tell
+AS
+)"
+case "$FRONT" in
+  *ancient_anguish*) ;;
+  *)
+    echo "error: '${FRONT:-unknown}' is in front of the client; not capturing." >&2
+    exit 1
+    ;;
+esac
 
 echo "=== capturing region $REGION ==="
 screencapture -x -R "$REGION" "$OUT"

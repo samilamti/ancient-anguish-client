@@ -79,4 +79,64 @@ void main() {
     await tester.pump();
     expect(colourOf('ga'), AliasHighlightingController.aliasColor);
   });
+
+  testWidgets('the keyword stays blue while the keyboard is composing it, '
+      'as Android keyboards do for the word being typed', (tester) async {
+    final controller = AliasHighlightingController()
+      ..aliasKeywords = {'fb'}
+      ..value = const TextEditingValue(
+        text: 'fb',
+        selection: TextSelection.collapsed(offset: 2),
+        composing: TextRange(start: 0, end: 2),
+      );
+    late TextSpan span;
+    await tester.pumpWidget(
+      Builder(
+        builder: (context) {
+          span = controller.buildTextSpan(
+            context: context,
+            style: const TextStyle(),
+            withComposing: true,
+          );
+          return const SizedBox();
+        },
+      ),
+    );
+    final only = span.children!.cast<TextSpan>().single;
+    expect(only.text, 'fb');
+    expect(only.style?.color, AliasHighlightingController.aliasColor);
+    expect(only.style?.decoration, TextDecoration.underline);
+  });
+
+  testWidgets('composing over part of a line underlines only that part', (
+    tester,
+  ) async {
+    final controller = AliasHighlightingController()
+      ..aliasKeywords = {'fb'}
+      ..value = const TextEditingValue(
+        text: 'fb gob',
+        selection: TextSelection.collapsed(offset: 6),
+        composing: TextRange(start: 3, end: 6),
+      );
+    late TextSpan span;
+    await tester.pumpWidget(
+      Builder(
+        builder: (context) {
+          span = controller.buildTextSpan(
+            context: context,
+            style: const TextStyle(),
+            withComposing: true,
+          );
+          return const SizedBox();
+        },
+      ),
+    );
+    final parts = span.children!.cast<TextSpan>().toList();
+    expect(parts.map((p) => p.text), ['fb', ' ', 'gob']);
+    expect(parts[0].style?.color, AliasHighlightingController.aliasColor);
+    expect(parts[0].style?.decoration, isNull);
+    expect(parts[1].style, isNull);
+    expect(parts[2].style?.color, isNull);
+    expect(parts[2].style?.decoration, TextDecoration.underline);
+  });
 }

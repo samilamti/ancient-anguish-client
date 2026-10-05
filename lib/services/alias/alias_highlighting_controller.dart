@@ -30,10 +30,9 @@ class AliasHighlightingController extends TextEditingController {
     for (final segment in input.split(';')) {
       final first = word.firstMatch(segment);
       if (first != null && keywords.contains(first.group(0))) {
-        ranges.add(TextRange(
-          start: start + first.start,
-          end: start + first.end,
-        ));
+        ranges.add(
+          TextRange(start: start + first.start, end: start + first.end),
+        );
       }
       start += segment.length + 1;
     }
@@ -47,10 +46,7 @@ class AliasHighlightingController extends TextEditingController {
     required bool withComposing,
   }) {
     final ranges = aliasRanges(text, _keywords);
-    // Leave IME composition (underlined pre-edit text) to the default
-    // rendering rather than fighting it.
-    final composing = withComposing && value.isComposingRangeValid;
-    if (ranges.isEmpty || composing) {
+    if (ranges.isEmpty) {
       return super.buildTextSpan(
         context: context,
         style: style,
@@ -58,15 +54,46 @@ class AliasHighlightingController extends TextEditingController {
       );
     }
 
-    final aliasStyle = (style ?? const TextStyle()).copyWith(color: aliasColor);
-    final children = <TextSpan>[];
-    var pos = 0;
+    // Android keyboards keep the word being typed in the composing region
+    // the whole time, so bailing out to the default rendering while
+    // composing would hide the colour exactly when `fb` is typed. Split at
+    // both the alias ranges and the composing edges, and give each piece
+    // the colour, the composing underline, or both.
+    final composing = withComposing && value.isComposingRangeValid
+        ? value.composing
+        : null;
+    final cuts = <int>{0, text.length};
     for (final r in ranges) {
-      if (r.start > pos) children.add(TextSpan(text: text.substring(pos, r.start)));
-      children.add(TextSpan(text: r.textInside(text), style: aliasStyle));
-      pos = r.end;
+      cuts
+        ..add(r.start)
+        ..add(r.end);
     }
-    if (pos < text.length) children.add(TextSpan(text: text.substring(pos)));
+    if (composing != null) {
+      cuts
+        ..add(composing.start)
+        ..add(composing.end);
+    }
+    final points = cuts.toList()..sort();
+
+    final children = <TextSpan>[];
+    for (var i = 0; i < points.length - 1; i++) {
+      final a = points[i], b = points[i + 1];
+      if (a == b) continue;
+      final isAlias = ranges.any((r) => r.start <= a && b <= r.end);
+      final isComposing =
+          composing != null && composing.start <= a && b <= composing.end;
+      children.add(
+        TextSpan(
+          text: text.substring(a, b),
+          style: isAlias || isComposing
+              ? TextStyle(
+                  color: isAlias ? aliasColor : null,
+                  decoration: isComposing ? TextDecoration.underline : null,
+                )
+              : null,
+        ),
+      );
+    }
     return TextSpan(style: style, children: children);
   }
 }

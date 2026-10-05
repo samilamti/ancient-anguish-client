@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/web_config.dart';
 import '../models/battle_filter_mode.dart';
 import '../models/prompt_element.dart';
+import '../models/alias_rule.dart';
 import '../models/auth_state.dart';
 import '../models/connection_info.dart';
 import '../models/social_panel_state.dart';
@@ -28,6 +29,7 @@ import '../services/parser/text_link_processor.dart';
 import '../services/trigger/command_trigger_engine.dart';
 import 'text_link_rule_provider.dart';
 import '../models/social_message.dart';
+import '../services/alias/alias_highlighting_controller.dart';
 import '../services/command_history_service.dart';
 import '../services/platform/window_service.dart';
 import 'audio_provider.dart';
@@ -102,8 +104,18 @@ final inputFocusProvider = Provider<FocusNode>((ref) {
 ///
 /// Exposed so mobile quick-command buttons can pre-fill the input
 /// (e.g. "kill " when no tab-completion targets exist yet).
+///
+/// Alias keywords are painted blue as they are typed.
 final inputControllerProvider = Provider<TextEditingController>((ref) {
-  final controller = TextEditingController();
+  final controller = AliasHighlightingController();
+  ref.listen<List<AliasRule>>(
+    aliasRulesProvider,
+    (_, rules) => controller.aliasKeywords = {
+      for (final r in rules)
+        if (r.enabled) r.keyword,
+    },
+    fireImmediately: true,
+  );
   ref.onDispose(() => controller.dispose());
   return controller;
 });

@@ -11,6 +11,7 @@ import '../../../providers/login_provider.dart'
     show loginProvider, LoginPromptDetected;
 import '../../../providers/command_trigger_provider.dart'
     show userActivityTrackerProvider;
+import '../../../providers/local_features_provider.dart';
 import '../../../providers/completion_rules_provider.dart';
 import '../../../providers/notification_provider.dart';
 import '../../../providers/recent_words_provider.dart';
@@ -22,6 +23,7 @@ import '../../../models/alias_rule.dart';
 import '../../../services/alias/alias_command.dart';
 import '../../../services/command_counterparts.dart';
 import '../../../services/command_loops.dart';
+import '../../../services/repeat_command.dart';
 import '../../../services/parser/emoji_parser.dart';
 
 /// The command input bar at the bottom of the terminal.
@@ -52,6 +54,9 @@ class _InputBarState extends ConsumerState<InputBar> {
   void initState() {
     super.initState();
     _focusNode.addListener(_onFocusChange);
+    // Start the asset probe now so `_send` sees a settled answer, not a
+    // still-loading one that would send `#15 …` to the MUD verbatim.
+    ref.read(localFeaturesAvailableProvider);
   }
 
   @override
@@ -91,8 +96,15 @@ class _InputBarState extends ConsumerState<InputBar> {
     final history = ref.read(commandHistoryProvider.notifier);
     final aliasEngine = ref.read(aliasEngineProvider);
 
-    // Expand aliases — may produce multiple commands (semicolons).
-    final expanded = aliasEngine.expand(command);
+    // Expand aliases — may produce multiple commands (semicolons). A
+    // local-only `#15 buy beer;drink beer` expands its body once and repeats
+    // the result.
+    final repeat = ref.read(localFeaturesAvailableProvider).value == true
+        ? RepeatCommand.parse(command)
+        : null;
+    final expanded = repeat == null
+        ? aliasEngine.expand(command)
+        : repeat.repeat(aliasEngine.expand(repeat.body));
     final settings = ref.read(settingsProvider);
     // Break commands (e.g. `breakdo`) to drop into history after a loop
     // command like `dotimes` is sent. Collected as a set so a multi-command

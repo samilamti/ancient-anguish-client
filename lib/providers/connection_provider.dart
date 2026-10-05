@@ -295,7 +295,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           // Command triggers. Stays null (and costs nothing) unless the
           // local-only marker asset exists.
           final triggers = _loginDetected &&
-                  ref.read(commandTriggersAvailableProvider).value == true
+                  ref.read(localFeaturesAvailableProvider).value == true
               ? ref.read(commandTriggerEngineProvider)
               : null;
           final lastInteraction = triggers == null || triggers.isEmpty

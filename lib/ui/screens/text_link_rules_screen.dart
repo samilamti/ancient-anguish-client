@@ -221,7 +221,7 @@ class TextLinkRulesScreen extends ConsumerWidget {
             'it. After a trigger fires, no trigger fires for 3 seconds, so '
             'a burst of matching lines sends one command.\n\n'
             'This is a local-only feature, enabled by the file '
-            '$commandTriggersMarkerAsset in your checkout.',
+            '$localFeaturesMarkerAsset in your checkout.',
           ),
         ),
         actions: [

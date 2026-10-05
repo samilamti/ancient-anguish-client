@@ -860,7 +860,7 @@ class SettingsDrawer extends ConsumerWidget {
             // bundled into this build.
             Consumer(builder: (context, ref, _) {
               final available =
-                  ref.watch(commandTriggersAvailableProvider).value ?? false;
+                  ref.watch(localFeaturesAvailableProvider).value ?? false;
               if (!available) return const SizedBox.shrink();
               return _DrawerNavTile(
                 icon: const Icon(Icons.bolt, size: 20),

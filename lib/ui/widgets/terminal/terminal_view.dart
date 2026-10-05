@@ -11,6 +11,7 @@ import '../../../providers/background_image_provider.dart';
 import '../../../providers/connection_provider.dart'
     show terminalBufferProvider, inputFocusProvider;
 import '../../../providers/link_command_provider.dart';
+import '../../../providers/local_features_provider.dart';
 import '../../../providers/notification_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
@@ -67,6 +68,14 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   bool _fontMeasured = false;
   double _measuredFontSize = 0;
   double _measuredExtraSpacing = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start the local-features asset probe now, so the selection menu reads a
+    // settled answer instead of a still-loading one that hides Create Trigger.
+    ref.read(localFeaturesAvailableProvider);
+  }
 
   @override
   void dispose() {
@@ -443,6 +452,9 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     final renderBox = overlay.context.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
     final overlayPos = renderBox.globalToLocal(globalPosition);
+    // Local-only: offered just when the gitignored marker asset was bundled.
+    final localFeatures =
+        ref.read(localFeaturesAvailableProvider).value ?? false;
 
     showMenu<String>(
       context: context,
@@ -460,6 +472,11 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
             value: 'create_text_link_rule',
             child: Text('Create Text Link Rule'),
           ),
+        if (_selectionController.hasSelection && localFeatures)
+          const PopupMenuItem(
+            value: 'create_trigger',
+            child: Text('Create Trigger'),
+          ),
         if (hitPos != null)
           const PopupMenuItem(value: 'copy_line', child: Text('Copy Line')),
         const PopupMenuItem(value: 'select_all', child: Text('Select All')),
@@ -474,6 +491,16 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
               _selectionController.selection?.extractText(lines) ?? '';
           if (selected.trim().isNotEmpty && mounted) {
             openTextLinkRuleEditor(context, initialMatchText: selected);
+          }
+        case 'create_trigger':
+          final selected =
+              _selectionController.selection?.extractText(lines) ?? '';
+          if (selected.trim().isNotEmpty && mounted) {
+            openTextLinkRuleEditor(
+              context,
+              initialMatchText: selected,
+              kind: RuleListKind.commandTrigger,
+            );
           }
         case 'copy_line':
           if (hitPos != null && hitPos.line < lines.length) {

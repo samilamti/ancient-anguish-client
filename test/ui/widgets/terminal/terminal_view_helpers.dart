@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ancient_anguish_client/core/theme/app_theme.dart';
 import 'package:ancient_anguish_client/protocol/ansi/styled_span.dart';
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
+import 'package:ancient_anguish_client/providers/local_features_provider.dart';
 import 'package:ancient_anguish_client/providers/notification_provider.dart';
 import 'package:ancient_anguish_client/ui/widgets/common/notification_overlay.dart';
 import 'package:ancient_anguish_client/ui/widgets/terminal/terminal_view.dart';
@@ -35,6 +36,7 @@ Future<ProviderContainer> pumpTerminalView(
   WidgetTester tester, {
   List<StyledLine> lines = const [],
   FocusNode? focusNode,
+  bool localFeatures = false,
 }) async {
   final inputFocus = focusNode ?? FocusNode();
 
@@ -43,6 +45,8 @@ Future<ProviderContainer> pumpTerminalView(
       terminalBufferProvider
           .overrideWith(() => FakeTerminalBufferNotifier(lines)),
       inputFocusProvider.overrideWithValue(inputFocus),
+      localFeaturesAvailableProvider
+          .overrideWith((ref) async => localFeatures),
     ],
   );
 

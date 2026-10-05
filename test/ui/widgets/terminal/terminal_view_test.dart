@@ -189,6 +189,27 @@ void main() {
 
       expect(find.text('Copy'), findsOneWidget);
       expect(find.text('Create Text Link Rule'), findsOneWidget);
+      // Local-only: hidden without the marker asset.
+      expect(find.text('Create Trigger'), findsNothing);
+    });
+
+    testWidgets('offers Create Trigger when local features are on',
+        (tester) async {
+      final lines = createStyledLines(
+        List.generate(40, (i) => 'You must be standing.'),
+      );
+      await pumpTerminalView(tester, lines: lines, localFeatures: true);
+      await tester.pumpAndSettle();
+
+      final listRect = tester.getRect(find.byType(ListView));
+      await tester.dragFrom(
+        Offset(listRect.left + 12, listRect.center.dy),
+        const Offset(120, 0),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create Text Link Rule'), findsOneWidget);
+      expect(find.text('Create Trigger'), findsOneWidget);
     });
   });
 

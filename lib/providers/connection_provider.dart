@@ -313,7 +313,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             final plainText = line.plainText;
 
             if (instantTriggers) {
-              final command = triggers.matchNow(plainText);
+              final command = triggers.matchNow(plainText, now: DateTime.now());
               if (command != null) instantCommands.add(command);
             } else if (lastInteraction != null &&
                 triggers!.onLine(

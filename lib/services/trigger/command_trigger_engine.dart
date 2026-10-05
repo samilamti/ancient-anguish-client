@@ -24,7 +24,11 @@ import '../../models/text_link_rule.dart';
 ///   lines therefore produces one command, and a trigger that matches its own
 ///   output loops at most once per cooldown instead of flooding the MUD.
 ///
-/// [matchNow] bypasses all three for the toolbar's "Instant Triggers" mode.
+/// [matchNow] bypasses all three for the toolbar's "Instant Triggers" mode,
+/// which has its own brake instead: at most [instantRateLimit] firings in any
+/// [instantRateWindow], across all rules. Matches over the limit are dropped,
+/// not queued, so a runaway loop can't build a backlog that keeps sending
+/// after the output that caused it has stopped.
 ///
 /// Pure: the caller passes the clock and the last interaction time, so tests
 /// need no timers.
@@ -32,11 +36,14 @@ class CommandTriggerEngine {
   static const idleThreshold = Duration(seconds: 3);
   static const fireDelay = Duration(seconds: 1);
   static const cooldown = Duration(seconds: 3);
+  static const instantRateLimit = 2;
+  static const instantRateWindow = Duration(seconds: 1);
 
   final List<TextLinkRule> _rules;
   String? _pending;
   DateTime? _pendingSince;
   DateTime? _lastFired;
+  final List<DateTime> _instantFires = [];
 
   CommandTriggerEngine(List<TextLinkRule> rules)
       : _rules = [
@@ -75,12 +82,19 @@ class CommandTriggerEngine {
 
   /// The command of the first rule matching [plainLine], with no idle gate,
   /// delay or cooldown, and without touching the pending/cooldown state.
-  String? matchNow(String plainLine) {
+  /// Returns `null` when [instantRateLimit] firings already happened within
+  /// [instantRateWindow] of [now].
+  String? matchNow(String plainLine, {required DateTime now}) {
+    _instantFires
+        .removeWhere((t) => now.difference(t) >= instantRateWindow);
+    if (_instantFires.length >= instantRateLimit) return null;
     for (final rule in _rules) {
       final match = rule.regex!.firstMatch(plainLine);
       if (match == null) continue;
       final command = rule.resolveCommand(match);
-      if (command.isNotEmpty) return command;
+      if (command.isEmpty) continue;
+      _instantFires.add(now);
+      return command;
     }
     return null;
   }

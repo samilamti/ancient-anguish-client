@@ -221,8 +221,9 @@ class TextLinkRulesScreen extends ConsumerWidget {
             'it. After a trigger fires, no trigger fires for 3 seconds, so '
             'a burst of matching lines sends one command.\n\n'
             'The Instant Triggers toggle in the toolbar (desktop) turns all '
-            'of that off: while it is on, every match fires at once, even '
-            'while you are typing. It resets to off on every launch.\n\n'
+            'of that off: while it is on, a match fires at once, even while '
+            'you are typing, up to 2 triggers in any 1 second; matches over '
+            'that are dropped. It resets to off on every launch.\n\n'
             'This is a local-only feature, enabled by the file '
             '$localFeaturesMarkerAsset in your checkout.',
           ),

@@ -113,18 +113,56 @@ void main() {
   group('CommandTriggerEngine.matchNow (instant mode)', () {
     test('matches with no idle gate, delay or cooldown', () {
       final engine = CommandTriggerEngine([door]);
-      expect(engine.matchNow(doorLine), 'open oak door');
-      expect(engine.matchNow(doorLine), 'open oak door');
-      expect(engine.matchNow('You are hungry.'), isNull);
+      expect(engine.matchNow(doorLine, now: t0), 'open oak door');
+      expect(engine.matchNow('You are hungry.', now: at(10)), isNull);
+      expect(engine.matchNow(doorLine, now: at(20)), 'open oak door');
     });
 
     test('leaves the delayed path\'s state alone', () {
       final engine = CommandTriggerEngine([door]);
-      engine.matchNow(doorLine);
+      engine.matchNow(doorLine, now: t0);
       expect(engine.hasPending, isFalse);
       // No cooldown was started either.
       expect(engine.onLine(doorLine, now: at(3000), lastInteraction: t0),
           'open oak door');
+    });
+  });
+
+  group('CommandTriggerEngine.matchNow rate limit', () {
+    test('limit is 2 per rolling second', () {
+      expect(CommandTriggerEngine.instantRateLimit, 2);
+      expect(CommandTriggerEngine.instantRateWindow,
+          const Duration(seconds: 1));
+    });
+
+    test('drops matches over the limit, across all rules', () {
+      final hungry = door.copyWith(
+          id: 'hungry', pattern: 'You are hungry', commandTemplate: 'eat');
+      final engine = CommandTriggerEngine([door, hungry]);
+      expect(engine.matchNow(doorLine, now: t0), isNotNull);
+      expect(engine.matchNow('You are hungry.', now: at(100)), 'eat');
+      expect(engine.matchNow(doorLine, now: at(200)), isNull);
+      expect(engine.matchNow('You are hungry.', now: at(999)), isNull);
+    });
+
+    test('the window rolls: a slot frees one second after each firing', () {
+      final engine = CommandTriggerEngine([door]);
+      engine.matchNow(doorLine, now: t0);
+      engine.matchNow(doorLine, now: at(600));
+      expect(engine.matchNow(doorLine, now: at(999)), isNull);
+      expect(engine.matchNow(doorLine, now: at(1000)), isNotNull);
+      // at(600) and at(1000) are both inside the window ending at 1500.
+      expect(engine.matchNow(doorLine, now: at(1500)), isNull);
+      expect(engine.matchNow(doorLine, now: at(1600)), isNotNull);
+    });
+
+    test('dropped and non-matching lines use up no slots', () {
+      final engine = CommandTriggerEngine([door]);
+      for (var i = 0; i < 5; i++) {
+        engine.matchNow('You are hungry.', now: at(i));
+      }
+      expect(engine.matchNow(doorLine, now: at(10)), isNotNull);
+      expect(engine.matchNow(doorLine, now: at(20)), isNotNull);
     });
   });
 

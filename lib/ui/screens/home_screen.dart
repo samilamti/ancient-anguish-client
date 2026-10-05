@@ -865,7 +865,7 @@ class SettingsDrawer extends ConsumerWidget {
               return _DrawerNavTile(
                 icon: const Icon(Icons.bolt, size: 20),
                 title: 'Command Triggers',
-                subtitle: 'Local only · fires after 3s idle',
+                subtitle: 'Local only · 3s idle, 1s delay',
                 onTap: () => _openScreen(
                   context,
                   const TextLinkRulesScreen(kind: RuleListKind.commandTrigger),

@@ -25,6 +25,7 @@ import '../services/parser/map_emoji_transformer.dart';
 import '../services/parser/output_parser.dart';
 import '../services/parser/sheet_parser.dart';
 import '../services/parser/text_link_processor.dart';
+import '../services/trigger/command_trigger_engine.dart';
 import 'text_link_rule_provider.dart';
 import '../models/social_message.dart';
 import '../services/command_history_service.dart';
@@ -131,6 +132,11 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   StreamSubscription<TelnetEvent>? _eventSub;
   StreamSubscription<ConnectionStatus>? _statusSub;
   Timer? _promptFlushTimer;
+
+  /// Waits out [CommandTriggerEngine.fireDelay] before a matched command
+  /// trigger is sent.
+  Timer? _triggerFireTimer;
+  CommandTriggerEngine? _triggerFireEngine;
   bool _loginDetected = false;
   SocialMessageType? _lastSocialType;
   bool _inTellHistory = false;
@@ -231,6 +237,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       _eventSub?.cancel();
       _statusSub?.cancel();
       _promptFlushTimer?.cancel();
+      _cancelTriggerFire();
     });
     return [];
   }
@@ -273,14 +280,12 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           // line here advances the round counter, the rest of the batch
           // belongs to the same round. See [BattleStats.rounds].
           var battleRoundCounted = false;
-          // Command-trigger output, sent after this batch has been rendered
-          // so each command echoes below the line that caused it. Stays null
-          // (and costs nothing) unless the local-only marker asset exists.
+          // Command triggers. Stays null (and costs nothing) unless the
+          // local-only marker asset exists.
           final triggers = _loginDetected &&
                   ref.read(commandTriggersAvailableProvider).value == true
               ? ref.read(commandTriggerEngineProvider)
               : null;
-          final triggeredCommands = <String>[];
           final lastInteraction = triggers == null || triggers.isEmpty
               ? null
               : ref.read(userActivityTrackerProvider).lastInteraction;
@@ -288,12 +293,14 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           for (final line in newLines) {
             final plainText = line.plainText;
 
-            if (lastInteraction != null) {
-              triggeredCommands.addAll(triggers!.commandsFor(
-                plainText,
-                now: DateTime.now(),
-                lastInteraction: lastInteraction,
-              ));
+            if (lastInteraction != null &&
+                triggers!.onLine(
+                      plainText,
+                      now: DateTime.now(),
+                      lastInteraction: lastInteraction,
+                    ) !=
+                    null) {
+              _scheduleTriggerFire(triggers, service);
             }
 
             // Login dialog: detect "Password:" prompt.
@@ -582,14 +589,6 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             );
           }
 
-          // Alias-expanded like a tapped link, but kept out of the command
-          // history: the player didn't issue these, so they shouldn't crowd
-          // the Recent sheet or the up-arrow walk.
-          for (final command in triggeredCommands) {
-            for (final outgoing in ref.read(aliasEngineProvider).expand(command)) {
-              if (outgoing.trim().isNotEmpty) service.sendCommand(outgoing);
-            }
-          }
         }
 
         // The MUD uses SGA (Suppress Go Ahead), so prompt lines arrive
@@ -694,6 +693,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       if (status == ConnectionStatus.disconnected) {
         _promptFlushTimer?.cancel();
         _promptFlushTimer = null;
+        _cancelTriggerFire();
         ref.read(outputParserProvider).reset();
         ref.read(gameStateProvider.notifier).reset();
         ref.read(battleStateProvider.notifier).reset();
@@ -1093,6 +1093,43 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     final stripped = pending.replaceAll(_ansiEscapeRegex, '').trimLeft();
     return stripped.startsWith('@@') &&
         !ref.read(promptConfigProvider).promptRegex.hasMatch(stripped);
+  }
+
+  /// Sends the pending command trigger after [CommandTriggerEngine.fireDelay],
+  /// unless the player touched the client meanwhile. Holds on to [engine]
+  /// rather than re-reading the provider: an edit to the rules rebuilds the
+  /// engine, and the new one knows nothing about this match.
+  ///
+  /// Alias-expanded like a tapped link, but kept out of the command history:
+  /// the player didn't issue it, so it shouldn't crowd the Recent sheet or
+  /// the up-arrow walk.
+  void _scheduleTriggerFire(
+    CommandTriggerEngine engine,
+    MudConnectionService service,
+  ) {
+    _cancelTriggerFire();
+    _triggerFireEngine = engine;
+    _triggerFireTimer = Timer(CommandTriggerEngine.fireDelay, () {
+      _triggerFireTimer = null;
+      _triggerFireEngine = null;
+      final command = engine.takePending(
+        now: DateTime.now(),
+        lastInteraction: ref.read(userActivityTrackerProvider).lastInteraction,
+      );
+      if (command == null) return;
+      for (final outgoing in ref.read(aliasEngineProvider).expand(command)) {
+        if (outgoing.trim().isNotEmpty) service.sendCommand(outgoing);
+      }
+    });
+  }
+
+  /// Drops a scheduled trigger. The engine's pending slot has to be cleared
+  /// with it, or the engine would refuse every later match.
+  void _cancelTriggerFire() {
+    _triggerFireTimer?.cancel();
+    _triggerFireTimer = null;
+    _triggerFireEngine?.cancelPending();
+    _triggerFireEngine = null;
   }
 
   /// Timer callback: flush buffered partial text as a synthetic prompt

@@ -216,9 +216,10 @@ class TextLinkRulesScreen extends ConsumerWidget {
             'MUD output matches its pattern. Patterns and templates work '
             'exactly like text link rules.\n\n'
             'Triggers only fire once you have left the client alone for 3 '
-            'seconds: no typing, tapping or scrolling. Each trigger fires at '
-            'most once per second, so one that matches its own output can '
-            'not flood the MUD.\n\n'
+            'seconds: no typing, tapping or scrolling. A match is sent 1 '
+            'second later, and touching the client in that second cancels '
+            'it. After a trigger fires, no trigger fires for 3 seconds, so '
+            'a burst of matching lines sends one command.\n\n'
             'This is a local-only feature, enabled by the file '
             '$commandTriggersMarkerAsset in your checkout.',
           ),
@@ -317,7 +318,7 @@ class _TriggerIdleBanner extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Triggers fire only after 3 seconds without input.',
+              'Fire 1s after a match, after 3s without input; 3s cooldown.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurface.withAlpha(200),
               ),

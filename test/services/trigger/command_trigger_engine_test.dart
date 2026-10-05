@@ -13,46 +13,77 @@ void main() {
     pattern: r'The (\w+) door is closed\.',
     commandTemplate: r'open $1 door',
   );
+  const doorLine = 'The oak door is closed.';
+
+  /// Matches at [matchMs], then takes the pending command one fire delay
+  /// later, with no interaction since [t0].
+  String? fireAt(CommandTriggerEngine engine, int matchMs,
+      {String line = doorLine}) {
+    if (engine.onLine(line, now: at(matchMs), lastInteraction: t0) == null) {
+      return null;
+    }
+    return engine.takePending(now: at(matchMs + 1000), lastInteraction: t0);
+  }
 
   group('CommandTriggerEngine', () {
-    test('fires the resolved command once the player has been idle 3s', () {
+    test('delays are the requested ones', () {
+      expect(CommandTriggerEngine.idleThreshold, const Duration(seconds: 3));
+      expect(CommandTriggerEngine.fireDelay, const Duration(seconds: 1));
+      expect(CommandTriggerEngine.cooldown, const Duration(seconds: 3));
+    });
+
+    test('a match after 3s idle becomes pending, then fires', () {
       final engine = CommandTriggerEngine([door]);
+      expect(engine.onLine(doorLine, now: at(3000), lastInteraction: t0),
+          'open oak door');
+      expect(engine.hasPending, isTrue);
+      expect(engine.takePending(now: at(4000), lastInteraction: t0),
+          'open oak door');
+      expect(engine.hasPending, isFalse);
+    });
+
+    test('no match while the player interacted under 3s ago', () {
+      final engine = CommandTriggerEngine([door]);
+      expect(engine.onLine(doorLine, now: at(2999), lastInteraction: t0),
+          isNull);
+    });
+
+    test('interaction during the fire delay cancels the trigger', () {
+      final engine = CommandTriggerEngine([door]);
+      engine.onLine(doorLine, now: at(3000), lastInteraction: t0);
+      expect(engine.takePending(now: at(4000), lastInteraction: at(3500)),
+          isNull);
+      // A cancelled trigger starts no cooldown and frees the pending slot.
+      expect(engine.hasPending, isFalse);
       expect(
-        engine.commandsFor('The oak door is closed.',
-            now: at(3000), lastInteraction: t0),
-        ['open oak door'],
-      );
+          engine.onLine(doorLine, now: at(6500), lastInteraction: at(3500)),
+          'open oak door');
     });
 
-    test('stays quiet while the player interacted under 3s ago', () {
+    test('only one trigger is pending at a time', () {
       final engine = CommandTriggerEngine([door]);
-      expect(
-        engine.commandsFor('The oak door is closed.',
-            now: at(2999), lastInteraction: t0),
-        isEmpty,
-      );
+      expect(engine.onLine(doorLine, now: at(3000), lastInteraction: t0),
+          isNotNull);
+      expect(engine.onLine(doorLine, now: at(3100), lastInteraction: t0),
+          isNull);
     });
 
-    test('a rule fires at most once per cooldown window', () {
-      final engine = CommandTriggerEngine([door]);
-      const line = 'The oak door is closed.';
-      expect(engine.commandsFor(line, now: at(5000), lastInteraction: t0),
-          hasLength(1));
-      expect(engine.commandsFor(line, now: at(5500), lastInteraction: t0),
-          isEmpty);
-      expect(engine.commandsFor(line, now: at(6000), lastInteraction: t0),
-          hasLength(1));
+    test('after a firing, no trigger fires for 3 seconds', () {
+      final other = door.copyWith(
+          id: 'hungry', pattern: 'You are hungry', commandTemplate: 'eat');
+      final engine = CommandTriggerEngine([door, other]);
+      expect(fireAt(engine, 3000), 'open oak door'); // fired at 4000
+      expect(fireAt(engine, 6999, line: 'You are hungry.'), isNull);
+      expect(fireAt(engine, 7000, line: 'You are hungry.'), 'eat');
     });
 
-    test('a quiet window that was blocked does not start the cooldown', () {
+    test('cancelPending frees the slot without firing', () {
       final engine = CommandTriggerEngine([door]);
-      const line = 'The oak door is closed.';
-      // Blocked by recent input...
-      expect(engine.commandsFor(line, now: at(4000), lastInteraction: at(3000)),
-          isEmpty);
-      // ...so it is free to fire as soon as the player goes idle.
-      expect(engine.commandsFor(line, now: at(6000), lastInteraction: at(3000)),
-          ['open oak door']);
+      engine.onLine(doorLine, now: at(3000), lastInteraction: t0);
+      engine.cancelPending();
+      expect(engine.takePending(now: at(4000), lastInteraction: t0), isNull);
+      expect(engine.onLine(doorLine, now: at(4000), lastInteraction: t0),
+          isNotNull);
     });
 
     test('skips disabled rules, broken regexes and non-matching lines', () {
@@ -63,23 +94,19 @@ void main() {
       ]);
       expect(engine.isEmpty, isTrue);
       expect(
-        CommandTriggerEngine([door]).commandsFor('You are hungry.',
+        CommandTriggerEngine([door]).onLine('You are hungry.',
             now: at(9000), lastInteraction: t0),
-        isEmpty,
+        isNull,
       );
     });
 
-    test('several matching rules fire in rule order', () {
+    test('the first matching rule wins', () {
       final engine = CommandTriggerEngine([
         door,
         const TextLinkRule(
             id: 'look', name: 'look', pattern: 'door', commandTemplate: 'look'),
       ]);
-      expect(
-        engine.commandsFor('The oak door is closed.',
-            now: at(3000), lastInteraction: t0),
-        ['open oak door', 'look'],
-      );
+      expect(fireAt(engine, 3000), 'open oak door');
     });
   });
 

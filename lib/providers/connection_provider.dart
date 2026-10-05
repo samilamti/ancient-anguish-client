@@ -298,21 +298,31 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                   ref.read(localFeaturesAvailableProvider).value == true
               ? ref.read(commandTriggerEngineProvider)
               : null;
-          final lastInteraction = triggers == null || triggers.isEmpty
-              ? null
-              : ref.read(userActivityTrackerProvider).lastInteraction;
+          final instantTriggers = triggers != null &&
+              !triggers.isEmpty &&
+              ref.read(instantTriggersProvider);
+          // Instant mode: sent after this batch renders, so each command
+          // echoes below the line that caused it.
+          final instantCommands = <String>[];
+          final lastInteraction =
+              triggers == null || triggers.isEmpty || instantTriggers
+                  ? null
+                  : ref.read(userActivityTrackerProvider).lastInteraction;
 
           for (final line in newLines) {
             final plainText = line.plainText;
 
-            if (lastInteraction != null &&
+            if (instantTriggers) {
+              final command = triggers.matchNow(plainText);
+              if (command != null) instantCommands.add(command);
+            } else if (lastInteraction != null &&
                 triggers!.onLine(
                       plainText,
                       now: DateTime.now(),
                       lastInteraction: lastInteraction,
                     ) !=
                     null) {
-              _scheduleTriggerFire(triggers, service);
+              _scheduleTriggerFire(triggers);
             }
 
             // Login dialog: detect "Password:" prompt.
@@ -600,6 +610,8 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
               collapsible: collapsibleLines,
             );
           }
+
+          instantCommands.forEach(_sendTriggerCommand);
 
         }
 
@@ -1115,10 +1127,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// Alias-expanded like a tapped link, but kept out of the command history:
   /// the player didn't issue it, so it shouldn't crowd the Recent sheet or
   /// the up-arrow walk.
-  void _scheduleTriggerFire(
-    CommandTriggerEngine engine,
-    MudConnectionService service,
-  ) {
+  void _scheduleTriggerFire(CommandTriggerEngine engine) {
     _cancelTriggerFire();
     _triggerFireEngine = engine;
     _triggerFireTimer = Timer(CommandTriggerEngine.fireDelay, () {
@@ -1128,11 +1137,15 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         now: DateTime.now(),
         lastInteraction: ref.read(userActivityTrackerProvider).lastInteraction,
       );
-      if (command == null) return;
-      for (final outgoing in ref.read(aliasEngineProvider).expand(command)) {
-        if (outgoing.trim().isNotEmpty) service.sendCommand(outgoing);
-      }
+      if (command != null) _sendTriggerCommand(command);
     });
+  }
+
+  void _sendTriggerCommand(String command) {
+    final service = ref.read(connectionServiceProvider);
+    for (final outgoing in ref.read(aliasEngineProvider).expand(command)) {
+      if (outgoing.trim().isNotEmpty) service.sendCommand(outgoing);
+    }
   }
 
   /// Drops a scheduled trigger. The engine's pending slot has to be cleared

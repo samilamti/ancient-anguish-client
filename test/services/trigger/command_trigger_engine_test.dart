@@ -110,6 +110,24 @@ void main() {
     });
   });
 
+  group('CommandTriggerEngine.matchNow (instant mode)', () {
+    test('matches with no idle gate, delay or cooldown', () {
+      final engine = CommandTriggerEngine([door]);
+      expect(engine.matchNow(doorLine), 'open oak door');
+      expect(engine.matchNow(doorLine), 'open oak door');
+      expect(engine.matchNow('You are hungry.'), isNull);
+    });
+
+    test('leaves the delayed path\'s state alone', () {
+      final engine = CommandTriggerEngine([door]);
+      engine.matchNow(doorLine);
+      expect(engine.hasPending, isFalse);
+      // No cooldown was started either.
+      expect(engine.onLine(doorLine, now: at(3000), lastInteraction: t0),
+          'open oak door');
+    });
+  });
+
   group('UserActivityTracker', () {
     test('creation counts as an interaction, and marking moves it', () {
       var now = t0;

@@ -193,6 +193,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               // Immersions / Aliases / Areas live in the AppBar on desktop;
               // on mobile they're relocated to the Settings drawer to free
               // toolbar space.
+              // Local-only: present just when the gitignored marker asset
+              // was bundled into this build.
+              if (!isMobile &&
+                  (ref.watch(localFeaturesAvailableProvider).value ?? false))
+                _ToolbarItem(
+                  icon: Icons.bolt,
+                  label: 'Instant Triggers',
+                  onPressed: () =>
+                      ref.read(instantTriggersProvider.notifier).toggle(),
+                  active: ref.watch(instantTriggersProvider),
+                ),
               if (!isMobile) ...[
                 _ToolbarItem(
                   emoji: '🎨',

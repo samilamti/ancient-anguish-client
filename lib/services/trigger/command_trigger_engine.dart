@@ -24,6 +24,8 @@ import '../../models/text_link_rule.dart';
 ///   lines therefore produces one command, and a trigger that matches its own
 ///   output loops at most once per cooldown instead of flooding the MUD.
 ///
+/// [matchNow] bypasses all three for the toolbar's "Instant Triggers" mode.
+///
 /// Pure: the caller passes the clock and the last interaction time, so tests
 /// need no timers.
 class CommandTriggerEngine {
@@ -67,6 +69,18 @@ class CommandTriggerEngine {
       _pending = command;
       _pendingSince = now;
       return command;
+    }
+    return null;
+  }
+
+  /// The command of the first rule matching [plainLine], with no idle gate,
+  /// delay or cooldown, and without touching the pending/cooldown state.
+  String? matchNow(String plainLine) {
+    for (final rule in _rules) {
+      final match = rule.regex!.firstMatch(plainLine);
+      if (match == null) continue;
+      final command = rule.resolveCommand(match);
+      if (command.isNotEmpty) return command;
     }
     return null;
   }

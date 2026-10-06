@@ -27,6 +27,10 @@ class TextLinkRule {
   /// rules (e.g. the Kill picker's target links) opt into `false`.
   final bool caseSensitive;
 
+  /// Starred by the player. Favourite command triggers get a switch in the
+  /// floating Favourite Triggers panel over the terminal.
+  final bool favorite;
+
   const TextLinkRule({
     required this.id,
     required this.name,
@@ -34,6 +38,7 @@ class TextLinkRule {
     required this.commandTemplate,
     this.enabled = true,
     this.caseSensitive = true,
+    this.favorite = false,
   });
 
   /// Lazily-compiled regex. Returns null if the pattern fails to compile so
@@ -67,6 +72,7 @@ class TextLinkRule {
     String? commandTemplate,
     bool? enabled,
     bool? caseSensitive,
+    bool? favorite,
   }) {
     return TextLinkRule(
       id: id ?? this.id,
@@ -75,6 +81,7 @@ class TextLinkRule {
       commandTemplate: commandTemplate ?? this.commandTemplate,
       enabled: enabled ?? this.enabled,
       caseSensitive: caseSensitive ?? this.caseSensitive,
+      favorite: favorite ?? this.favorite,
     );
   }
 
@@ -85,6 +92,7 @@ class TextLinkRule {
         'commandTemplate': commandTemplate,
         'enabled': enabled,
         'caseSensitive': caseSensitive,
+        if (favorite) 'favorite': true,
       };
 
   factory TextLinkRule.fromJson(Map<String, dynamic> json) => TextLinkRule(
@@ -94,6 +102,7 @@ class TextLinkRule {
         commandTemplate: json['commandTemplate'] as String,
         enabled: json['enabled'] as bool? ?? true,
         caseSensitive: json['caseSensitive'] as bool? ?? true,
+        favorite: json['favorite'] as bool? ?? false,
       );
 
   @override

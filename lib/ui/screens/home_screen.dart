@@ -33,6 +33,7 @@ import '../widgets/mobile/d_pad.dart';
 import '../widgets/social/social_windows_overlay.dart';
 import '../widgets/status/battle_hud.dart';
 import '../widgets/status/status_bar.dart';
+import '../widgets/terminal/favorite_triggers_panel.dart';
 import '../widgets/terminal/input_bar.dart';
 import '../widgets/terminal/terminal_view.dart';
 import 'about_screen.dart';
@@ -122,6 +123,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             right: 12,
             child: CompassOverlay(compact: isMobile),
           ),
+        // Starred command triggers (local only); hidden when none are.
+        const Positioned.fill(child: FavoriteTriggersOverlay()),
         const Positioned(
           top: 0,
           left: 0,

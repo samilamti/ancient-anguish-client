@@ -118,6 +118,24 @@ class TextLinkRulesNotifier extends Notifier<List<TextLinkRule>> {
     updateRule(rule.copyWith(enabled: !rule.enabled));
   }
 
+  void toggleFavorite(String id) {
+    final rule = state.firstWhere(
+      (r) => r.id == id,
+      orElse: () => throw StateError('Rule not found: $id'),
+    );
+    updateRule(rule.copyWith(favorite: !rule.favorite));
+  }
+
+  /// The first free `<prefix> N` name, so a rule can be created unnamed.
+  String nextDefaultName(String prefix) {
+    final taken = state.map((r) => r.name).toSet();
+    var n = state.length + 1;
+    while (taken.contains('$prefix $n')) {
+      n++;
+    }
+    return '$prefix $n';
+  }
+
   /// Resets the list back to the bundled defaults. Used by the config
   /// screen's "Reset to defaults" affordance after a confirm dialog.
   void resetToDefaults() {

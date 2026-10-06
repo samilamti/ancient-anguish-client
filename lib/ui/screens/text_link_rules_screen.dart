@@ -34,6 +34,9 @@ enum RuleListKind {
         textLink => 'tlr',
         commandTrigger => 'ctr',
       };
+
+  /// Command triggers never need a name: an empty one becomes `Trigger N`.
+  bool get nameOptional => this == commandTrigger;
 }
 
 /// Settings screen for managing text-to-link rules. Each rule promotes
@@ -117,6 +120,11 @@ class TextLinkRulesScreen extends ConsumerWidget {
                         return _RuleTile(
                           rule: rule,
                           icon: kind.icon,
+                          onToggleFavorite: _isTrigger
+                              ? () => ref
+                                  .read(kind.provider.notifier)
+                                  .toggleFavorite(rule.id)
+                              : null,
                           onToggle: () => ref
                               .read(kind.provider.notifier)
                               .toggleRule(rule.id),
@@ -220,6 +228,8 @@ class TextLinkRulesScreen extends ConsumerWidget {
             'second later, and touching the client in that second cancels '
             'it. After a trigger fires, no trigger fires for 3 seconds, so '
             'a burst of matching lines sends one command.\n\n'
+            'Star a trigger to put an on/off switch for it in the floating '
+            'Favourite Triggers panel over the terminal.\n\n'
             'The Instant Triggers toggle in the toolbar (desktop) turns all '
             'of that off: while it is on, a match fires at once, even while '
             'you are typing, up to 2 triggers in any 1 second; matches over '
@@ -341,9 +351,13 @@ class _RuleTile extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
+  /// Null hides the star (text link rules have no favourites).
+  final VoidCallback? onToggleFavorite;
+
   const _RuleTile({
     required this.rule,
     required this.icon,
+    this.onToggleFavorite,
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
@@ -409,6 +423,15 @@ class _RuleTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (onToggleFavorite != null)
+            IconButton(
+              icon: Icon(
+                rule.favorite ? Icons.star : Icons.star_border,
+                color: rule.favorite ? Colors.amber : null,
+              ),
+              tooltip: rule.favorite ? 'Unfavourite' : 'Favourite',
+              onPressed: onToggleFavorite,
+            ),
           Switch(
             value: rule.enabled,
             onChanged: (_) => onToggle(),
@@ -483,6 +506,9 @@ class _TextLinkRuleEditScreenState
     _testController = TextEditingController(text: seedLine);
   }
 
+  String _defaultName() =>
+      ref.read(widget.kind.provider.notifier).nextDefaultName('Trigger');
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -541,9 +567,12 @@ class _TextLinkRuleEditScreenState
   }
 
   void _save() {
-    final name = _nameController.text.trim();
+    var name = _nameController.text.trim();
     final pattern = _patternController.text.trim();
     final command = _commandController.text.trim();
+    if (name.isEmpty && widget.kind.nameOptional) {
+      name = widget.existing?.name ?? _defaultName();
+    }
 
     if (name.isEmpty || pattern.isEmpty || command.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -568,6 +597,8 @@ class _TextLinkRuleEditScreenState
       pattern: pattern,
       commandTemplate: command,
       enabled: widget.existing?.enabled ?? true,
+      caseSensitive: widget.existing?.caseSensitive ?? true,
+      favorite: widget.existing?.favorite ?? false,
     );
 
     final notifier = ref.read(widget.kind.provider.notifier);
@@ -583,6 +614,8 @@ class _TextLinkRuleEditScreenState
   Widget build(BuildContext context) {
     final isEditing = widget.existing != null;
     final mib = ref.watch(settingsProvider.select((s) => s.mobileInput));
+    // Watched so the hint catches up once the list has loaded from disk.
+    ref.watch(widget.kind.provider);
 
     final scaffold = Scaffold(
       appBar: AppBar(
@@ -602,9 +635,11 @@ class _TextLinkRuleEditScreenState
             enableSuggestions: mib.enableSuggestions,
             smartDashesType: mib.smartDashesType,
             smartQuotesType: mib.smartQuotesType,
-            decoration: const InputDecoration(
-              labelText: 'Name',
-              hintText: 'e.g., Open closed door',
+            decoration: InputDecoration(
+              labelText: widget.kind.nameOptional ? 'Name (optional)' : 'Name',
+              hintText: widget.kind.nameOptional
+                  ? 'Defaults to ${_defaultName()}'
+                  : 'e.g., Open closed door',
             ),
           ),
           const SizedBox(height: 16),

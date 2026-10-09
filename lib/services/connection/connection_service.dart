@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/constants.dart';
 import '../../models/connection_info.dart';
+import '../movement_tracker.dart';
 import '../../protocol/telnet/telnet_events.dart';
 import '../../protocol/telnet/telnet_option.dart';
 import '../../protocol/telnet/telnet_protocol.dart';
@@ -139,6 +140,7 @@ class TcpConnectionService implements MudConnectionService {
   @override
   void sendCommand(String command) {
     if (!isConnected || _socket == null) return;
+    MovementTracker.instance.noteCommand(command);
     try {
       _socket!.add(utf8.encode('$command\r\n'));
     } on SocketException catch (e) {

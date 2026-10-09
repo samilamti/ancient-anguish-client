@@ -26,6 +26,7 @@ import '../services/parser/map_emoji_transformer.dart';
 import '../services/parser/output_parser.dart';
 import '../services/parser/sheet_parser.dart';
 import '../services/parser/text_link_processor.dart';
+import '../services/movement_tracker.dart';
 import '../services/trigger/command_trigger_engine.dart';
 import 'text_link_rule_provider.dart';
 import '../models/social_message.dart';
@@ -314,13 +315,17 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
             // Read per line: an earlier line in this batch may have started
             // the fight.
-            final inCombat = (instantTriggers || lastInteraction != null) &&
-                ref.read(battleStateProvider).inBattle;
+            final checkTriggers = instantTriggers || lastInteraction != null;
+            final inCombat =
+                checkTriggers && ref.read(battleStateProvider).inBattle;
+            final moving =
+                checkTriggers && MovementTracker.instance.isMoving();
             if (instantTriggers) {
               final command = triggers.matchNow(
                 plainText,
                 now: DateTime.now(),
                 inCombat: inCombat,
+                moving: moving,
               );
               if (command != null) instantCommands.add(command);
             } else if (lastInteraction != null &&
@@ -329,6 +334,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                       now: DateTime.now(),
                       lastInteraction: lastInteraction,
                       inCombat: inCombat,
+                      moving: moving,
                     ) !=
                     null) {
               _scheduleTriggerFire(triggers);
@@ -1146,6 +1152,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         now: DateTime.now(),
         lastInteraction: ref.read(userActivityTrackerProvider).lastInteraction,
         inCombat: ref.read(battleStateProvider).inBattle,
+        moving: MovementTracker.instance.isMoving(),
       );
       if (command != null) _sendTriggerCommand(command);
     });

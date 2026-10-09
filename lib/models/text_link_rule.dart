@@ -35,6 +35,10 @@ class TextLinkRule {
   /// (`battleStateProvider.inBattle`). Ignored by text links.
   final bool skipInCombat;
 
+  /// Command triggers only: don't fire while the player is walking between
+  /// rooms (see `MovementTracker`). On by default. Ignored by text links.
+  final bool skipWhileMoving;
+
   const TextLinkRule({
     required this.id,
     required this.name,
@@ -44,6 +48,7 @@ class TextLinkRule {
     this.caseSensitive = true,
     this.favorite = false,
     this.skipInCombat = false,
+    this.skipWhileMoving = true,
   });
 
   /// Lazily-compiled regex. Returns null if the pattern fails to compile so
@@ -79,6 +84,7 @@ class TextLinkRule {
     bool? caseSensitive,
     bool? favorite,
     bool? skipInCombat,
+    bool? skipWhileMoving,
   }) {
     return TextLinkRule(
       id: id ?? this.id,
@@ -89,6 +95,7 @@ class TextLinkRule {
       caseSensitive: caseSensitive ?? this.caseSensitive,
       favorite: favorite ?? this.favorite,
       skipInCombat: skipInCombat ?? this.skipInCombat,
+      skipWhileMoving: skipWhileMoving ?? this.skipWhileMoving,
     );
   }
 
@@ -101,6 +108,7 @@ class TextLinkRule {
         'caseSensitive': caseSensitive,
         if (favorite) 'favorite': true,
         if (skipInCombat) 'skipInCombat': true,
+        if (!skipWhileMoving) 'skipWhileMoving': false,
       };
 
   factory TextLinkRule.fromJson(Map<String, dynamic> json) => TextLinkRule(
@@ -112,6 +120,7 @@ class TextLinkRule {
         caseSensitive: json['caseSensitive'] as bool? ?? true,
         favorite: json['favorite'] as bool? ?? false,
         skipInCombat: json['skipInCombat'] as bool? ?? false,
+        skipWhileMoving: json['skipWhileMoving'] as bool? ?? true,
       );
 
   @override

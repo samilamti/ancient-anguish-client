@@ -1,4 +1,5 @@
 import 'package:ancient_anguish_client/models/text_link_rule.dart';
+import 'package:ancient_anguish_client/services/movement_tracker.dart';
 import 'package:ancient_anguish_client/services/trigger/command_trigger_engine.dart';
 import 'package:ancient_anguish_client/services/user_activity_tracker.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -205,6 +206,66 @@ void main() {
     test('round-trips through JSON, omitted when false', () {
       expect(door.toJson().containsKey('skipInCombat'), isFalse);
       expect(TextLinkRule.fromJson(peaceful.toJson()).skipInCombat, isTrue);
+    });
+  });
+
+  group('skipWhileMoving', () {
+    test('is on by default, including for rules saved before it existed', () {
+      expect(door.skipWhileMoving, isTrue);
+      final json = door.toJson()..remove('skipWhileMoving');
+      expect(TextLinkRule.fromJson(json).skipWhileMoving, isTrue);
+      expect(door.toJson().containsKey('skipWhileMoving'), isFalse);
+      final off = door.copyWith(skipWhileMoving: false);
+      expect(TextLinkRule.fromJson(off.toJson()).skipWhileMoving, isFalse);
+    });
+
+    test('a moving player gets no match from a default rule', () {
+      final engine = CommandTriggerEngine([door]);
+      expect(
+          engine.onLine(doorLine,
+              now: at(3000), lastInteraction: t0, moving: true),
+          isNull);
+      expect(engine.matchNow(doorLine, now: t0, moving: true), isNull);
+    });
+
+    test('a rule with it off still fires while moving', () {
+      final engine =
+          CommandTriggerEngine([door.copyWith(skipWhileMoving: false)]);
+      expect(engine.matchNow(doorLine, now: t0, moving: true), isNotNull);
+    });
+
+    test('moving off during the fire delay drops the match', () {
+      final engine = CommandTriggerEngine([door]);
+      engine.onLine(doorLine, now: at(3000), lastInteraction: t0);
+      expect(
+          engine.takePending(now: at(4000), lastInteraction: t0, moving: true),
+          isNull);
+    });
+  });
+
+  group('MovementTracker', () {
+    test('recognises movement commands only', () {
+      for (final c in ['n', 'SW', 'north', 'up', 'out', 'enter',
+          'enter portal', 'leave', 'go north', ' e ']) {
+        expect(MovementTracker.isMovement(c), isTrue, reason: c);
+      }
+      for (final c in ['kill orc', 'look', 'say north', 'nod', 'down sword',
+          'east wing', 'get all', '']) {
+        expect(MovementTracker.isMovement(c), isFalse, reason: c);
+      }
+    });
+
+    test('counts as moving for 2 s after a movement command', () {
+      var now = t0;
+      final tracker = MovementTracker(clock: () => now);
+      expect(tracker.isMoving(), isFalse);
+      tracker.noteCommand('look');
+      expect(tracker.isMoving(), isFalse);
+      tracker.noteCommand('n');
+      now = at(1999);
+      expect(tracker.isMoving(), isTrue);
+      now = at(2000);
+      expect(tracker.isMoving(), isFalse);
     });
   });
 

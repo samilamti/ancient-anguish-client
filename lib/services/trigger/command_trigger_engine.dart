@@ -30,9 +30,10 @@ import '../../models/text_link_rule.dart';
 /// not queued, so a runaway loop can't build a backlog that keeps sending
 /// after the output that caused it has stopped.
 ///
-/// A rule with [TextLinkRule.skipInCombat] set is passed over while the
-/// caller reports `inCombat`, and a pending match from such a rule is dropped
-/// if a fight has started by the time it would be sent.
+/// Rules can opt out of situations: [TextLinkRule.skipInCombat] while the
+/// caller reports `inCombat`, [TextLinkRule.skipWhileMoving] while it reports
+/// `moving`. Such a rule is passed over, and its pending match is dropped if
+/// the situation has arisen by the time it would be sent.
 ///
 /// Pure: the caller passes the clock and the last interaction time, so tests
 /// need no timers.
@@ -46,7 +47,7 @@ class CommandTriggerEngine {
   final List<TextLinkRule> _rules;
   String? _pending;
   DateTime? _pendingSince;
-  bool _pendingSkipsCombat = false;
+  TextLinkRule? _pendingRule;
   DateTime? _lastFired;
   final List<DateTime> _instantFires = [];
 
@@ -68,6 +69,7 @@ class CommandTriggerEngine {
     required DateTime now,
     required DateTime lastInteraction,
     bool inCombat = false,
+    bool moving = false,
   }) {
     if (_rules.isEmpty || _pending != null) return null;
     if (now.difference(lastInteraction) < idleThreshold) return null;
@@ -75,14 +77,14 @@ class CommandTriggerEngine {
     if (last != null && now.difference(last) < cooldown) return null;
 
     for (final rule in _rules) {
-      if (inCombat && rule.skipInCombat) continue;
+      if (_sitsOut(rule, inCombat, moving)) continue;
       final match = rule.regex!.firstMatch(plainLine);
       if (match == null) continue;
       final command = rule.resolveCommand(match);
       if (command.isEmpty) continue;
       _pending = command;
       _pendingSince = now;
-      _pendingSkipsCombat = rule.skipInCombat;
+      _pendingRule = rule;
       return command;
     }
     return null;
@@ -96,12 +98,13 @@ class CommandTriggerEngine {
     String plainLine, {
     required DateTime now,
     bool inCombat = false,
+    bool moving = false,
   }) {
     _instantFires
         .removeWhere((t) => now.difference(t) >= instantRateWindow);
     if (_instantFires.length >= instantRateLimit) return null;
     for (final rule in _rules) {
-      if (inCombat && rule.skipInCombat) continue;
+      if (_sitsOut(rule, inCombat, moving)) continue;
       final match = rule.regex!.firstMatch(plainLine);
       if (match == null) continue;
       final command = rule.resolveCommand(match);
@@ -114,20 +117,21 @@ class CommandTriggerEngine {
 
   /// Clears the pending trigger and returns its command to send, starting the
   /// cooldown. Returns `null` (and starts no cooldown) when nothing is
-  /// pending, the player interacted after the match, or the match came from a
-  /// [TextLinkRule.skipInCombat] rule and [inCombat] is now true.
+  /// pending, the player interacted after the match, or the matching rule
+  /// now sits out because of [inCombat] or [moving].
   String? takePending({
     required DateTime now,
     required DateTime lastInteraction,
     bool inCombat = false,
+    bool moving = false,
   }) {
     final command = _pending;
     final since = _pendingSince;
-    final skipsCombat = _pendingSkipsCombat;
+    final rule = _pendingRule;
     cancelPending();
-    if (command == null || since == null) return null;
+    if (command == null || since == null || rule == null) return null;
     if (lastInteraction.isAfter(since)) return null;
-    if (inCombat && skipsCombat) return null;
+    if (_sitsOut(rule, inCombat, moving)) return null;
     _lastFired = now;
     return command;
   }
@@ -136,6 +140,9 @@ class CommandTriggerEngine {
   void cancelPending() {
     _pending = null;
     _pendingSince = null;
-    _pendingSkipsCombat = false;
+    _pendingRule = null;
   }
+
+  static bool _sitsOut(TextLinkRule rule, bool inCombat, bool moving) =>
+      (inCombat && rule.skipInCombat) || (moving && rule.skipWhileMoving);
 }

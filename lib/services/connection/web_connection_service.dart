@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../models/connection_info.dart';
+import '../movement_tracker.dart';
 import '../../protocol/telnet/telnet_events.dart';
 import '../../protocol/telnet/telnet_option.dart';
 import '../../protocol/telnet/telnet_protocol.dart';
@@ -142,6 +143,7 @@ class WebConnectionService implements MudConnectionService {
   @override
   void sendCommand(String command) {
     if (!isConnected || _channel == null) return;
+    MovementTracker.instance.noteCommand(command);
     final bytes = utf8.encode('$command\r\n');
     _channel!.sink.add(bytes);
   }

@@ -646,6 +646,9 @@ class _ToolbarItem {
             'Provide either an icon or an emoji.');
 }
 
+/// Marks a toolbar toggle that is switched on.
+const _activeGreen = Color(0xFF4CAF50);
+
 Widget _toolbarLeading(_ToolbarItem item, {double size = 20, Color? color}) {
   if (item.emoji != null) {
     // Slight visual down-tune so emojis don't tower over IconData neighbours.
@@ -725,6 +728,10 @@ class _OverflowToolbar extends StatelessWidget {
                       _toolbarLeading(overflowed[i], size: 18),
                       const SizedBox(width: 12),
                       Text(overflowed[i].label),
+                      if (overflowed[i].active) ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.check, size: 18, color: _activeGreen),
+                      ],
                     ],
                   ),
                 ),
@@ -736,8 +743,9 @@ class _OverflowToolbar extends StatelessWidget {
   }
 
   Widget _buildDesktopButton(BuildContext context, _ToolbarItem item) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final color = item.active ? primary : null;
+    // An "on" toggle gets a green fill and outline, not just a tint: a
+    // tinted label alone was too easy to miss.
+    final color = item.active ? _activeGreen : null;
 
     return TextButton.icon(
       icon: _toolbarLeading(item, color: color),
@@ -750,6 +758,11 @@ class _OverflowToolbar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        backgroundColor:
+            item.active ? _activeGreen.withValues(alpha: 0.18) : null,
+        side: item.active
+            ? const BorderSide(color: _activeGreen, width: 1.5)
+            : null,
       ),
     );
   }

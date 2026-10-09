@@ -365,6 +365,72 @@ void main() {
       await drainIdleTimer(tester);
       await pumpFade(tester);
     });
+
+    group('trailing', () {
+      const trailingKey = Key('docked-compass');
+
+      Future<void> pumpDockWithTrailing(WidgetTester tester) =>
+          tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: container,
+              child: const MaterialApp(
+                home: Scaffold(
+                  body: Column(
+                    children: [
+                      Expanded(child: SizedBox.expand()),
+                      BattleHudDock(
+                        trailing: SizedBox.square(
+                          key: trailingKey,
+                          dimension: BattleHudDock.compassSize,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+
+      testWidgets('sits right-aligned beside the panel', (tester) async {
+        await pumpDockWithTrailing(tester);
+        feedConfirmedFight();
+        await pumpFade(tester);
+
+        final screen = tester.getRect(find.byType(Scaffold));
+        final panel = tester.getRect(find.byType(BattleHud));
+        final trailing = tester.getRect(find.byKey(trailingKey));
+        expect(trailing.left, greaterThan(panel.right));
+        expect(screen.right - trailing.right, lessThan(24));
+
+        await drainIdleTimer(tester);
+      });
+
+      testWidgets('does not make the row taller than the panel needs',
+          (tester) async {
+        // The shortest the panel gets is the confirming round: no vitals yet.
+        await pumpDockWithTrailing(tester);
+        feedConfirmedFight();
+        await pumpFade(tester);
+
+        final panel = tester.getSize(find.byType(BattleHud));
+        expect(BattleHudDock.compassSize, lessThanOrEqualTo(panel.height));
+
+        await drainIdleTimer(tester);
+      });
+
+      testWidgets('leaves with the panel when the fight ends', (tester) async {
+        await pumpDockWithTrailing(tester);
+        feedConfirmedFight();
+        await pumpFade(tester);
+        expect(dockOpacity(tester), 1);
+        expect(tester.getSize(find.byType(BattleHudDock)).height, greaterThan(0));
+
+        await drainIdleTimer(tester);
+        await pumpFade(tester);
+        expect(tester.getSize(find.byType(BattleHudDock)).height, 0);
+        expect(dockOpacity(tester), 0);
+      });
+    });
   });
 
   testWidgets('three-digit tallies fit beside the spelled-out labels',

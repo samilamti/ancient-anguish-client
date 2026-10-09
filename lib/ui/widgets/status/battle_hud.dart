@@ -216,12 +216,25 @@ class _BattleHudState extends ConsumerState<BattleHud>
 /// The confirmation half is what keeps it from flashing up as the player walks
 /// through the world and a stray NPC gets a swing in — see
 /// [BattleStats.confirmRounds].
+///
+/// [trailing] shares the row, right-aligned beside the panel. HomeScreen puts
+/// the navigation compass there on desktop for the length of a fight: the
+/// panel is a fixed [BattleHud.width] and the rest of the row would otherwise
+/// sit empty, while the compass's usual corner covers the top of the output.
+/// It arrives and leaves with the panel, inside the same fade.
 class BattleHudDock extends ConsumerStatefulWidget {
-  const BattleHudDock({super.key});
+  final Widget? trailing;
+
+  const BattleHudDock({super.key, this.trailing});
 
   /// Long enough to read as a fade rather than a flicker, short enough not to
   /// delay the first combat line the player is waiting for.
   static const Duration fadeDuration = Duration(milliseconds: 220);
+
+  /// Diameter of the compass when it rides in [trailing]. No taller than the
+  /// panel at its shortest (the first confirmed round, before any vitals or
+  /// latest line), so the rose never makes the row grow.
+  static const double compassSize = 112;
 
   @override
   ConsumerState<BattleHudDock> createState() => _BattleHudDockState();
@@ -272,11 +285,15 @@ class _BattleHudDockState extends ConsumerState<BattleHudDock>
       axisAlignment: -1,
       child: FadeTransition(
         opacity: _curve,
-        child: const Align(
-          alignment: Alignment.centerLeft,
-          child: Padding(
-            padding: EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 4),
-            child: BattleHud(),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const BattleHud(),
+              const Spacer(),
+              if (widget.trailing != null) widget.trailing!,
+            ],
           ),
         ),
       ),

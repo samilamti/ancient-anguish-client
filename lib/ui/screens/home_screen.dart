@@ -13,6 +13,7 @@ import '../../models/line_spacing.dart';
 import '../../models/social_message.dart';
 import '../../models/support_tier.dart';
 import '../../providers/audio_provider.dart';
+import '../../providers/battle_stats_provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/game_state_provider.dart';
 import '../../providers/link_command_provider.dart';
@@ -110,6 +111,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // output lines; see [BattleHudDock]. It hides itself when no fight has
     // started.
     final showBattleHud = settings.battleFilterMode == BattleFilterMode.hud;
+    // On desktop the compass moves down into the HUD row for the length of a
+    // fight: the panel is fixed-width, so the rest of that row is empty, and the
+    // top of the output comes back. Phones keep the corner rose, since a 300px
+    // panel leaves no room beside it there.
+    final dockCompass = showCompass && showBattleHud && !isMobile;
+    final compassInDock = dockCompass &&
+        ref.watch(battleStatsProvider.select((s) => s.hudVisible));
     // Notifications float over the *top* of the output, so they never cover the
     // newest lines or the input bar the way a bottom SnackBar did. Last in the
     // stack: a message hidden behind the compass would be unreadable, and it is
@@ -121,7 +129,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           Positioned(
             top: 8,
             right: 12,
-            child: CompassOverlay(compact: isMobile),
+            // Faded rather than removed, so it cross-fades with the docked
+            // copy instead of popping.
+            child: AnimatedOpacity(
+              opacity: compassInDock ? 0 : 1,
+              duration: BattleHudDock.fadeDuration,
+              child: CompassOverlay(compact: isMobile),
+            ),
           ),
         // Starred command triggers (local only); hidden when none are.
         const Positioned.fill(child: FavoriteTriggersOverlay()),
@@ -341,7 +355,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
                   // Combat scoreboard, docked under the output so it never
                   // hides the last line the MUD sent.
-                  if (showBattleHud) const BattleHudDock(),
+                  if (showBattleHud)
+                    BattleHudDock(
+                      trailing: dockCompass
+                          ? const CompassOverlay(
+                              compact: true,
+                              compactSize: BattleHudDock.compassSize,
+                            )
+                          : null,
+                    ),
 
                   // Audio controls (shown when connected and audio is enabled).
                   // Also yields vertical space to the soft keyboard on mobile.

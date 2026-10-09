@@ -92,7 +92,12 @@ class CompassOverlay extends ConsumerWidget {
   /// [CompassRose.showText].
   final bool compact;
 
-  const CompassOverlay({super.key, this.compact = false});
+  /// Disc diameter for the [compact] presentation. Defaults to
+  /// [phoneCompassSize]; the battle HUD dock passes its own, so the rose fits
+  /// the row beside the panel without making it taller.
+  final double? compactSize;
+
+  const CompassOverlay({super.key, this.compact = false, this.compactSize});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -103,7 +108,7 @@ class CompassOverlay extends ConsumerWidget {
     return IgnorePointer(
       child: compact
           ? CompassRose(
-              size: phoneCompassSize(MediaQuery.of(context)),
+              size: compactSize ?? phoneCompassSize(MediaQuery.of(context)),
               showText: false,
               nearestPerDirection: true,
               // One per direction already caps it at eight, so this is just a

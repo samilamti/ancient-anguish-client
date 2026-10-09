@@ -31,6 +31,10 @@ class TextLinkRule {
   /// floating Favourite Triggers panel over the terminal.
   final bool favorite;
 
+  /// Command triggers only: don't fire while a fight is in progress
+  /// (`battleStateProvider.inBattle`). Ignored by text links.
+  final bool skipInCombat;
+
   const TextLinkRule({
     required this.id,
     required this.name,
@@ -39,6 +43,7 @@ class TextLinkRule {
     this.enabled = true,
     this.caseSensitive = true,
     this.favorite = false,
+    this.skipInCombat = false,
   });
 
   /// Lazily-compiled regex. Returns null if the pattern fails to compile so
@@ -73,6 +78,7 @@ class TextLinkRule {
     bool? enabled,
     bool? caseSensitive,
     bool? favorite,
+    bool? skipInCombat,
   }) {
     return TextLinkRule(
       id: id ?? this.id,
@@ -82,6 +88,7 @@ class TextLinkRule {
       enabled: enabled ?? this.enabled,
       caseSensitive: caseSensitive ?? this.caseSensitive,
       favorite: favorite ?? this.favorite,
+      skipInCombat: skipInCombat ?? this.skipInCombat,
     );
   }
 
@@ -93,6 +100,7 @@ class TextLinkRule {
         'enabled': enabled,
         'caseSensitive': caseSensitive,
         if (favorite) 'favorite': true,
+        if (skipInCombat) 'skipInCombat': true,
       };
 
   factory TextLinkRule.fromJson(Map<String, dynamic> json) => TextLinkRule(
@@ -103,6 +111,7 @@ class TextLinkRule {
         enabled: json['enabled'] as bool? ?? true,
         caseSensitive: json['caseSensitive'] as bool? ?? true,
         favorite: json['favorite'] as bool? ?? false,
+        skipInCombat: json['skipInCombat'] as bool? ?? false,
       );
 
   @override

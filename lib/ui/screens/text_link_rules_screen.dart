@@ -482,11 +482,13 @@ class _TextLinkRuleEditScreenState
   String? _previewError;
   String? _previewMatch;
   String? _previewCommand;
+  late bool _skipInCombat;
 
   @override
   void initState() {
     super.initState();
     final e = widget.existing;
+    _skipInCombat = e?.skipInCombat ?? false;
 
     // When creating a rule from selected MUD output, seed the Pattern with
     // the regex-escaped first line (literal match by default) and the Test
@@ -599,6 +601,7 @@ class _TextLinkRuleEditScreenState
       enabled: widget.existing?.enabled ?? true,
       caseSensitive: widget.existing?.caseSensitive ?? true,
       favorite: widget.existing?.favorite ?? false,
+      skipInCombat: _skipInCombat,
     );
 
     final notifier = ref.read(widget.kind.provider.notifier);
@@ -670,6 +673,16 @@ class _TextLinkRuleEditScreenState
             style: const TextStyle(fontFamily: 'JetBrainsMono'),
             onChanged: (_) => _runPreview(),
           ),
+          if (widget.kind == RuleListKind.commandTrigger) ...[
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Not during combat'),
+              subtitle: const Text("Don't fire while a fight is going on"),
+              value: _skipInCombat,
+              onChanged: (v) => setState(() => _skipInCombat = v),
+            ),
+          ],
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 8),

@@ -312,14 +312,23 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
           for (final line in newLines) {
             final plainText = line.plainText;
 
+            // Read per line: an earlier line in this batch may have started
+            // the fight.
+            final inCombat = (instantTriggers || lastInteraction != null) &&
+                ref.read(battleStateProvider).inBattle;
             if (instantTriggers) {
-              final command = triggers.matchNow(plainText, now: DateTime.now());
+              final command = triggers.matchNow(
+                plainText,
+                now: DateTime.now(),
+                inCombat: inCombat,
+              );
               if (command != null) instantCommands.add(command);
             } else if (lastInteraction != null &&
                 triggers!.onLine(
                       plainText,
                       now: DateTime.now(),
                       lastInteraction: lastInteraction,
+                      inCombat: inCombat,
                     ) !=
                     null) {
               _scheduleTriggerFire(triggers);
@@ -1136,6 +1145,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       final command = engine.takePending(
         now: DateTime.now(),
         lastInteraction: ref.read(userActivityTrackerProvider).lastInteraction,
+        inCombat: ref.read(battleStateProvider).inBattle,
       );
       if (command != null) _sendTriggerCommand(command);
     });

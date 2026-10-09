@@ -166,6 +166,48 @@ void main() {
     });
   });
 
+  group('skipInCombat', () {
+    final peaceful = door.copyWith(id: 'peaceful', skipInCombat: true);
+
+    test('a combat-skipping rule is passed over in combat', () {
+      final engine = CommandTriggerEngine([peaceful]);
+      expect(
+          engine.onLine(doorLine,
+              now: at(3000), lastInteraction: t0, inCombat: true),
+          isNull);
+      expect(engine.matchNow(doorLine, now: t0, inCombat: true), isNull);
+      expect(engine.onLine(doorLine, now: at(3000), lastInteraction: t0),
+          'open oak door');
+    });
+
+    test('other rules still fire in combat', () {
+      final engine = CommandTriggerEngine([peaceful, door]);
+      expect(
+          engine.onLine(doorLine,
+              now: at(3000), lastInteraction: t0, inCombat: true),
+          'open oak door');
+      expect(
+          engine.takePending(
+              now: at(4000), lastInteraction: t0, inCombat: true),
+          'open oak door');
+    });
+
+    test('a fight starting during the fire delay drops the match', () {
+      final engine = CommandTriggerEngine([peaceful]);
+      engine.onLine(doorLine, now: at(3000), lastInteraction: t0);
+      expect(
+          engine.takePending(
+              now: at(4000), lastInteraction: t0, inCombat: true),
+          isNull);
+      expect(engine.hasPending, isFalse);
+    });
+
+    test('round-trips through JSON, omitted when false', () {
+      expect(door.toJson().containsKey('skipInCombat'), isFalse);
+      expect(TextLinkRule.fromJson(peaceful.toJson()).skipInCombat, isTrue);
+    });
+  });
+
   group('UserActivityTracker', () {
     test('creation counts as an interaction, and marking moves it', () {
       var now = t0;

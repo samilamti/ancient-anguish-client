@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../models/vital_colors.dart';
 import '../../../providers/battle_provider.dart';
 import '../../../providers/game_state_provider.dart';
 import '../../../providers/notification_provider.dart';
@@ -92,8 +93,8 @@ class VitalsRow extends ConsumerWidget {
               value: gameState.hp,
               maxValue: gameState.maxHp,
               gradientColors: [
-                _hpColor(gameState.hpFraction).withAlpha(180),
-                _hpColor(gameState.hpFraction),
+                hpColorFor(gameState.hp, gameState.maxHp).withAlpha(180),
+                hpColorFor(gameState.hp, gameState.maxHp),
               ],
             ),
           ),
@@ -104,21 +105,16 @@ class VitalsRow extends ConsumerWidget {
               label: 'SP',
               value: gameState.sp,
               maxValue: gameState.maxSp,
-              gradientColors: const [
-                Color(0xFF2255AA),
-                Color(0xFF4488FF),
+              gradientColors: [
+                spColorFor(gameState.sp, gameState.maxSp).withAlpha(180),
+                spColorFor(gameState.sp, gameState.maxSp),
               ],
+              fillOutline: Colors.white.withAlpha(90),
             ),
           ),
         ],
       ),
     );
-  }
-
-  Color _hpColor(double fraction) {
-    if (fraction > 0.6) return const Color(0xFF44AA44);
-    if (fraction > 0.3) return const Color(0xFFCC8800);
-    return const Color(0xFFCC2222);
   }
 }
 

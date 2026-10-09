@@ -17,12 +17,17 @@ class VitalsGauge extends StatelessWidget {
   /// The gradient colors for the fill bar.
   final List<Color> gradientColors;
 
+  /// An optional border around the fill, for fill colours too dark to read
+  /// against the near-black track on their own (SP's navy when full).
+  final Color? fillOutline;
+
   const VitalsGauge({
     super.key,
     required this.label,
     required this.value,
     required this.maxValue,
     required this.gradientColors,
+    this.fillOutline,
   });
 
   double get _fraction =>
@@ -100,6 +105,9 @@ class VitalsGauge extends StatelessWidget {
                         end: Alignment.centerRight,
                       ),
                       borderRadius: BorderRadius.circular(3),
+                      border: fillOutline == null
+                          ? null
+                          : Border.all(color: fillOutline!, width: 1),
                       boxShadow: [
                         BoxShadow(
                           color: gradientColors.last.withAlpha(60),

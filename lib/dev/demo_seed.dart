@@ -84,8 +84,13 @@ const String _hintsInput = 'kill gob';
 /// Prompt lines fed to the game-state parser only — they drive the HUD and
 /// the compass without appearing as terminal output, exactly as the real
 /// client gags them.
+/// SP shown by the seeded prompt, out of 240. Overridable so the SP meter's
+/// gradient can be photographed at chosen levels:
+///   `--dart-define=AA_DEMO=terminal --dart-define=AA_DEMO_SP=60`
+const int _demoSp = int.fromEnvironment('AA_DEMO_SP', defaultValue: 210);
+
 const List<String> _promptLines = [
-  '345/380:210/240>',
+  '345/380:$_demoSp/240>',
   // Snag creek country — fourteen gazetteer entries fall inside the
   // compass's 5-stadia range, so the rose fills with distinct names
   // (Giants' convention, Balan, Chaos tower, …) rather than repeats.

@@ -78,8 +78,13 @@ enum HpBand {
   /// Above 30%.
   orange(above: 0.3, color: Color(0xFFCC8800)),
 
-  /// 30% and below (including an unknown max).
-  red(above: double.negativeInfinity, color: Color(0xFFCC2222));
+  /// Above 15%.
+  red(above: 0.15, color: Color(0xFFCC2222)),
+
+  /// 15% and below (including an unknown max). A vivid red-pink rather than
+  /// a darker red: darker would read as calmer, and at this width the fill
+  /// is a sliver, so it has to be the most saturated thing on the bar.
+  dying(above: double.negativeInfinity, color: Color(0xFFFF1744));
 
   const HpBand({required this.above, required this.color});
 
@@ -95,7 +100,7 @@ enum HpBand {
     return HpBand.values.firstWhere((b) => f > b.above);
   }
 
-  /// The band for [hp] out of [maxHp]; an unknown max reads as critical.
+  /// The band for [hp] out of [maxHp]; an unknown max reads as dying.
   static HpBand forValue(int hp, int maxHp) =>
       forFraction(_fraction(hp, maxHp));
 }

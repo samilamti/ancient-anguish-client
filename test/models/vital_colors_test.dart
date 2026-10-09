@@ -61,23 +61,26 @@ void main() {
   });
 
   group('hpColorFor / HpBand', () {
-    test('keeps the existing 60% / 30% steps', () {
+    test('steps at 60%, 30% and 15%', () {
       expect(HpBand.forValue(100, 100), HpBand.green);
       expect(HpBand.forValue(61, 100), HpBand.green);
       expect(HpBand.forValue(60, 100), HpBand.orange);
       expect(HpBand.forValue(31, 100), HpBand.orange);
       expect(HpBand.forValue(30, 100), HpBand.red);
-      expect(HpBand.forValue(0, 100), HpBand.red);
+      expect(HpBand.forValue(16, 100), HpBand.red);
+      expect(HpBand.forValue(15, 100), HpBand.dying);
+      expect(HpBand.forValue(0, 100), HpBand.dying);
     });
 
-    test('colours match the bands, unchanged from before the extraction', () {
+    test('colours match the bands', () {
       expect(hpColorFor(90, 100), const Color(0xFF44AA44));
       expect(hpColorFor(50, 100), const Color(0xFFCC8800));
-      expect(hpColorFor(10, 100), const Color(0xFFCC2222));
+      expect(hpColorFor(20, 100), const Color(0xFFCC2222));
+      expect(hpColorFor(10, 100), const Color(0xFFFF1744));
     });
 
-    test('an unknown max reads as critical, over-max as healthy', () {
-      expect(HpBand.forValue(50, 0), HpBand.red);
+    test('an unknown max reads as dying, over-max as healthy', () {
+      expect(HpBand.forValue(50, 0), HpBand.dying);
       expect(HpBand.forValue(200, 100), HpBand.green);
     });
   });

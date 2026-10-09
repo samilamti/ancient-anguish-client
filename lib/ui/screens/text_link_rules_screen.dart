@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/meter_condition.dart';
 import '../../models/text_link_rule.dart';
+import '../../models/vital_colors.dart';
 import '../../providers/command_trigger_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/text_link_rule_provider.dart';
@@ -366,7 +368,8 @@ class _RuleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final compiles = rule.regex != null;
+    final meter = rule.meter;
+    final compiles = meter != null ? meter.isValid : rule.regex != null;
 
     return ListTile(
       leading: Icon(
@@ -390,7 +393,7 @@ class _RuleTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '/${rule.pattern}/',
+            meter != null ? meter.summary : '/${rule.pattern}/',
             style: TextStyle(
               fontFamily: 'JetBrainsMono',
               fontSize: 12,
@@ -411,7 +414,9 @@ class _RuleTile extends StatelessWidget {
           ),
           if (!compiles)
             Text(
-              'Invalid regex — rule is skipped',
+              meter != null
+                  ? 'Unknown colour — rule is skipped'
+                  : 'Invalid regex — rule is skipped',
               style: TextStyle(
                 fontSize: 11,
                 color: theme.colorScheme.error,
@@ -485,12 +490,27 @@ class _TextLinkRuleEditScreenState
   late bool _skipInCombat;
   late bool _skipWhileMoving;
 
+  /// Command triggers only: the meter condition while "Meter colour" is
+  /// chosen, else null (fires on output lines).
+  MeterCondition? _meter;
+
+  /// Kept across a switch to "Output line" and back, so flipping the toggle
+  /// doesn't lose the picked colour.
+  late MeterCondition _lastMeter;
+
   @override
   void initState() {
     super.initState();
     final e = widget.existing;
     _skipInCombat = e?.skipInCombat ?? false;
     _skipWhileMoving = e?.skipWhileMoving ?? true;
+    _meter = e?.meter;
+    _lastMeter = e?.meter ??
+        const MeterCondition(
+          meter: Meter.hp,
+          band: 'orange',
+          direction: MeterDirection.falling,
+        );
 
     // When creating a rule from selected MUD output, seed the Pattern with
     // the regex-escaped first line (literal match by default) and the Test
@@ -578,33 +598,39 @@ class _TextLinkRuleEditScreenState
       name = widget.existing?.name ?? _defaultName();
     }
 
-    if (name.isEmpty || pattern.isEmpty || command.isEmpty) {
+    final meter = _meter;
+    if (name.isEmpty || (meter == null && pattern.isEmpty) || command.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('All fields are required')),
       );
       return;
     }
 
-    try {
-      RegExp(pattern);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Invalid regex: $e')),
-      );
-      return;
+    if (meter == null) {
+      try {
+        RegExp(pattern);
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invalid regex: $e')),
+        );
+        return;
+      }
     }
 
     final rule = TextLinkRule(
       id: widget.existing?.id ??
           '${widget.kind.idPrefix}_${DateTime.now().millisecondsSinceEpoch}',
       name: name,
-      pattern: pattern,
+      // A meter trigger keeps no pattern: the field is hidden, and a stale
+      // one would only confuse whoever reads Command Triggers.json.
+      pattern: meter == null ? pattern : '',
       commandTemplate: command,
       enabled: widget.existing?.enabled ?? true,
       caseSensitive: widget.existing?.caseSensitive ?? true,
       favorite: widget.existing?.favorite ?? false,
       skipInCombat: _skipInCombat,
       skipWhileMoving: _skipWhileMoving,
+      meter: meter,
     );
 
     final notifier = ref.read(widget.kind.provider.notifier);
@@ -648,6 +674,35 @@ class _TextLinkRuleEditScreenState
                   : 'e.g., Open closed door',
             ),
           ),
+          if (widget.kind == RuleListKind.commandTrigger) ...[
+            const SizedBox(height: 16),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(
+                  value: false,
+                  label: Text('Output line'),
+                  icon: Icon(Icons.short_text),
+                ),
+                ButtonSegment(
+                  value: true,
+                  label: Text('Meter colour'),
+                  icon: Icon(Icons.palette_outlined),
+                ),
+              ],
+              selected: {_meter != null},
+              onSelectionChanged: (v) => setState(() {
+                if (_meter != null) _lastMeter = _meter!;
+                _meter = v.first ? _lastMeter : null;
+              }),
+            ),
+          ],
+          if (_meter != null) ...[
+            const SizedBox(height: 16),
+            _MeterConditionEditor(
+              condition: _meter!,
+              onChanged: (c) => setState(() => _meter = c),
+            ),
+          ] else ...[
           const SizedBox(height: 16),
           TextField(
             controller: _patternController,
@@ -662,15 +717,20 @@ class _TextLinkRuleEditScreenState
             style: const TextStyle(fontFamily: 'JetBrainsMono'),
             onChanged: (_) => _runPreview(),
           ),
+          ],
           const SizedBox(height: 16),
           TextField(
             controller: _commandController,
             autocorrect: false,
             enableSuggestions: false,
-            decoration: const InputDecoration(
-              labelText: 'Command template',
-              hintText: r'e.g., open $1 door',
-              helperText: r'Use $1, $2, … for captures; $0 = whole match',
+            decoration: InputDecoration(
+              labelText: _meter != null ? 'Command' : 'Command template',
+              hintText: _meter != null
+                  ? 'e.g., drink potion'
+                  : r'e.g., open $1 door',
+              helperText: _meter != null
+                  ? 'Sent once each time the meter turns this colour'
+                  : r'Use $1, $2, … for captures; $0 = whole match',
               helperMaxLines: 2,
             ),
             style: const TextStyle(fontFamily: 'JetBrainsMono'),
@@ -696,6 +756,7 @@ class _TextLinkRuleEditScreenState
               onChanged: (v) => setState(() => _skipWhileMoving = v),
             ),
           ],
+          if (_meter == null) ...[
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 8),
@@ -761,9 +822,103 @@ class _TextLinkRuleEditScreenState
               ),
             ),
           ],
+          ],
         ],
       ),
     );
     return EscapeDismiss(child: scaffold);
+  }
+}
+
+/// Meter, colour and direction pickers for a meter trigger. The colour list
+/// shows each band's actual bar colour, so the choice is the one the player
+/// will see on screen.
+class _MeterConditionEditor extends StatelessWidget {
+  final MeterCondition condition;
+  final ValueChanged<MeterCondition> onChanged;
+
+  const _MeterConditionEditor({
+    required this.condition,
+    required this.onChanged,
+  });
+
+  static Color _swatch(Meter meter, String band) => switch (meter) {
+        Meter.hp => HpBand.values.byName(band).color,
+        Meter.sp => SpBand.values.byName(band).color,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final bands = condition.meter.bands;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<Meter>(
+          key: const ValueKey('meter_trigger_meter'),
+          initialValue: condition.meter,
+          decoration: const InputDecoration(labelText: 'Meter'),
+          items: [
+            for (final m in Meter.values)
+              DropdownMenuItem(value: m, child: Text(m.label)),
+          ],
+          onChanged: (m) {
+            if (m == null || m == condition.meter) return;
+            // Bands don't carry over between meters; start from the first,
+            // and from "either way", which every band can satisfy.
+            onChanged(MeterCondition(meter: m, band: m.bands.first));
+          },
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          // Keyed by meter so the field resets when the band list changes.
+          key: ValueKey('meter_trigger_band_${condition.meter.name}'),
+          initialValue: bands.contains(condition.band) ? condition.band : null,
+          decoration: const InputDecoration(labelText: 'Turns'),
+          items: [
+            for (final b in bands)
+              DropdownMenuItem(
+                value: b,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: _swatch(condition.meter, b),
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: Colors.white.withAlpha(90)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(b),
+                  ],
+                ),
+              ),
+          ],
+          onChanged: (b) {
+            if (b != null) onChanged(condition.copyWith(band: b));
+          },
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<MeterDirection>(
+          key: const ValueKey('meter_trigger_direction'),
+          initialValue: condition.direction,
+          decoration: InputDecoration(
+            labelText: 'Fire',
+            helperText: 'Dropping = the bar getting shorter',
+            errorText: condition.canFire
+                ? null
+                : 'The bar can never move into ${condition.band} that way',
+          ),
+          items: [
+            for (final d in MeterDirection.values)
+              DropdownMenuItem(value: d, child: Text(d.label)),
+          ],
+          onChanged: (d) {
+            if (d != null) onChanged(condition.copyWith(direction: d));
+          },
+        ),
+      ],
+    );
   }
 }

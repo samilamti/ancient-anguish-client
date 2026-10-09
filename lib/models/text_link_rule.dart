@@ -1,3 +1,5 @@
+import 'meter_condition.dart';
+
 /// A text-to-link rule: when the [pattern] regex matches a line of MUD
 /// output, the matched substring becomes a tappable link; tapping it sends
 /// the [commandTemplate] (after `$1`, `$2`, ... substitution from the
@@ -39,6 +41,12 @@ class TextLinkRule {
   /// rooms (see `MovementTracker`). On by default. Ignored by text links.
   final bool skipWhileMoving;
 
+  /// Command triggers only: fire on a meter changing colour instead of on a
+  /// line of output. When set, [pattern] is ignored (and usually empty, which
+  /// as a regex would match every line, so nothing may treat a meter trigger
+  /// as a line rule).
+  final MeterCondition? meter;
+
   const TextLinkRule({
     required this.id,
     required this.name,
@@ -49,7 +57,10 @@ class TextLinkRule {
     this.favorite = false,
     this.skipInCombat = false,
     this.skipWhileMoving = true,
+    this.meter,
   });
+
+  bool get isMeterTrigger => meter != null;
 
   /// Lazily-compiled regex. Returns null if the pattern fails to compile so
   /// a broken rule degrades gracefully (skipped, not crash).
@@ -85,6 +96,7 @@ class TextLinkRule {
     bool? favorite,
     bool? skipInCombat,
     bool? skipWhileMoving,
+    MeterCondition? meter,
   }) {
     return TextLinkRule(
       id: id ?? this.id,
@@ -96,6 +108,7 @@ class TextLinkRule {
       favorite: favorite ?? this.favorite,
       skipInCombat: skipInCombat ?? this.skipInCombat,
       skipWhileMoving: skipWhileMoving ?? this.skipWhileMoving,
+      meter: meter ?? this.meter,
     );
   }
 
@@ -109,6 +122,7 @@ class TextLinkRule {
         if (favorite) 'favorite': true,
         if (skipInCombat) 'skipInCombat': true,
         if (!skipWhileMoving) 'skipWhileMoving': false,
+        if (meter != null) 'meter': meter!.toJson(),
       };
 
   factory TextLinkRule.fromJson(Map<String, dynamic> json) => TextLinkRule(
@@ -121,11 +135,13 @@ class TextLinkRule {
         favorite: json['favorite'] as bool? ?? false,
         skipInCombat: json['skipInCombat'] as bool? ?? false,
         skipWhileMoving: json['skipWhileMoving'] as bool? ?? true,
+        meter: MeterCondition.fromJson(json['meter']),
       );
 
   @override
-  String toString() =>
-      'TextLinkRule($name: /$pattern/ → "$commandTemplate")';
+  String toString() => meter != null
+      ? 'TextLinkRule($name: ${meter!.summary} → "$commandTemplate")'
+      : 'TextLinkRule($name: /$pattern/ → "$commandTemplate")';
 }
 
 /// Built-in defaults seeded the first time the user opens the rules

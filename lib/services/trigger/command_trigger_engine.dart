@@ -1,3 +1,4 @@
+import '../../models/meter_condition.dart';
 import '../../models/text_link_rule.dart';
 
 /// Fires commands in response to MUD output: the automatic sibling of a text
@@ -35,6 +36,12 @@ import '../../models/text_link_rule.dart';
 /// `moving`. Such a rule is passed over, and its pending match is dropped if
 /// the situation has arisen by the time it would be sent.
 ///
+/// Meter triggers ([TextLinkRule.meter]) go through [onVitals] and
+/// [matchVitalsNow] instead of the line entry points, with the same brakes:
+/// one pending slot, one cooldown and one instant rate limit shared by both
+/// kinds. They are kept out of line matching entirely, since their empty
+/// pattern would match every line.
+///
 /// Pure: the caller passes the clock and the last interaction time, so tests
 /// need no timers.
 class CommandTriggerEngine {
@@ -45,6 +52,7 @@ class CommandTriggerEngine {
   static const instantRateWindow = Duration(seconds: 1);
 
   final List<TextLinkRule> _rules;
+  final List<TextLinkRule> _meterRules;
   String? _pending;
   DateTime? _pendingSince;
   TextLinkRule? _pendingRule;
@@ -54,10 +62,17 @@ class CommandTriggerEngine {
   CommandTriggerEngine(List<TextLinkRule> rules)
       : _rules = [
           for (final rule in rules)
-            if (rule.enabled && rule.regex != null) rule,
+            if (rule.enabled && !rule.isMeterTrigger && rule.regex != null)
+              rule,
+        ],
+        _meterRules = [
+          for (final rule in rules)
+            if (rule.enabled && rule.meter?.isValid == true) rule,
         ];
 
-  bool get isEmpty => _rules.isEmpty;
+  bool get isEmpty => _rules.isEmpty && _meterRules.isEmpty;
+
+  bool get hasMeterRules => _meterRules.isNotEmpty;
 
   bool get hasPending => _pending != null;
 
@@ -71,24 +86,67 @@ class CommandTriggerEngine {
     bool inCombat = false,
     bool moving = false,
   }) {
-    if (_rules.isEmpty || _pending != null) return null;
-    if (now.difference(lastInteraction) < idleThreshold) return null;
-    final last = _lastFired;
-    if (last != null && now.difference(last) < cooldown) return null;
+    if (_rules.isEmpty || !_canQueue(now, lastInteraction)) return null;
+    final hit = _lineHit(plainLine, inCombat, moving);
+    return hit == null ? null : _queue(hit, now);
+  }
 
+  /// [onLine] for meters: the command of the first meter trigger whose band
+  /// was entered between [before] and [after], now pending. Same gates.
+  String? onVitals(
+    VitalsReading before,
+    VitalsReading after, {
+    required DateTime now,
+    required DateTime lastInteraction,
+    bool inCombat = false,
+    bool moving = false,
+  }) {
+    if (_meterRules.isEmpty || !_canQueue(now, lastInteraction)) return null;
+    final hit = _meterHit(before, after, inCombat, moving);
+    return hit == null ? null : _queue(hit, now);
+  }
+
+  bool _canQueue(DateTime now, DateTime lastInteraction) {
+    if (_pending != null) return false;
+    if (now.difference(lastInteraction) < idleThreshold) return false;
+    final last = _lastFired;
+    return last == null || now.difference(last) >= cooldown;
+  }
+
+  String _queue((TextLinkRule, String) hit, DateTime now) {
+    _pending = hit.$2;
+    _pendingSince = now;
+    _pendingRule = hit.$1;
+    return hit.$2;
+  }
+
+  (TextLinkRule, String)? _lineHit(
+      String plainLine, bool inCombat, bool moving) {
     for (final rule in _rules) {
       if (_sitsOut(rule, inCombat, moving)) continue;
       final match = rule.regex!.firstMatch(plainLine);
       if (match == null) continue;
       final command = rule.resolveCommand(match);
       if (command.isEmpty) continue;
-      _pending = command;
-      _pendingSince = now;
-      _pendingRule = rule;
-      return command;
+      return (rule, command);
     }
     return null;
   }
+
+  (TextLinkRule, String)? _meterHit(VitalsReading before, VitalsReading after,
+      bool inCombat, bool moving) {
+    for (final rule in _meterRules) {
+      if (_sitsOut(rule, inCombat, moving)) continue;
+      if (!rule.meter!.firesOn(before, after)) continue;
+      // No match to substitute from; `$1` and friends resolve to nothing.
+      final command = rule.resolveCommand(_noMatch);
+      if (command.isEmpty) continue;
+      return (rule, command);
+    }
+    return null;
+  }
+
+  static final Match _noMatch = RegExp('').firstMatch('')!;
 
   /// The command of the first rule matching [plainLine], with no idle gate,
   /// delay or cooldown, and without touching the pending/cooldown state.
@@ -100,19 +158,32 @@ class CommandTriggerEngine {
     bool inCombat = false,
     bool moving = false,
   }) {
+    if (!_instantAllowed(now)) return null;
+    final hit = _lineHit(plainLine, inCombat, moving);
+    if (hit == null) return null;
+    _instantFires.add(now);
+    return hit.$2;
+  }
+
+  /// [matchNow] for meters, sharing its rate limit.
+  String? matchVitalsNow(
+    VitalsReading before,
+    VitalsReading after, {
+    required DateTime now,
+    bool inCombat = false,
+    bool moving = false,
+  }) {
+    if (!_instantAllowed(now)) return null;
+    final hit = _meterHit(before, after, inCombat, moving);
+    if (hit == null) return null;
+    _instantFires.add(now);
+    return hit.$2;
+  }
+
+  bool _instantAllowed(DateTime now) {
     _instantFires
         .removeWhere((t) => now.difference(t) >= instantRateWindow);
-    if (_instantFires.length >= instantRateLimit) return null;
-    for (final rule in _rules) {
-      if (_sitsOut(rule, inCombat, moving)) continue;
-      final match = rule.regex!.firstMatch(plainLine);
-      if (match == null) continue;
-      final command = rule.resolveCommand(match);
-      if (command.isEmpty) continue;
-      _instantFires.add(now);
-      return command;
-    }
-    return null;
+    return _instantFires.length < instantRateLimit;
   }
 
   /// Clears the pending trigger and returns its command to send, starting the

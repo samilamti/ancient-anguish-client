@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:ancient_anguish_client/models/meter_condition.dart';
 import 'package:ancient_anguish_client/models/text_link_rule.dart';
 import 'package:ancient_anguish_client/providers/command_trigger_provider.dart';
 import 'package:ancient_anguish_client/providers/storage_provider.dart';
@@ -153,5 +154,54 @@ void main() {
     final names =
         container.read(commandTriggerRulesProvider).map((r) => r.name);
     expect(names, contains('Trigger 3'));
+  });
+
+  testWidgets('a meter-colour trigger saves its condition and no pattern',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final container = await pump(
+      tester,
+      Builder(
+        builder: (ctx) => ElevatedButton(
+          onPressed: () => openTextLinkRuleEditor(ctx,
+              kind: RuleListKind.commandTrigger),
+          child: const Text('open'),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Meter colour'));
+    await tester.pumpAndSettle();
+    // The regex field and its test area go away.
+    expect(find.widgetWithText(TextField, 'Pattern (regex)'), findsNothing);
+    expect(find.text('Test the rule'), findsNothing);
+
+    // HP → SP, then pick cyan.
+    await tester.tap(find.byKey(const ValueKey('meter_trigger_meter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('SP').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('meter_trigger_band_sp')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('cyan').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Command'), 'cast heal');
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+
+    final saved = container
+        .read(commandTriggerRulesProvider)
+        .firstWhere((r) => r.commandTemplate == 'cast heal');
+    expect(saved.meter?.meter, Meter.sp);
+    expect(saved.meter?.band, 'cyan');
+    // Switching meter resets the direction to one every band can satisfy.
+    expect(saved.meter?.direction, MeterDirection.either);
+    expect(saved.pattern, isEmpty);
   });
 }

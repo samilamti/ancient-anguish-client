@@ -27,6 +27,8 @@ import '../services/parser/output_parser.dart';
 import '../services/parser/sheet_parser.dart';
 import '../services/parser/text_link_processor.dart';
 import '../services/movement_tracker.dart';
+import '../models/game_state.dart';
+import '../models/meter_condition.dart';
 import '../services/trigger/command_trigger_engine.dart';
 import 'text_link_rule_provider.dart';
 import '../models/social_message.dart';
@@ -262,6 +264,12 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
     final service = ref.read(connectionServiceProvider);
     final parser = ref.read(outputParserProvider);
+
+    // Meter triggers: a change of HP or SP band between two game-state
+    // updates is their equivalent of a matching line.
+    ref.listen(gameStateProvider, (previous, next) {
+      if (previous != null) _onVitalsChanged(previous, next);
+    });
 
     // Resend prompt command when user changes Advanced Customization settings.
     ref.listen(promptConfigProvider, (previous, next) {
@@ -1157,6 +1165,50 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       if (command != null) _sendTriggerCommand(command);
     });
   }
+
+  /// Offers an HP/SP change to the meter triggers. Same gates as a line:
+  /// logged in, local features on, Instant Triggers or the idle handshake.
+  /// Instant commands go out on a microtask, after whatever batch of output
+  /// carried the prompt has been added, so they echo below it.
+  void _onVitalsChanged(GameState previous, GameState next) {
+    if (previous.hp == next.hp &&
+        previous.maxHp == next.maxHp &&
+        previous.sp == next.sp &&
+        previous.maxSp == next.maxSp) {
+      return;
+    }
+    if (!_loginDetected ||
+        ref.read(localFeaturesAvailableProvider).value != true) {
+      return;
+    }
+    final triggers = ref.read(commandTriggerEngineProvider);
+    if (!triggers.hasMeterRules) return;
+
+    final before = _vitalsOf(previous);
+    final after = _vitalsOf(next);
+    final now = DateTime.now();
+    final inCombat = ref.read(battleStateProvider).inBattle;
+    final moving = MovementTracker.instance.isMoving();
+    if (ref.read(instantTriggersProvider)) {
+      final command = triggers.matchVitalsNow(before, after,
+          now: now, inCombat: inCombat, moving: moving);
+      if (command != null) scheduleMicrotask(() => _sendTriggerCommand(command));
+      return;
+    }
+    final lastInteraction =
+        ref.read(userActivityTrackerProvider).lastInteraction;
+    if (triggers.onVitals(before, after,
+            now: now,
+            lastInteraction: lastInteraction,
+            inCombat: inCombat,
+            moving: moving) !=
+        null) {
+      _scheduleTriggerFire(triggers);
+    }
+  }
+
+  static VitalsReading _vitalsOf(GameState s) =>
+      VitalsReading(hp: s.hp, maxHp: s.maxHp, sp: s.sp, maxSp: s.maxSp);
 
   void _sendTriggerCommand(String command) {
     final service = ref.read(connectionServiceProvider);

@@ -1,3 +1,4 @@
+import 'package:ancient_anguish_client/models/meter_condition.dart';
 import 'package:ancient_anguish_client/models/text_link_rule.dart';
 import 'package:ancient_anguish_client/services/movement_tracker.dart';
 import 'package:ancient_anguish_client/services/trigger/command_trigger_engine.dart';
@@ -240,6 +241,93 @@ void main() {
       expect(
           engine.takePending(now: at(4000), lastInteraction: t0, moving: true),
           isNull);
+    });
+  });
+
+
+  group('CommandTriggerEngine meter triggers', () {
+    const potion = TextLinkRule(
+      id: 'potion',
+      name: 'Potion',
+      pattern: '',
+      commandTemplate: 'drink potion',
+      meter: MeterCondition(meter: Meter.hp, band: 'orange'),
+    );
+    VitalsReading hp(int v) =>
+        VitalsReading(hp: v, maxHp: 100, sp: 50, maxSp: 100);
+
+    test('an empty-pattern meter rule never matches output lines', () {
+      final engine = CommandTriggerEngine([potion]);
+      expect(engine.isEmpty, isFalse);
+      expect(engine.onLine('anything at all', now: at(5000), lastInteraction: t0),
+          isNull);
+      expect(engine.matchNow('anything at all', now: at(5000)), isNull);
+    });
+
+    test('a band crossing becomes pending, then fires', () {
+      final engine = CommandTriggerEngine([potion]);
+      expect(
+          engine.onVitals(hp(70), hp(50), now: at(3000), lastInteraction: t0),
+          'drink potion');
+      expect(engine.takePending(now: at(4000), lastInteraction: t0),
+          'drink potion');
+    });
+
+    test('staying in the band does not re-fire', () {
+      final engine = CommandTriggerEngine([potion]);
+      expect(
+          engine.onVitals(hp(50), hp(45), now: at(3000), lastInteraction: t0),
+          isNull);
+    });
+
+    test('same idle gate as lines', () {
+      final engine = CommandTriggerEngine([potion]);
+      expect(
+          engine.onVitals(hp(70), hp(50), now: at(2999), lastInteraction: t0),
+          isNull);
+    });
+
+    test('shares the pending slot and cooldown with line rules', () {
+      final engine = CommandTriggerEngine([door, potion]);
+      expect(fireAt(engine, 3000), 'open oak door');
+      // Cooldown from the line trigger blocks the meter one...
+      expect(
+          engine.onVitals(hp(70), hp(50), now: at(5000), lastInteraction: t0),
+          isNull);
+      // ...until it has run out.
+      expect(
+          engine.onVitals(hp(70), hp(50), now: at(7000), lastInteraction: t0),
+          'drink potion');
+      // And a pending meter trigger holds off line matches.
+      expect(engine.onLine(doorLine, now: at(7100), lastInteraction: t0),
+          isNull);
+    });
+
+    test('skipInCombat applies to meter rules', () {
+      final engine =
+          CommandTriggerEngine([potion.copyWith(skipInCombat: true)]);
+      expect(
+          engine.onVitals(hp(70), hp(50),
+              now: at(3000), lastInteraction: t0, inCombat: true),
+          isNull);
+    });
+
+    test('instant mode shares the rate limit with lines', () {
+      final engine = CommandTriggerEngine([door, potion]);
+      expect(engine.matchNow(doorLine, now: t0), 'open oak door');
+      expect(engine.matchNow(doorLine, now: at(10)), 'open oak door');
+      expect(engine.matchVitalsNow(hp(70), hp(50), now: at(20)), isNull);
+      expect(engine.matchVitalsNow(hp(70), hp(50), now: at(1000)),
+          'drink potion');
+    });
+
+    test('a disabled or invalid meter rule is left out', () {
+      final engine = CommandTriggerEngine([
+        potion.copyWith(enabled: false),
+        potion.copyWith(
+            meter: const MeterCondition(meter: Meter.hp, band: 'navy')),
+      ]);
+      expect(engine.isEmpty, isTrue);
     });
   });
 

@@ -489,6 +489,7 @@ class _TextLinkRuleEditScreenState
   String? _previewCommand;
   late bool _skipInCombat;
   late bool _skipWhileMoving;
+  late bool _alwaysOn;
 
   /// Command triggers only: the meter condition while "Meter colour" is
   /// chosen, else null (fires on output lines).
@@ -504,6 +505,7 @@ class _TextLinkRuleEditScreenState
     final e = widget.existing;
     _skipInCombat = e?.skipInCombat ?? false;
     _skipWhileMoving = e?.skipWhileMoving ?? true;
+    _alwaysOn = e?.alwaysOn ?? false;
     _meter = e?.meter;
     _lastMeter = e?.meter ??
         const MeterCondition(
@@ -630,6 +632,7 @@ class _TextLinkRuleEditScreenState
       favorite: widget.existing?.favorite ?? false,
       skipInCombat: _skipInCombat,
       skipWhileMoving: _skipWhileMoving,
+      alwaysOn: _alwaysOn,
       meter: meter,
     );
 
@@ -754,6 +757,16 @@ class _TextLinkRuleEditScreenState
               ),
               value: _skipWhileMoving,
               onChanged: (v) => setState(() => _skipWhileMoving = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Always on'),
+              subtitle: const Text(
+                'Off: after firing, this trigger rests for 3 s. '
+                'On: it may fire again right away',
+              ),
+              value: _alwaysOn,
+              onChanged: (v) => setState(() => _alwaysOn = v),
             ),
           ],
           if (_meter == null) ...[

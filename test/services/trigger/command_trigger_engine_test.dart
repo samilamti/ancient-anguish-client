@@ -16,6 +16,7 @@ void main() {
     commandTemplate: r'open $1 door',
   );
   const doorLine = 'The oak door is closed.';
+  final alwaysDoor = door.copyWith(alwaysOn: true);
 
   /// Matches at [matchMs], then takes the pending command one fire delay
   /// later, with no interaction since [t0].
@@ -114,7 +115,7 @@ void main() {
 
   group('CommandTriggerEngine.matchNow (instant mode)', () {
     test('matches with no idle gate, delay or cooldown', () {
-      final engine = CommandTriggerEngine([door]);
+      final engine = CommandTriggerEngine([alwaysDoor]);
       expect(engine.matchNow(doorLine, now: t0), 'open oak door');
       expect(engine.matchNow('You are hungry.', now: at(10)), isNull);
       expect(engine.matchNow(doorLine, now: at(20)), 'open oak door');
@@ -148,7 +149,7 @@ void main() {
     });
 
     test('the window rolls: a slot frees one second after each firing', () {
-      final engine = CommandTriggerEngine([door]);
+      final engine = CommandTriggerEngine([alwaysDoor]);
       engine.matchNow(doorLine, now: t0);
       engine.matchNow(doorLine, now: at(600));
       expect(engine.matchNow(doorLine, now: at(999)), isNull);
@@ -159,7 +160,7 @@ void main() {
     });
 
     test('dropped and non-matching lines use up no slots', () {
-      final engine = CommandTriggerEngine([door]);
+      final engine = CommandTriggerEngine([alwaysDoor]);
       for (var i = 0; i < 5; i++) {
         engine.matchNow('You are hungry.', now: at(i));
       }
@@ -245,6 +246,82 @@ void main() {
   });
 
 
+  group('per-rule cooldown', () {
+    test('is 3 s', () {
+      expect(CommandTriggerEngine.ruleCooldown, const Duration(seconds: 3));
+    });
+
+    test('alwaysOn defaults off and round-trips through JSON', () {
+      expect(door.alwaysOn, isFalse);
+      expect(door.toJson().containsKey('alwaysOn'), isFalse);
+      expect(TextLinkRule.fromJson(alwaysDoor.toJson()).alwaysOn, isTrue);
+    });
+
+    test('instant mode: a rule rests for 3 s after firing', () {
+      final engine = CommandTriggerEngine([door]);
+      expect(engine.matchNow(doorLine, now: t0), 'open oak door');
+      expect(engine.matchNow(doorLine, now: at(1500)), isNull);
+      expect(engine.matchNow(doorLine, now: at(2999)), isNull);
+      expect(engine.matchNow(doorLine, now: at(3000)), 'open oak door');
+    });
+
+    test('a resting rule leaves other rules free to fire', () {
+      final hungry = door.copyWith(
+          id: 'hungry', pattern: 'You are hungry', commandTemplate: 'eat');
+      final engine = CommandTriggerEngine([door, hungry]);
+      expect(engine.matchNow(doorLine, now: t0), isNotNull);
+      expect(engine.matchNow('You are hungry.', now: at(1500)), 'eat');
+    });
+
+    test('a resting rule lets a later matching rule take the line', () {
+      final other = door.copyWith(id: 'other', commandTemplate: 'knock');
+      final engine = CommandTriggerEngine([door, other]);
+      expect(engine.matchNow(doorLine, now: t0), 'open oak door');
+      expect(engine.matchNow(doorLine, now: at(1500)), 'knock');
+    });
+
+    test('an always-on rule may fire again within 3 s', () {
+      final engine = CommandTriggerEngine([alwaysDoor]);
+      expect(engine.matchNow(doorLine, now: t0), isNotNull);
+      expect(engine.matchNow(doorLine, now: at(1500)), isNotNull);
+    });
+
+    test('an instant firing rests the rule on the delayed path too', () {
+      final engine = CommandTriggerEngine([door]);
+      engine.matchNow(doorLine, now: at(1000));
+      expect(engine.onLine(doorLine, now: at(3500), lastInteraction: t0),
+          isNull);
+      expect(engine.onLine(doorLine, now: at(4000), lastInteraction: t0),
+          isNotNull);
+    });
+
+    test('a dropped pending match does not rest the rule', () {
+      final engine = CommandTriggerEngine([door]);
+      engine.onLine(doorLine, now: at(3000), lastInteraction: t0);
+      expect(engine.takePending(now: at(4000), lastInteraction: at(3500)),
+          isNull);
+      expect(engine.matchNow(doorLine, now: at(4100)), isNotNull);
+    });
+
+    test('meter rules rest too', () {
+      const potion = TextLinkRule(
+        id: 'potion',
+        name: 'Potion',
+        pattern: '',
+        commandTemplate: 'drink potion',
+        meter: MeterCondition(meter: Meter.hp, band: 'orange'),
+      );
+      VitalsReading hp(int v) =>
+          VitalsReading(hp: v, maxHp: 100, sp: 50, maxSp: 100);
+      final engine = CommandTriggerEngine([potion]);
+      expect(engine.matchVitalsNow(hp(70), hp(50), now: t0), isNotNull);
+      expect(engine.matchVitalsNow(hp(70), hp(50), now: at(2000)), isNull);
+      final always = CommandTriggerEngine([potion.copyWith(alwaysOn: true)]);
+      expect(always.matchVitalsNow(hp(70), hp(50), now: t0), isNotNull);
+      expect(always.matchVitalsNow(hp(70), hp(50), now: at(2000)), isNotNull);
+    });
+  });
+
   group('CommandTriggerEngine meter triggers', () {
     const potion = TextLinkRule(
       id: 'potion',
@@ -313,7 +390,7 @@ void main() {
     });
 
     test('instant mode shares the rate limit with lines', () {
-      final engine = CommandTriggerEngine([door, potion]);
+      final engine = CommandTriggerEngine([alwaysDoor, potion]);
       expect(engine.matchNow(doorLine, now: t0), 'open oak door');
       expect(engine.matchNow(doorLine, now: at(10)), 'open oak door');
       expect(engine.matchVitalsNow(hp(70), hp(50), now: at(20)), isNull);

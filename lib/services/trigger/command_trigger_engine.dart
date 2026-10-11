@@ -31,6 +31,11 @@ import '../../models/text_link_rule.dart';
 /// not queued, so a runaway loop can't build a backlog that keeps sending
 /// after the output that caused it has stopped.
 ///
+/// On top of those, each rule has its own cooldown: once it has fired it sits
+/// out for [ruleCooldown], in both modes, unless it is
+/// [TextLinkRule.alwaysOn]. That is what stops one rule repeating twice a
+/// second in instant mode, where the shared cooldown doesn't apply.
+///
 /// Rules can opt out of situations: [TextLinkRule.skipInCombat] while the
 /// caller reports `inCombat`, [TextLinkRule.skipWhileMoving] while it reports
 /// `moving`. Such a rule is passed over, and its pending match is dropped if
@@ -50,6 +55,7 @@ class CommandTriggerEngine {
   static const cooldown = Duration(seconds: 3);
   static const instantRateLimit = 2;
   static const instantRateWindow = Duration(seconds: 1);
+  static const ruleCooldown = Duration(seconds: 3);
 
   final List<TextLinkRule> _rules;
   final List<TextLinkRule> _meterRules;
@@ -58,6 +64,7 @@ class CommandTriggerEngine {
   TextLinkRule? _pendingRule;
   DateTime? _lastFired;
   final List<DateTime> _instantFires = [];
+  final Map<String, DateTime> _ruleFiredAt = {};
 
   CommandTriggerEngine(List<TextLinkRule> rules)
       : _rules = [
@@ -87,7 +94,7 @@ class CommandTriggerEngine {
     bool moving = false,
   }) {
     if (_rules.isEmpty || !_canQueue(now, lastInteraction)) return null;
-    final hit = _lineHit(plainLine, inCombat, moving);
+    final hit = _lineHit(plainLine, now, inCombat, moving);
     return hit == null ? null : _queue(hit, now);
   }
 
@@ -102,7 +109,7 @@ class CommandTriggerEngine {
     bool moving = false,
   }) {
     if (_meterRules.isEmpty || !_canQueue(now, lastInteraction)) return null;
-    final hit = _meterHit(before, after, inCombat, moving);
+    final hit = _meterHit(before, after, now, inCombat, moving);
     return hit == null ? null : _queue(hit, now);
   }
 
@@ -121,9 +128,9 @@ class CommandTriggerEngine {
   }
 
   (TextLinkRule, String)? _lineHit(
-      String plainLine, bool inCombat, bool moving) {
+      String plainLine, DateTime now, bool inCombat, bool moving) {
     for (final rule in _rules) {
-      if (_sitsOut(rule, inCombat, moving)) continue;
+      if (_sitsOut(rule, inCombat, moving) || _resting(rule, now)) continue;
       final match = rule.regex!.firstMatch(plainLine);
       if (match == null) continue;
       final command = rule.resolveCommand(match);
@@ -134,9 +141,9 @@ class CommandTriggerEngine {
   }
 
   (TextLinkRule, String)? _meterHit(VitalsReading before, VitalsReading after,
-      bool inCombat, bool moving) {
+      DateTime now, bool inCombat, bool moving) {
     for (final rule in _meterRules) {
-      if (_sitsOut(rule, inCombat, moving)) continue;
+      if (_sitsOut(rule, inCombat, moving) || _resting(rule, now)) continue;
       if (!rule.meter!.firesOn(before, after)) continue;
       // No match to substitute from; `$1` and friends resolve to nothing.
       final command = rule.resolveCommand(_noMatch);
@@ -159,9 +166,9 @@ class CommandTriggerEngine {
     bool moving = false,
   }) {
     if (!_instantAllowed(now)) return null;
-    final hit = _lineHit(plainLine, inCombat, moving);
+    final hit = _lineHit(plainLine, now, inCombat, moving);
     if (hit == null) return null;
-    _instantFires.add(now);
+    _fired(hit.$1, now);
     return hit.$2;
   }
 
@@ -174,10 +181,22 @@ class CommandTriggerEngine {
     bool moving = false,
   }) {
     if (!_instantAllowed(now)) return null;
-    final hit = _meterHit(before, after, inCombat, moving);
+    final hit = _meterHit(before, after, now, inCombat, moving);
     if (hit == null) return null;
-    _instantFires.add(now);
+    _fired(hit.$1, now);
     return hit.$2;
+  }
+
+  void _fired(TextLinkRule rule, DateTime now) {
+    _instantFires.add(now);
+    _ruleFiredAt[rule.id] = now;
+  }
+
+  /// Within [ruleCooldown] of this rule's last firing, unless it's always on.
+  bool _resting(TextLinkRule rule, DateTime now) {
+    if (rule.alwaysOn) return false;
+    final last = _ruleFiredAt[rule.id];
+    return last != null && now.difference(last) < ruleCooldown;
   }
 
   bool _instantAllowed(DateTime now) {
@@ -204,6 +223,7 @@ class CommandTriggerEngine {
     if (lastInteraction.isAfter(since)) return null;
     if (_sitsOut(rule, inCombat, moving)) return null;
     _lastFired = now;
+    _ruleFiredAt[rule.id] = now;
     return command;
   }
 

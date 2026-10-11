@@ -41,6 +41,11 @@ class TextLinkRule {
   /// rooms (see `MovementTracker`). On by default. Ignored by text links.
   final bool skipWhileMoving;
 
+  /// Command triggers only: exempt from the per-rule cooldown, so the rule
+  /// may fire again right away. Off by default: a rule that has fired sits
+  /// out for `CommandTriggerEngine.ruleCooldown`. Ignored by text links.
+  final bool alwaysOn;
+
   /// Command triggers only: fire on a meter changing colour instead of on a
   /// line of output. When set, [pattern] is ignored (and usually empty, which
   /// as a regex would match every line, so nothing may treat a meter trigger
@@ -57,6 +62,7 @@ class TextLinkRule {
     this.favorite = false,
     this.skipInCombat = false,
     this.skipWhileMoving = true,
+    this.alwaysOn = false,
     this.meter,
   });
 
@@ -96,6 +102,7 @@ class TextLinkRule {
     bool? favorite,
     bool? skipInCombat,
     bool? skipWhileMoving,
+    bool? alwaysOn,
     MeterCondition? meter,
   }) {
     return TextLinkRule(
@@ -108,6 +115,7 @@ class TextLinkRule {
       favorite: favorite ?? this.favorite,
       skipInCombat: skipInCombat ?? this.skipInCombat,
       skipWhileMoving: skipWhileMoving ?? this.skipWhileMoving,
+      alwaysOn: alwaysOn ?? this.alwaysOn,
       meter: meter ?? this.meter,
     );
   }
@@ -122,6 +130,7 @@ class TextLinkRule {
         if (favorite) 'favorite': true,
         if (skipInCombat) 'skipInCombat': true,
         if (!skipWhileMoving) 'skipWhileMoving': false,
+        if (alwaysOn) 'alwaysOn': true,
         if (meter != null) 'meter': meter!.toJson(),
       };
 
@@ -135,6 +144,7 @@ class TextLinkRule {
         favorite: json['favorite'] as bool? ?? false,
         skipInCombat: json['skipInCombat'] as bool? ?? false,
         skipWhileMoving: json['skipWhileMoving'] as bool? ?? true,
+        alwaysOn: json['alwaysOn'] as bool? ?? false,
         meter: MeterCondition.fromJson(json['meter']),
       );
 

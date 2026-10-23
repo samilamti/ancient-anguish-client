@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ancient_anguish_client/providers/connection_provider.dart'
     show commandHistoryProvider;
+import 'package:ancient_anguish_client/providers/local_features_provider.dart';
 import 'package:ancient_anguish_client/ui/widgets/terminal/input_bar.dart';
 
 void main() {
@@ -12,14 +13,19 @@ void main() {
   Future<ProviderContainer> pumpInputBar(
     WidgetTester tester, {
     required Size size,
+    bool localFeatures = false,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(
+      ProviderScope(
+        overrides: [
+          localFeaturesAvailableProvider
+              .overrideWith((ref) async => localFeatures),
+        ],
+        child: const MaterialApp(
           home: Scaffold(body: InputBar()),
         ),
       ),
@@ -126,6 +132,61 @@ void main() {
       // Only the recent row carries a "+"; the counterparts carry the ↳.
       expect(find.byIcon(Icons.add), findsOneWidget);
       expect(find.byIcon(Icons.subdirectory_arrow_right), findsNWidgets(2));
+    });
+
+    testWidgets('long-press offers rules that send the command', (
+      tester,
+    ) async {
+      final container = await pumpInputBar(
+        tester,
+        size: const Size(1200, 1000),
+      );
+      container.read(commandHistoryProvider.notifier).add('stand');
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.history));
+      await tester.pumpAndSettle();
+      await tester.longPress(find.text('stand'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create alias…'), findsOneWidget);
+      expect(find.text('Create trigger…'), findsNothing,
+          reason: 'triggers are local-only');
+      await tester.tap(find.text('Create text link rule…'));
+      await tester.pumpAndSettle();
+
+      // The existing editor, with the command pre-filled and the pattern
+      // left for the user.
+      final command = tester.widget<TextField>(
+          find.widgetWithText(TextField, 'Command template'));
+      expect(command.controller!.text, 'stand');
+      final pattern = tester.widget<TextField>(
+          find.widgetWithText(TextField, 'Pattern (regex)'));
+      expect(pattern.controller!.text, isEmpty);
+    });
+
+    testWidgets('long-press "Create trigger…" in local builds pre-fills the '
+        'command', (tester) async {
+      final container = await pumpInputBar(
+        tester,
+        size: const Size(1200, 1000),
+        localFeatures: true,
+      );
+      container.read(commandHistoryProvider.notifier).add('enter');
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.history));
+      await tester.pumpAndSettle();
+      // A counterpart row: no alias option, but rules are fine.
+      await tester.longPress(find.text('leave'));
+      await tester.pumpAndSettle();
+      expect(find.text('Create alias…'), findsNothing);
+      await tester.tap(find.text('Create trigger…'));
+      await tester.pumpAndSettle();
+
+      final command = tester.widget<TextField>(
+          find.widgetWithText(TextField, 'Command template'));
+      expect(command.controller!.text, 'leave');
     });
 
     testWidgets('Counterparts section renders above Recent', (tester) async {

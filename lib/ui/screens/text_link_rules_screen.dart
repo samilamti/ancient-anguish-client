@@ -259,10 +259,15 @@ class TextLinkRulesScreen extends ConsumerWidget {
 /// regex-escaped into the Pattern field (so it matches literally by default)
 /// and dropped verbatim into the Test input so the live preview is ready as
 /// soon as the user fills in a command.
+///
+/// [initialCommand] pre-fills the Command field instead — used by the
+/// Recent-commands sheet, where the user picked something they sent and now
+/// wants a rule that sends it.
 Future<void> openTextLinkRuleEditor(
   BuildContext context, {
   TextLinkRule? existing,
   String? initialMatchText,
+  String? initialCommand,
   RuleListKind kind = RuleListKind.textLink,
 }) {
   return Navigator.of(context).push(
@@ -270,6 +275,7 @@ Future<void> openTextLinkRuleEditor(
       builder: (_) => _TextLinkRuleEditScreen(
         existing: existing,
         initialMatchText: initialMatchText,
+        initialCommand: initialCommand,
         kind: kind,
       ),
     ),
@@ -465,11 +471,16 @@ class _TextLinkRuleEditScreen extends ConsumerStatefulWidget {
   /// [existing] is set (editing an existing rule wins).
   final String? initialMatchText;
 
+  /// Command to seed a brand-new rule's Command field with. Ignored when
+  /// [existing] is set.
+  final String? initialCommand;
+
   final RuleListKind kind;
 
   const _TextLinkRuleEditScreen({
     this.existing,
     this.initialMatchText,
+    this.initialCommand,
     required this.kind,
   });
 
@@ -528,7 +539,8 @@ class _TextLinkRuleEditScreenState
       text: e?.pattern ?? (seedLine.isEmpty ? '' : RegExp.escape(seedLine)),
     );
     _commandController =
-        TextEditingController(text: e?.commandTemplate ?? '');
+        TextEditingController(
+        text: e?.commandTemplate ?? widget.initialCommand ?? '');
     _testController = TextEditingController(text: seedLine);
   }
 

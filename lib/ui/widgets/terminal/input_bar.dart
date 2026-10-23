@@ -19,6 +19,8 @@ import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
 import '../../screens/alias_settings_screen.dart' show openAliasEditor;
+import '../../screens/text_link_rules_screen.dart'
+    show RuleListKind, openTextLinkRuleEditor;
 import '../../../models/alias_rule.dart';
 import '../../../services/alias/alias_command.dart';
 import '../../../services/command_counterparts.dart';
@@ -576,11 +578,17 @@ class _InputBarState extends ConsumerState<InputBar> {
   Future<void> _showHistorySheet() async {
     final chosen = await showRecentCommandsSheet(context, ref);
     if (chosen == null || !mounted) return;
-    if (chosen.intent == HistoryIntent.makeAlias) {
-      // Turn the picked command into a new alias, pre-filling its expansion.
-      openAliasEditor(context, initialExpansion: chosen.command);
-    } else {
-      _sendCommandFromHistory(chosen.command);
+    switch (chosen.intent) {
+      case HistoryIntent.makeAlias:
+        // Turn the picked command into a new alias, pre-filling its expansion.
+        openAliasEditor(context, initialExpansion: chosen.command);
+      case HistoryIntent.makeTrigger:
+        openTextLinkRuleEditor(context,
+            initialCommand: chosen.command, kind: RuleListKind.commandTrigger);
+      case HistoryIntent.makeTextLink:
+        openTextLinkRuleEditor(context, initialCommand: chosen.command);
+      case HistoryIntent.send:
+        _sendCommandFromHistory(chosen.command);
     }
   }
 
@@ -596,9 +604,9 @@ class _InputBarState extends ConsumerState<InputBar> {
   }
 }
 
-/// What the user picked in the Recent-commands sheet: either re-send the
-/// command, or open the alias editor pre-filled with it as the expansion.
-enum HistoryIntent { send, makeAlias }
+/// What the user picked in the Recent-commands sheet: re-send the command,
+/// or open the alias / trigger / text-link editor pre-filled with it.
+enum HistoryIntent { send, makeAlias, makeTrigger, makeTextLink }
 
 class HistoryChoice {
   final String command;
@@ -642,6 +650,9 @@ Future<HistoryChoice?> showRecentCommandsSheet(
     return null;
   }
 
+  // Local-only, like the terminal menu's "Create Trigger".
+  final triggers = ref.read(localFeaturesAvailableProvider).value ?? false;
+
   return showModalBottomSheet<HistoryChoice>(
     context: context,
     showDragHandle: true,
@@ -649,6 +660,7 @@ Future<HistoryChoice?> showRecentCommandsSheet(
     builder: (ctx) => _HistorySheet(
       recent: recent,
       counterparts: counterparts.toList(),
+      triggersAvailable: triggers,
     ),
   );
 }
@@ -656,12 +668,18 @@ Future<HistoryChoice?> showRecentCommandsSheet(
 /// Bottom-sheet body for the History button. Two sections: literal recent
 /// commands (newest-first) and derived counterparts. Tapping a row's body
 /// pops the sheet to send that command; tapping its "+" pops to make an alias.
+/// Long-press or right-click a row for the full create-rule menu.
 /// Scrollable so the longer desktop list can't overflow the sheet.
 class _HistorySheet extends StatelessWidget {
   final List<String> recent;
   final List<String> counterparts;
+  final bool triggersAvailable;
 
-  const _HistorySheet({required this.recent, required this.counterparts});
+  const _HistorySheet({
+    required this.recent,
+    required this.counterparts,
+    required this.triggersAvailable,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -692,6 +710,7 @@ class _HistorySheet extends StatelessWidget {
                   command: cmd,
                   theme: theme,
                   isCounterpart: true,
+                  triggersAvailable: triggersAvailable,
                 ),
             ],
             if (recent.isNotEmpty) ...[
@@ -702,7 +721,11 @@ class _HistorySheet extends StatelessWidget {
                 theme: theme,
               ),
               for (final cmd in recent)
-                _CommandRow(command: cmd, theme: theme),
+                _CommandRow(
+                  command: cmd,
+                  theme: theme,
+                  triggersAvailable: triggersAvailable,
+                ),
             ],
           ],
         ),
@@ -752,11 +775,44 @@ class _CommandRow extends StatelessWidget {
   /// button (only literal recent commands can be turned into aliases).
   final bool isCounterpart;
 
+  /// Offer "Create trigger…" in the long-press menu (local builds only).
+  final bool triggersAvailable;
+
   const _CommandRow({
     required this.command,
     required this.theme,
     this.isCounterpart = false,
+    this.triggersAvailable = false,
   });
+
+  /// Long-press / right-click menu: create a rule that sends [command].
+  Future<void> _showCreateMenu(BuildContext context, Offset global) async {
+    final navigator = Navigator.of(context);
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final pos = overlay.globalToLocal(global);
+    final intent = await showMenu<HistoryIntent>(
+      context: context,
+      position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx, pos.dy),
+      items: [
+        if (!isCounterpart)
+          const PopupMenuItem(
+            value: HistoryIntent.makeAlias,
+            child: Text('Create alias…'),
+          ),
+        if (triggersAvailable)
+          const PopupMenuItem(
+            value: HistoryIntent.makeTrigger,
+            child: Text('Create trigger…'),
+          ),
+        const PopupMenuItem(
+          value: HistoryIntent.makeTextLink,
+          child: Text('Create text link rule…'),
+        ),
+      ],
+    );
+    if (intent != null) navigator.pop(HistoryChoice(command, intent));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -777,9 +833,13 @@ class _CommandRow extends StatelessWidget {
                 .pop(HistoryChoice(command, HistoryIntent.makeAlias)),
           );
 
+    Offset pressAt = Offset.zero;
     return InkWell(
       onTap: () => Navigator.of(context)
           .pop(HistoryChoice(command, HistoryIntent.send)),
+      onTapDown: (d) => pressAt = d.globalPosition,
+      onLongPress: () => _showCreateMenu(context, pressAt),
+      onSecondaryTapUp: (d) => _showCreateMenu(context, d.globalPosition),
       child: Padding(
         // Recent rows get their height from the "+" IconButton; counterpart
         // rows have only a plain icon, so pad them to a comparable height.

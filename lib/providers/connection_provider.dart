@@ -12,6 +12,7 @@ import '../models/prompt_element.dart';
 import '../models/alias_rule.dart';
 import '../models/auth_state.dart';
 import '../models/connection_info.dart';
+import '../models/sheet.dart';
 import '../models/social_panel_state.dart';
 import '../protocol/ansi/ansi_parser.dart';
 import '../protocol/ansi/styled_span.dart';
@@ -983,15 +984,17 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       // Release rather than flush: the player just asked for raw text, so a
       // block already in flight must appear as text instead of becoming the
       // sheet it was one line away from being.
-      if (_sheetCapture.isCapturing) out.addAll(_sheetCapture.release());
-      out.add(line);
+      if (_sheetCapture.isCapturing) {
+        out.addAll(_sheetCapture.release().map(_withScoreDelta));
+      }
+      out.add(_withScoreDelta(line));
       return;
     }
 
     final result = _sheetCapture.offer(plainText, line);
     switch (result.action) {
       case SheetCaptureAction.passThrough:
-        out.add(line);
+        out.add(_withScoreDelta(line));
       case SheetCaptureAction.held:
         break;
       case SheetCaptureAction.completed:
@@ -1031,8 +1034,39 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       final id = ref.read(sheetsProvider.notifier).put(result.sheet!);
       out.add(StyledLine([StyledSpan(text: sentinelForSheetId(id))]));
     }
-    out.addAll(result.releasedLines);
+    out.addAll(result.releasedLines.map(_withScoreDelta));
     if (result.trailing != null) out.add(result.trailing!);
+  }
+
+  /// `Exp    : 1,273,879` / `Money  : 30,454 coins` ending a line of plain
+  /// `score` text. Anchored to the line end, where AA prints both, so a
+  /// mention mid-sentence is never mistaken for the stat.
+  static final RegExp _scoreDeltaLine =
+      RegExp(r'\b(Exp|Money)\s*:\s*(-?[\d,]*\d)(?: coins)?\s*$');
+
+  /// Appends the change since the last `score` to an Exp or Money line shown
+  /// as text — Sheets off, or a block that turned out not to be a sheet — so
+  /// the raw view tells the player what the sheet view would have.
+  ///
+  /// Measured against the same baseline as the sheet ([SheetsNotifier.observe]),
+  /// and a line that isn't one of the two comes back untouched.
+  StyledLine _withScoreDelta(StyledLine line) {
+    final m = _scoreDeltaLine.firstMatch(line.plainText);
+    if (m == null) return line;
+    final value = int.tryParse(m.group(2)!.replaceAll(',', ''));
+    if (value == null) return line;
+    final label = m.group(1)!;
+    final delta = ref.read(sheetsProvider.notifier).observe(label, value);
+    if (delta == null || delta == 0) return line;
+    return StyledLine([
+      ...line.spans,
+      StyledSpan(
+        text: ' ${formatScoreDelta(delta, unit: ScoreSheet.deltaUnitFor(label))}',
+        foreground:
+            delta > 0 ? const Color(0xFF55AA55) : const Color(0xFFCC4444),
+        bold: true,
+      ),
+    ]);
   }
 
   void _addLines(

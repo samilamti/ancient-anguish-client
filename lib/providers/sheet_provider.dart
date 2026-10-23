@@ -43,14 +43,30 @@ class SheetsNotifier extends Notifier<Map<int, Sheet>> {
   ScoreSheet _withScoreDeltas(ScoreSheet sheet) {
     final exp = sheet.expValue;
     final money = sheet.moneyValue;
-    final withDeltas = sheet.withDeltas(
-      expDelta: (exp != null && _lastExp != null) ? exp - _lastExp! : null,
-      moneyDelta:
-          (money != null && _lastMoney != null) ? money - _lastMoney! : null,
+    return sheet.withDeltas(
+      expDelta: exp == null ? null : observe(ScoreSheet.expLabel, exp),
+      moneyDelta: money == null ? null : observe(ScoreSheet.moneyLabel, money),
     );
-    if (exp != null) _lastExp = exp;
-    if (money != null) _lastMoney = money;
-    return withDeltas;
+  }
+
+  /// Records [value] for [label] (`Exp` or `Money`) and returns the change
+  /// since the previous one, or null when there is no previous one.
+  ///
+  /// Shared by the sheet and by the plain `score` text shown when Sheets are
+  /// off, so the two views measure from one baseline: toggling the setting
+  /// between two `score`s still shows what changed.
+  int? observe(String label, int value) {
+    final int? previous;
+    if (label == ScoreSheet.expLabel) {
+      previous = _lastExp;
+      _lastExp = value;
+    } else if (label == ScoreSheet.moneyLabel) {
+      previous = _lastMoney;
+      _lastMoney = value;
+    } else {
+      return null;
+    }
+    return previous == null ? null : value - previous;
   }
 
   void clear() {

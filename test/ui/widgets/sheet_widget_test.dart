@@ -235,8 +235,8 @@ void main() {
         ),
       );
 
-      expect(find.text('+ 600'), findsOneWidget);
-      expect(find.text('- 3,000'), findsOneWidget);
+      expect(find.text('+600xp'), findsOneWidget);
+      expect(find.text('-3,000'), findsOneWidget);
     });
 
     testWidgets('the first score of a session has nothing to compare against',
@@ -248,8 +248,8 @@ void main() {
           statuses: [],
         ),
       );
-      expect(find.textContaining('+ '), findsNothing);
-      expect(find.textContaining('- '), findsNothing);
+      expect(find.textContaining('+'), findsNothing);
+      expect(find.textContaining('-'), findsNothing);
     });
 
     testWidgets('a value that held still shows no delta', (tester) async {
@@ -259,7 +259,7 @@ void main() {
       );
       container.read(sheetsProvider.notifier).put(same);
       await pumpSheet(tester, same);
-      expect(find.textContaining('+ 0'), findsNothing);
+      expect(find.textContaining('+0'), findsNothing);
     });
   });
 

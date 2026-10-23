@@ -226,6 +226,70 @@ void main() {
     });
   });
 
+  group('Exp / Money deltas on plain score text', () {
+    List<String> score({required String exp, required String money}) => [
+          'Str: 16 (16)    Race : Dwarf (male)          Exp    : $exp',
+          'Dex: 13 (13)    Class: Soulbinder (18)       Wounds : none',
+          'Int: 13 (13)    Guild: The Snowfolk          Money  : $money coins',
+          'Con: 17 (17)    Age  : 5d  23h  39m  38s     Banks  : 0 coins',
+        ];
+
+    String line(String label) =>
+        buffer().lastWhere((l) => l.contains('$label '));
+
+    test('the first score has nothing to compare against', () async {
+      container = newContainer(sheetsEnabled: false);
+      await feed([...score(exp: '1,273,279', money: '36,454'), 'done']);
+
+      expect(line('Exp'), endsWith('Exp    : 1,273,279'));
+      expect(line('Money'), endsWith('Money  : 36,454 coins'));
+    });
+
+    test('a gain and a loss carry an explicit sign and grouping', () async {
+      container = newContainer(sheetsEnabled: false);
+      await feed([...score(exp: '1,273,279', money: '36,454'), 'done']);
+      await feed([...score(exp: '1,273,879', money: '30,454'), 'done']);
+
+      expect(line('Exp'), endsWith('Exp    : 1,273,879 +600xp'));
+      expect(line('Money'), endsWith('Money  : 30,454 coins -6,000'));
+    });
+
+    test('a value that held still gets no delta', () async {
+      container = newContainer(sheetsEnabled: false);
+      await feed([...score(exp: '647,031', money: '7,118'), 'done']);
+      await feed([...score(exp: '647,031', money: '7,118'), 'done']);
+
+      expect(line('Exp'), endsWith('Exp    : 647,031'));
+      expect(line('Money'), endsWith('Money  : 7,118 coins'));
+    });
+
+    test('the sheet and the text measure from one baseline', () async {
+      // A score seen as a sheet, then the setting turned off: the next score's
+      // text still knows what the previous one said.
+      container = newContainer();
+      await feed([...score(exp: '647,031', money: '7,118'), 'done']);
+      expect(visible().first, '<sheet>');
+
+      container.read(settingsProvider.notifier).toggleSheets();
+      await feed([...score(exp: '648,031', money: '7,000'), 'done']);
+
+      expect(line('Exp'), endsWith('648,031 +1,000xp'));
+      expect(line('Money'), endsWith('7,000 coins -118'));
+    });
+
+    test('an Exp mention mid-line is left alone', () async {
+      container = newContainer(sheetsEnabled: false);
+      await feed(['Bob says: Exp : 5 is nothing', 'Bob says: Exp : 9 is more']);
+      expect(buffer().last, 'Bob says: Exp : 9 is more');
+    });
+
+    test('formatScoreDelta', () {
+      expect(formatScoreDelta(600, unit: 'xp'), '+600xp');
+      expect(formatScoreDelta(-6000), '-6,000');
+      expect(formatScoreDelta(1234567), '+1,234,567');
+    });
+  });
+
   group('clearing', () {
     test('clear drops the captured sheets and their view state', () async {
       container = newContainer();

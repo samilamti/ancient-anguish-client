@@ -132,12 +132,29 @@ class ScoreSheet extends Sheet {
         _ => null,
       };
 
+  /// What follows a delta for [label]: `xp` after Exp, so `+600xp` reads as
+  /// experience; nothing after Money, whose value already ends in `coins`.
+  static String deltaUnitFor(String label) => label == expLabel ? 'xp' : '';
+
   ScoreSheet withDeltas({int? expDelta, int? moneyDelta}) => ScoreSheet(
         fields: fields,
         statuses: statuses,
         expDelta: expDelta,
         moneyDelta: moneyDelta,
       );
+}
+
+/// A score delta as the player reads it: explicit sign, the MUD's own
+/// thousands grouping, then [unit] (`600, 'xp'` → `+600xp`, `-6000` → `-6,000`).
+String formatScoreDelta(int delta, {String unit = ''}) {
+  final digits = delta.abs().toString();
+  final out = StringBuffer(delta < 0 ? '-' : '+');
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) out.write(',');
+    out.write(digits[i]);
+  }
+  out.write(unit);
+  return out.toString();
 }
 
 /// One row of a shop's `list` output.

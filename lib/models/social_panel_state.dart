@@ -51,10 +51,11 @@ class SocialWindowsState {
   final SocialPanelState partyPanel;
   final SocialPanelState notesPanel;
   final PanelTabMode tabMode;
-  final int activeTab; // 0=chat, 1=tells, 2=party, 3=notes (when tabbed)
+  final int activeTab; // 0=chat, 1=tells, 2=party, 3=notes, 4=achievements (when tabbed)
   final bool chatHasUnread;
   final bool tellsHasUnread;
   final bool partyHasUnread;
+  final bool achievementsHasUnread;
   // Ephemeral mobile-only "is the SWC overlay currently shown?" flag.
   // Desktop ignores this — visibility there is driven by panel.visible.
   // On mobile the overlay covers the terminal fullscreen, so we need an
@@ -84,6 +85,7 @@ class SocialWindowsState {
     this.chatHasUnread = false,
     this.tellsHasUnread = false,
     this.partyHasUnread = false,
+    this.achievementsHasUnread = false,
     this.mobileOpen = false,
   });
 
@@ -97,6 +99,7 @@ class SocialWindowsState {
     bool? chatHasUnread,
     bool? tellsHasUnread,
     bool? partyHasUnread,
+    bool? achievementsHasUnread,
     bool? mobileOpen,
   }) {
     return SocialWindowsState(
@@ -109,6 +112,8 @@ class SocialWindowsState {
       chatHasUnread: chatHasUnread ?? this.chatHasUnread,
       tellsHasUnread: tellsHasUnread ?? this.tellsHasUnread,
       partyHasUnread: partyHasUnread ?? this.partyHasUnread,
+      achievementsHasUnread:
+          achievementsHasUnread ?? this.achievementsHasUnread,
       mobileOpen: mobileOpen ?? this.mobileOpen,
     );
   }

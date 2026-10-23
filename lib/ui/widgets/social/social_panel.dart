@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../models/achievement.dart';
 import '../../../models/social_panel_state.dart';
 import '../../../models/timestamp_mode.dart';
+import '../../../providers/achievements_provider.dart';
 import '../../../providers/notes_content_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_input_focus_provider.dart';
@@ -234,9 +236,18 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
   bool _showsTimestampToggle(SocialWindowsState panelState) {
     if (widget.panelType == SocialPanelType.notes) return false;
     if (widget.panelType == SocialPanelType.tabbed) {
-      return panelState.activeTab != 3;
+      final tab = _activeTab(panelState);
+      return tab != 3 && tab != 4;
     }
     return true;
+  }
+
+  /// The tab the tabbed view shows. Falls back to Chat when the Achievements
+  /// tab is active but has since been switched off in settings.
+  int _activeTab(SocialWindowsState panelState) {
+    final tab = panelState.activeTab;
+    if (tab == 4 && !ref.read(settingsProvider).achievementsEnabled) return 0;
+    return tab.clamp(0, 4);
   }
 
   IconData _timestampIcon(TimestampMode mode) {
@@ -420,9 +431,9 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
     TimestampMode timestampMode,
     bool showTimestampToggle,
   ) {
-    final titles = ['Chat', 'Tells', 'Party', 'Notes'];
+    final titles = ['Chat', 'Tells', 'Party', 'Notes', 'Achievements'];
     return PanelTitleBar(
-      title: titles[panelState.activeTab.clamp(0, 3)],
+      title: titles[_activeTab(panelState)],
       isDocked: panelState.chatPanel.isDocked,
       isTabbed: true,
       onClose: _close,
@@ -448,6 +459,9 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
   Widget _buildTabBar(SocialWindowsState panelState) {
     final theme = Theme.of(context);
     final primary = theme.colorScheme.primary;
+    final achievementsEnabled = ref.watch(
+      settingsProvider.select((s) => s.achievementsEnabled),
+    );
 
     return Container(
       height: 28,
@@ -485,6 +499,14 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
             onTap: () =>
                 ref.read(socialPanelProvider.notifier).setActiveTab(3),
           ),
+          if (achievementsEnabled)
+            _TabButton(
+              label: '🏆 Achievements',
+              active: panelState.activeTab == 4,
+              hasUnread: panelState.achievementsHasUnread,
+              onTap: () =>
+                  ref.read(socialPanelProvider.notifier).setActiveTab(4),
+            ),
         ],
       ),
     );
@@ -501,10 +523,14 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
       return const _NotesBody();
     }
     if (widget.panelType == SocialPanelType.tabbed) {
-      if (panelState.activeTab == 3) {
+      final tab = _activeTab(panelState);
+      if (tab == 3) {
         return const _NotesBody();
       }
-      final idx = panelState.activeTab.clamp(0, 2);
+      if (tab == 4) {
+        return const _AchievementsBody();
+      }
+      final idx = tab.clamp(0, 2);
       final type = _tabListTypes[idx];
       return _FocusOnTap(
         type: type,
@@ -528,10 +554,11 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
       return const SizedBox.shrink();
     }
     if (widget.panelType == SocialPanelType.tabbed) {
-      if (panelState.activeTab == 3) {
+      final tab = _activeTab(panelState);
+      if (tab == 3 || tab == 4) {
         return const SizedBox.shrink();
       }
-      final idx = panelState.activeTab.clamp(0, 2);
+      final idx = tab.clamp(0, 2);
       return SocialInputBar(type: _tabListTypes[idx]);
     }
     return SocialInputBar(
@@ -652,8 +679,12 @@ class _TabButtonState extends State<_TabButton>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
+              Flexible(
+                child: Text(
                 widget.label,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'JetBrainsMono',
                   fontSize: widget.active ? 12 : 11,
@@ -663,6 +694,7 @@ class _TabButtonState extends State<_TabButton>
                       : showUnread
                           ? Colors.amber
                           : primary.withAlpha(100),
+                ),
                 ),
               ),
               if (showUnread && _pulseController != null) ...[
@@ -791,6 +823,82 @@ class _NotesBodyState extends ConsumerState<_NotesBody> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Achievements log, newest first: icon, the line that earned it, and when.
+class _AchievementsBody extends ConsumerWidget {
+  const _AchievementsBody();
+
+  static String _two(int n) => n.toString().padLeft(2, '0');
+
+  static String _formatTimestamp(DateTime t) =>
+      '${t.year}-${_two(t.month)}-${_two(t.day)} ${_two(t.hour)}:${_two(t.minute)}';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final achievements = ref.watch(achievementsProvider);
+    final muted = theme.colorScheme.onSurface.withAlpha(120);
+
+    if (achievements.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            'No achievements yet.\nSkill gains will appear here.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'JetBrainsMono',
+              fontSize: 12,
+              color: muted,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      itemCount: achievements.length,
+      itemBuilder: (context, i) {
+        final Achievement a = achievements[achievements.length - 1 - i];
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(a.icon, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      a.text,
+                      style: TextStyle(
+                        fontFamily: 'JetBrainsMono',
+                        fontSize: 13,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatTimestamp(a.timestamp),
+                      style: TextStyle(
+                        fontFamily: 'JetBrainsMono',
+                        fontSize: 11,
+                        color: muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

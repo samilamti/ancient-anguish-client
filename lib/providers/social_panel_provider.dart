@@ -218,6 +218,8 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
       chatHasUnread: index == 0 ? false : state.chatHasUnread,
       tellsHasUnread: index == 1 ? false : state.tellsHasUnread,
       partyHasUnread: index == 2 ? false : state.partyHasUnread,
+      achievementsHasUnread:
+          index == 4 ? false : state.achievementsHasUnread,
     );
   }
 
@@ -241,6 +243,8 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
       chatHasUnread: index == 0 ? false : state.chatHasUnread,
       tellsHasUnread: index == 1 ? false : state.tellsHasUnread,
       partyHasUnread: index == 2 ? false : state.partyHasUnread,
+      achievementsHasUnread:
+          index == 4 ? false : state.achievementsHasUnread,
     );
   }
 
@@ -265,6 +269,12 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
   void markPartyUnread() {
     if (!state.partyHasUnread) {
       state = state.copyWith(partyHasUnread: true);
+    }
+  }
+
+  void markAchievementsUnread() {
+    if (!state.achievementsHasUnread) {
+      state = state.copyWith(achievementsHasUnread: true);
     }
   }
 

@@ -1125,6 +1125,13 @@ class SettingsDrawer extends ConsumerWidget {
               onChanged: (_) => notifier.toggleSheets(),
             ),
 
+            _DrawerToggle(
+              label: 'Achievements',
+              icon: Icons.emoji_events_outlined,
+              value: settings.achievementsEnabled,
+              onChanged: (_) => notifier.toggleAchievements(),
+            ),
+
             const SizedBox(height: 8),
 
             // ── Battle Text ──

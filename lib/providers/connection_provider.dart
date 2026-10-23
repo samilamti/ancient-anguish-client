@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart' show FocusNode, TextEditingController;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/web_config.dart';
+import '../models/achievement.dart';
 import '../models/battle_filter_mode.dart';
 import '../models/prompt_element.dart';
 import '../models/alias_rule.dart';
@@ -35,6 +36,7 @@ import '../models/social_message.dart';
 import '../services/alias/alias_highlighting_controller.dart';
 import '../services/command_history_service.dart';
 import '../services/platform/window_service.dart';
+import 'achievements_provider.dart';
 import 'audio_provider.dart';
 import 'auth_provider.dart';
 import 'storage_provider.dart';
@@ -524,6 +526,21 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                     settings.gagSocialFromTerminal &&
                     _isSocialPanelVisible()) {
                   continue;
+                }
+              }
+            }
+
+            // Achievements: copy rare events (skill gains, …) into the
+            // Achievements tab. The line still reaches the terminal.
+            if (_loginDetected && settings.achievementsEnabled) {
+              final achievement = AchievementParser.match(plainText);
+              if (achievement != null) {
+                ref.read(achievementsProvider.notifier).add(achievement);
+                final ps = ref.read(socialPanelProvider);
+                if (ps.tabMode != PanelTabMode.tabbed || ps.activeTab != 4) {
+                  ref
+                      .read(socialPanelProvider.notifier)
+                      .markAchievementsUnread();
                 }
               }
             }

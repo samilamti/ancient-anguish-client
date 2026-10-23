@@ -408,14 +408,17 @@ List<_PlacedMarker> _placeMarkers({
 ///
 /// Shared with the measuring pass that feeds [_placeMarkers], so the boxes the
 /// de-collision reasons about cannot drift from the ones actually painted.
-TextStyle _labelStyle(Color color) => TextStyle(
+///
+/// [halo] lifts the label off the rose; black on the dark themes, the page
+/// colour on the light one (a black halo smudges on paper).
+TextStyle _labelStyle(Color color, {Color halo = Colors.black}) => TextStyle(
       fontFamily: 'JetBrainsMono',
       fontSize: 12,
       height: 1.1,
       color: color,
-      shadows: const [
-        Shadow(color: Colors.black, blurRadius: 3),
-        Shadow(color: Colors.black, blurRadius: 6),
+      shadows: [
+        Shadow(color: halo, blurRadius: 3),
+        Shadow(color: halo, blurRadius: 6),
       ],
     );
 
@@ -482,7 +485,12 @@ class _LocationMarker extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: _labelStyle(scheme.onSurface),
+              style: _labelStyle(
+                scheme.onSurface,
+                halo: scheme.brightness == Brightness.light
+                    ? scheme.surface
+                    : Colors.black,
+              ),
             ),
         ],
       ),

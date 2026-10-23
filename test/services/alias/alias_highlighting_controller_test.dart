@@ -36,15 +36,18 @@ void main() {
       ..aliasKeywords = keywords;
     late TextSpan span;
     await tester.pumpWidget(
-      Builder(
-        builder: (context) {
-          span = controller.buildTextSpan(
-            context: context,
-            style: const TextStyle(),
-            withComposing: false,
-          );
-          return const SizedBox();
-        },
+      Theme(
+        data: ThemeData.dark(),
+        child: Builder(
+          builder: (context) {
+            span = controller.buildTextSpan(
+              context: context,
+              style: const TextStyle(),
+              withComposing: false,
+            );
+            return const SizedBox();
+          },
+        ),
       ),
     );
     final children = span.children!.cast<TextSpan>();
@@ -58,6 +61,7 @@ void main() {
     final controller = AliasHighlightingController(text: 'ga sword');
     await tester.pumpWidget(
       MaterialApp(
+        theme: ThemeData.dark(),
         home: Material(child: TextField(controller: controller)),
       ),
     );
@@ -91,15 +95,18 @@ void main() {
       );
     late TextSpan span;
     await tester.pumpWidget(
-      Builder(
-        builder: (context) {
-          span = controller.buildTextSpan(
-            context: context,
-            style: const TextStyle(),
-            withComposing: true,
-          );
-          return const SizedBox();
-        },
+      Theme(
+        data: ThemeData.dark(),
+        child: Builder(
+          builder: (context) {
+            span = controller.buildTextSpan(
+              context: context,
+              style: const TextStyle(),
+              withComposing: true,
+            );
+            return const SizedBox();
+          },
+        ),
       ),
     );
     final only = span.children!.cast<TextSpan>().single;
@@ -120,15 +127,18 @@ void main() {
       );
     late TextSpan span;
     await tester.pumpWidget(
-      Builder(
-        builder: (context) {
-          span = controller.buildTextSpan(
-            context: context,
-            style: const TextStyle(),
-            withComposing: true,
-          );
-          return const SizedBox();
-        },
+      Theme(
+        data: ThemeData.dark(),
+        child: Builder(
+          builder: (context) {
+            span = controller.buildTextSpan(
+              context: context,
+              style: const TextStyle(),
+              withComposing: true,
+            );
+            return const SizedBox();
+          },
+        ),
       ),
     );
     final parts = span.children!.cast<TextSpan>().toList();
@@ -138,5 +148,28 @@ void main() {
     expect(parts[1].style, isNull);
     expect(parts[2].style?.color, isNull);
     expect(parts[2].style?.decoration, TextDecoration.underline);
+  });
+
+  testWidgets('the light theme uses the darker paper blue', (tester) async {
+    final controller = AliasHighlightingController(text: 'fb')
+      ..aliasKeywords = keywords;
+    late TextSpan span;
+    await tester.pumpWidget(
+      Theme(
+        data: ThemeData.light(),
+        child: Builder(
+          builder: (context) {
+            span = controller.buildTextSpan(
+              context: context,
+              style: const TextStyle(),
+              withComposing: false,
+            );
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    expect(span.children!.cast<TextSpan>().first.style?.color,
+        AliasHighlightingController.paperAliasColor);
   });
 }

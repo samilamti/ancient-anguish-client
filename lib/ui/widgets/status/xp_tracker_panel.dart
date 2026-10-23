@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/game_state_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Displays XP tracking: XP/min, session XP, and session XP/min.
 class XpTrackerPanel extends ConsumerWidget {
@@ -22,7 +23,7 @@ class XpTrackerPanel extends ConsumerWidget {
       fontWeight: FontWeight.bold,
       color: theme.colorScheme.onSurface.withAlpha(120),
     );
-    const xpColor = Color(0xFF44BB44);
+    final xpColor = AppTheme.legible(context, const Color(0xFF44BB44));
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

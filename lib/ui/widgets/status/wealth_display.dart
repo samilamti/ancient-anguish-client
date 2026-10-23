@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/game_state_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Displays coins on hand and bank balance side by side.
 class WealthDisplay extends ConsumerWidget {
@@ -13,7 +14,7 @@ class WealthDisplay extends ConsumerWidget {
     if (gs.banks == null) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
-    const goldColor = Color(0xFFD4A057);
+    final goldColor = AppTheme.legible(context, const Color(0xFFD4A057));
     final textStyle = TextStyle(
       fontFamily: 'JetBrainsMono',
       fontSize: 11,

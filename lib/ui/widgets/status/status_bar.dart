@@ -14,6 +14,7 @@ import 'wealth_display.dart';
 import 'wimpy_indicator.dart';
 import 'world_clock_panel.dart';
 import 'xp_tracker_panel.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Shows a dialog to rename the current area. Shared by status bar and D-pad.
 Future<void> showRenameAreaDialog(BuildContext context, WidgetRef ref) async {
@@ -336,7 +337,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
                 Text(
                   'XP: ${_formatNumber(gameState.xp!)}',
                   style: _infoTextStyle(theme).copyWith(
-                    color: const Color(0xFFD4A057),
+                    color: AppTheme.legible(context, const Color(0xFFD4A057)),
                   ),
                 ),
             ],
@@ -355,7 +356,8 @@ class _StatusBarState extends ConsumerState<StatusBar>
                   Text(
                     _formatNumber(gameState.coins!),
                     style: _infoTextStyle(theme).copyWith(
-                      color: const Color(0xFFD4A057),
+                      color:
+                          AppTheme.legible(context, const Color(0xFFD4A057)),
                     ),
                   ),
                 ],

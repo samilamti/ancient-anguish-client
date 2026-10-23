@@ -163,4 +163,39 @@ void main() {
       expect(TerminalColors.fromSgrBackground(108), isNull);
     });
   });
+
+  group('TerminalColors - paper', () {
+    test('every paper ANSI colour reads at 4.5:1 on the page', () {
+      for (var i = 0; i < 16; i++) {
+        expect(
+          TerminalColors.contrast(
+              TerminalColors.paperAnsi16[i], TerminalColors.paper),
+          greaterThanOrEqualTo(4.5),
+          reason: 'paperAnsi16[$i]',
+        );
+      }
+    });
+
+    test('onPaper swaps the defaults and the ANSI 16', () {
+      expect(TerminalColors.onPaper(TerminalColors.defaultForeground),
+          TerminalColors.ink);
+      expect(TerminalColors.onPaper(TerminalColors.brightYellow),
+          TerminalColors.paperAnsi16[11]);
+    });
+
+    test('onPaper darkens any other colour until it is legible', () {
+      for (final c in [
+        ...TerminalColors.ansi256,
+        const Color(0xFF00FF00), // trigger highlight green
+        const Color(0xFF3D8BFF), // link blue
+      ]) {
+        expect(
+          TerminalColors.contrast(
+              TerminalColors.onPaper(c), TerminalColors.paper),
+          greaterThanOrEqualTo(4.5),
+          reason: '$c',
+        );
+      }
+    });
+  });
 }

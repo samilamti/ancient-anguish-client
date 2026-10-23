@@ -68,6 +68,97 @@ class AppTheme {
     );
   }
 
+  /// Light "paper" theme: a warm off-white page, near-black ink, quiet grey
+  /// chrome and one terracotta accent, in the spirit of Claude Code's light
+  /// mode, Pages and Word. Terminal text is remapped onto the page by
+  /// [TerminalColors.onPaper].
+  static ThemeData paperLight() {
+    const accent = Color(0xFFA84A28);
+    const chrome = Color(0xFFF0EEE6);
+    const rule = Color(0xFFDAD7CC);
+    const muted = Color(0xFF6B6963);
+    return ThemeData.light(useMaterial3: true).copyWith(
+      scaffoldBackgroundColor: TerminalColors.paper,
+      canvasColor: TerminalColors.paper,
+      dividerColor: rule,
+      colorScheme: const ColorScheme.light(
+        primary: accent,
+        onPrimary: Colors.white,
+        secondary: Color(0xFF5F5E5A),
+        onSecondary: Colors.white,
+        surface: TerminalColors.paper,
+        onSurface: TerminalColors.ink,
+        onSurfaceVariant: muted,
+        surfaceContainerLowest: Colors.white,
+        surfaceContainerLow: Color(0xFFF5F4EE),
+        surfaceContainer: chrome,
+        surfaceContainerHigh: Color(0xFFEAE8DF),
+        surfaceContainerHighest: Color(0xFFE3E0D6),
+        outline: Color(0xFFB9B5AA),
+        outlineVariant: rule,
+        error: Color(0xFFB3261E),
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: chrome,
+        foregroundColor: TerminalColors.ink,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+      ),
+      drawerTheme: const DrawerThemeData(backgroundColor: TerminalColors.paper),
+      cardTheme: CardThemeData(
+        color: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: const BorderSide(color: rule),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: rule),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: rule),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: accent, width: 1.5),
+        ),
+        hintStyle: const TextStyle(color: muted),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: accent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: accent,
+        selectionColor: accent.withAlpha(60),
+      ),
+      textTheme: ThemeData.light(useMaterial3: true).textTheme.apply(
+            bodyColor: TerminalColors.ink,
+            displayColor: TerminalColors.ink,
+          ),
+    );
+  }
+
+  /// [c] as given on the dark themes; on the light theme, darkened until it
+  /// reads at 4.5:1 on the page. For the hard-coded status and HUD accents
+  /// (gold, alert red, XP green) that were picked for a black ground.
+  static Color legible(BuildContext context, Color c) =>
+      Theme.of(context).brightness == Brightness.light
+          ? TerminalColors.legibleOn(TerminalColors.paper, c)
+          : c;
+
   /// Classic dark terminal theme – minimal decoration.
   static ThemeData classicDark() {
     return ThemeData.dark(useMaterial3: true).copyWith(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/game_state_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Shows wimpy HP threshold and flee direction as a compact badge.
 class WimpyIndicator extends ConsumerWidget {
@@ -16,11 +17,11 @@ class WimpyIndicator extends ConsumerWidget {
     // Color by danger level relative to max HP.
     final fraction =
         gs.maxHp > 0 ? (gs.wimpy! / gs.maxHp).clamp(0.0, 1.0) : 0.0;
-    final color = fraction > 0.5
+    final color = AppTheme.legible(context, fraction > 0.5
         ? const Color(0xFFCC2222)
         : fraction > 0.25
             ? const Color(0xFFCC8800)
-            : const Color(0xFF44AA44);
+            : const Color(0xFF44AA44));
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/core/theme/app_theme.dart';
 import 'package:ancient_anguish_client/core/theme/terminal_colors.dart';
+import 'package:flutter/material.dart';
 
 void main() {
   group('AppTheme', () {
@@ -58,6 +59,23 @@ void main() {
       final theme = AppTheme.custom({});
       // Should use all defaults — primary defaults to gold
       expect(theme.colorScheme.primary, const Color(0xFFD4A057));
+    });
+  });
+
+  group('AppTheme.paperLight', () {
+    test('is a light theme on the paper ground', () {
+      final theme = AppTheme.paperLight();
+      expect(theme.brightness, Brightness.light);
+      expect(theme.scaffoldBackgroundColor, TerminalColors.paper);
+      expect(theme.colorScheme.onSurface, TerminalColors.ink);
+    });
+
+    test('accent reads at 4.5:1 on the page', () {
+      expect(
+        TerminalColors.contrast(
+            AppTheme.paperLight().colorScheme.primary, TerminalColors.paper),
+        greaterThanOrEqualTo(4.5),
+      );
     });
   });
 }

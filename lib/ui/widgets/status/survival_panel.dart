@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/game_state_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Displays survival/condition stats as color-coded icon chips.
 ///
@@ -115,11 +116,11 @@ class _SurvivalChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (severity) {
+    final color = AppTheme.legible(context, switch (severity) {
       _Severity.ok => const Color(0xFF44AA44),
       _Severity.warning => const Color(0xFFCC8800),
       _Severity.critical => const Color(0xFFCC2222),
-    };
+    });
 
     return Padding(
       padding: const EdgeInsets.only(right: 8),

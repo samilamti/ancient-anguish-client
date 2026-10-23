@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../models/sheet.dart';
 import '../../../../providers/link_command_provider.dart';
 import 'sheet_frame.dart';
+import '../../../../core/theme/app_theme.dart';
 
 /// Renders a shop's `list` output as a price table.
 ///
@@ -156,12 +157,12 @@ class _ShopRow extends ConsumerWidget {
                   waitDuration: const Duration(milliseconds: 600),
                   child: Text(
                     item.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'JetBrainsMono',
                       fontSize: 11.5,
-                      color: _linkColor,
+                      color: AppTheme.legible(context, _linkColor),
                       decoration: TextDecoration.underline,
-                      decorationColor: _linkColor,
+                      decorationColor: AppTheme.legible(context, _linkColor),
                     ),
                   ),
                 ),
@@ -174,7 +175,7 @@ class _ShopRow extends ConsumerWidget {
             style: TextStyle(
               fontFamily: 'JetBrainsMono',
               fontSize: 11.5,
-              color: const Color(0xFFD4A057),
+              color: AppTheme.legible(context, const Color(0xFFD4A057)),
             ),
           ),
         ],

@@ -15,7 +15,7 @@ import 'storage_provider.dart';
 class AppSettings {
   final double fontSize;
   final String fontFamily;
-  final String themeMode; // 'rpg', 'classic', 'highContrast'
+  final String themeMode; // 'rpg', 'classic', 'highContrast', 'paper', 'custom'
   final String? customPromptPattern;
   final bool loggingEnabled;
   final bool quickCommandsVisible;
@@ -300,8 +300,14 @@ class SettingsNotifier extends Notifier<AppSettings> {
   /// Safe to call synchronously after startup: settings are loaded by
   /// `appInitProvider` before `home:` builds, so there is no in-flight read
   /// to clobber this the way there is for command history and link rules.
+  ///
+  /// `--dart-define=AA_DEMO_THEME=paper` captures another theme instead.
   void applyDemoPresentation() {
-    state = state.copyWith(themeMode: 'rpg', compassEnabled: true);
+    state = state.copyWith(
+      themeMode: const String.fromEnvironment('AA_DEMO_THEME',
+          defaultValue: 'rpg'),
+      compassEnabled: true,
+    );
   }
 
   void setFontSize(double size) {

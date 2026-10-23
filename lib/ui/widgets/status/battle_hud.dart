@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/battle_filter_mode.dart';
 import '../../../models/battle_stats.dart';
 import '../../../providers/battle_stats_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Combat panel shown under [BattleFilterMode.hud].
 ///
@@ -155,8 +156,8 @@ class _BattleHudState extends ConsumerState<BattleHud>
             misses: stats.missesAgainst,
             percent: stats.evasion,
             percentLabel: 'evade',
-            accent: const Color(0xFFCC4444),
-            percentColor: const Color(0xFF55AA55),
+            accent: AppTheme.legible(context, const Color(0xFFCC4444)),
+            percentColor: AppTheme.legible(context, const Color(0xFF55AA55)),
           ),
           if (stats.hpNow != null) ...[
             const SizedBox(height: 4),
@@ -493,9 +494,11 @@ class _VitalsRow extends StatelessWidget {
             lost > 0 ? '-$lost' : '+${-lost}',
             style: baseStyle.copyWith(
               fontSize: 10,
-              color: lost > 0
-                  ? const Color(0xFFCC4444).withAlpha(220)
-                  : const Color(0xFF55AA55).withAlpha(220),
+              color: AppTheme.legible(
+                  context,
+                  lost > 0
+                      ? const Color(0xFFCC4444).withAlpha(220)
+                      : const Color(0xFF55AA55).withAlpha(220)),
             ),
           ),
       ],

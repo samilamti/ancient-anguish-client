@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/game_state_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Displays combat readiness: aim, attack style, and defense.
 class CombatStatsPanel extends ConsumerWidget {
@@ -35,7 +36,7 @@ class CombatStatsPanel extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.shield, size: 13, color: const Color(0xFFCC4444).withAlpha(200)),
+          Icon(Icons.shield, size: 13, color: AppTheme.legible(context, const Color(0xFFCC4444)).withAlpha(200)),
           const SizedBox(width: 6),
           if (gs.aim != null) ...[
             Text('AIM ', style: labelStyle),

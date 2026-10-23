@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/game_state_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Displays game time and reboot countdown.
 class WorldClockPanel extends ConsumerWidget {
@@ -46,12 +47,12 @@ class WorldClockPanel extends ConsumerWidget {
             const SizedBox(width: 14),
           if (gs.reboot != null) ...[
             Icon(Icons.hourglass_bottom, size: 13,
-                color: const Color(0xFFCC8800).withAlpha(200)),
+                color: AppTheme.legible(context, const Color(0xFFCC8800)).withAlpha(200)),
             const SizedBox(width: 4),
             Text('Reboot ', style: labelStyle),
             Text(
               gs.reboot!,
-              style: textStyle.copyWith(color: const Color(0xFFCC8800)),
+              style: textStyle.copyWith(color: AppTheme.legible(context, const Color(0xFFCC8800))),
             ),
           ],
         ],

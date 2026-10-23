@@ -40,6 +40,69 @@ class TerminalColors {
     brightBlue, brightMagenta, brightCyan, brightWhite,
   ];
 
+  // ── Paper (light theme) ──
+
+  /// The light theme's page colour: a warm off-white, like a word processor.
+  static const Color paper = Color(0xFFFAF9F5);
+
+  /// The light theme's default text colour: near-black, slightly warm.
+  static const Color ink = Color(0xFF1F1E1D);
+
+  /// The 16 ANSI colours re-cut for [paper]. MUD colours are chosen for a
+  /// black screen, so yellow, cyan, white and the bright set all wash out on
+  /// a light page. Each entry keeps its hue and clears 4.5:1 against [paper]
+  /// (pinned by `terminal_colors_test.dart`).
+  static const List<Color> paperAnsi16 = [
+    ink, // black
+    Color(0xFFB3261E), // red
+    Color(0xFF2E7D32), // green
+    Color(0xFF8A5A00), // yellow
+    Color(0xFF3949AB), // blue
+    Color(0xFF8E24AA), // magenta
+    Color(0xFF00737A), // cyan
+    Color(0xFF5F5E5A), // white (MUDs use it as ordinary grey text)
+    Color(0xFF6B6963), // bright black
+    Color(0xFFC62828), // bright red
+    Color(0xFF1B7A35), // bright green
+    Color(0xFF946200), // bright yellow
+    Color(0xFF2F55C8), // bright blue
+    Color(0xFFA3239E), // bright magenta
+    Color(0xFF007C85), // bright cyan
+    Color(0xFF000000), // bright white (emphasis, so darker than ink)
+  ];
+
+  /// Maps a colour meant for the dark terminal onto [paper].
+  ///
+  /// Terminal lines store concrete colours, so the light theme remaps at
+  /// render time: the defaults swap to [ink]/[paper], the ANSI 16 use
+  /// [paperAnsi16], and anything else (256-colour, trigger highlights, link
+  /// blues) is darkened until it reads at 4.5:1.
+  static Color onPaper(Color c) {
+    if (c == defaultForeground) return ink;
+    if (c == defaultBackground) return paper;
+    final i = ansi16.indexOf(c);
+    if (i >= 0) return paperAnsi16[i];
+    return legibleOn(paper, c);
+  }
+
+  /// Darkens [c] toward [ink] until it reaches [ratio] against [ground].
+  static Color legibleOn(Color ground, Color c, {double ratio = 4.5}) {
+    var out = c.withAlpha(255);
+    for (var step = 0; step <= 20; step++) {
+      // Quantise before measuring, so the 8-bit result is the one that passes.
+      out = Color.lerp(c.withAlpha(255), ink, step / 20)!.withAlpha(255);
+      if (contrast(out, ground) >= ratio) break;
+    }
+    return out.withAlpha((c.a * 255).round());
+  }
+
+  /// WCAG contrast ratio between two opaque colours.
+  static double contrast(Color a, Color b) {
+    final la = a.computeLuminance(), lb = b.computeLuminance();
+    final hi = la > lb ? la : lb, lo = la > lb ? lb : la;
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
   /// Lazily-built 256-color palette.
   static final List<Color> ansi256 = _buildAnsi256();
 

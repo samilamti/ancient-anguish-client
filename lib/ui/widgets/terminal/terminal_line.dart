@@ -119,6 +119,7 @@ class TerminalLine extends StatelessWidget {
       line.plainText.length,
     );
 
+    final paper = Theme.of(context).brightness == Brightness.light;
     final textSpan = range != null
         ? line.toSelectedTextSpan(
             fontFamily: TerminalDefaults.fontFamily,
@@ -127,12 +128,14 @@ class TerminalLine extends StatelessWidget {
             endCol: range.endCol,
             onCommandTap: onCommandTap,
             onCommandLongPress: onCommandLongPress,
+            paper: paper,
           )
         : line.toTextSpan(
             fontFamily: TerminalDefaults.fontFamily,
             fontSize: fontSize,
             onCommandTap: onCommandTap,
             onCommandLongPress: onCommandLongPress,
+            paper: paper,
           );
 
     return Padding(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../models/sheet.dart';
 import 'sheet_frame.dart';
+import '../../../../core/theme/app_theme.dart';
 
 /// Renders `score` as an expandable sheet.
 ///
@@ -89,7 +90,8 @@ class _DeltaChip extends StatelessWidget {
         fontFamily: 'JetBrainsMono',
         fontSize: 10.5,
         fontWeight: FontWeight.bold,
-        color: up ? const Color(0xFF55AA55) : const Color(0xFFCC4444),
+        color: AppTheme.legible(
+            context, up ? const Color(0xFF55AA55) : const Color(0xFFCC4444)),
       ),
     );
   }
@@ -145,7 +147,7 @@ class _Statuses extends StatelessWidget {
                 fontFamily: 'JetBrainsMono',
                 fontSize: 10.5,
                 color: _isWarning(status)
-                    ? const Color(0xFFDD7777)
+                    ? AppTheme.legible(context, const Color(0xFFDD7777))
                     : scheme.onSurface.withAlpha(200),
               ),
             ),

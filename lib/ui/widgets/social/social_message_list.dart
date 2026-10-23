@@ -300,6 +300,7 @@ class _MessageWidgetState extends State<_MessageWidget>
       children.add(widget.message.styledLines[i].toTextSpan(
         fontFamily: fontFamily,
         fontSize: widget.fontSize,
+        paper: theme.brightness == Brightness.light,
       ));
     }
 

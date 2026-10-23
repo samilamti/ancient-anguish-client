@@ -67,23 +67,31 @@ class StyledSpan {
     required double fontSize,
     void Function(String command)? onCommandTap,
     void Function(String command)? onCommandLongPress,
+    bool paper = false,
   }) {
     final isUrlLink = link != null;
     final isCommandLink = command != null;
     final isLink = isUrlLink || isCommandLink;
+    final plainGround = background == TerminalColors.defaultBackground;
+    // On the light theme, text on the default ground is remapped to stay
+    // legible; a span with its own background is a designed pair, kept as is.
+    final fg = paper && plainGround
+        ? TerminalColors.onPaper(foreground)
+        : foreground;
     final style = TextStyle(
       fontFamily: fontFamily,
       fontSize: fontSize,
-      color: foreground,
-      backgroundColor:
-          background == TerminalColors.defaultBackground ? null : background,
+      color: fg,
+      backgroundColor: plainGround ? null : background,
       fontWeight: bold ? FontWeight.bold : FontWeight.normal,
       fontStyle: italic ? FontStyle.italic : FontStyle.normal,
       decoration: isLink ? TextDecoration.underline : _textDecoration,
-      decorationColor: isLink ? foreground : null,
-      shadows: const [
-        Shadow(color: Color(0xFF000000), blurRadius: 1.0),
-      ],
+      decorationColor: isLink ? fg : null,
+      shadows: paper
+          ? null
+          : const [
+              Shadow(color: Color(0xFF000000), blurRadius: 1.0),
+            ],
     );
 
     if (isCommandLink) {
@@ -169,6 +177,7 @@ class StyledLine {
     required double fontSize,
     void Function(String command)? onCommandTap,
     void Function(String command)? onCommandLongPress,
+    bool paper = false,
   }) {
     if (spans.length == 1) {
       return spans.first.toTextSpan(
@@ -176,6 +185,7 @@ class StyledLine {
         fontSize: fontSize,
         onCommandTap: onCommandTap,
         onCommandLongPress: onCommandLongPress,
+        paper: paper,
       );
     }
     return TextSpan(
@@ -185,6 +195,7 @@ class StyledLine {
                 fontSize: fontSize,
                 onCommandTap: onCommandTap,
                 onCommandLongPress: onCommandLongPress,
+                paper: paper,
               ))
           .toList(),
     );
@@ -202,6 +213,7 @@ class StyledLine {
     required int endCol,
     void Function(String command)? onCommandTap,
     void Function(String command)? onCommandLongPress,
+    bool paper = false,
   }) {
     final children = <InlineSpan>[];
     var offset = 0;
@@ -217,6 +229,7 @@ class StyledLine {
           fontSize: fontSize,
           onCommandTap: onCommandTap,
           onCommandLongPress: onCommandLongPress,
+          paper: paper,
         ));
       } else {
         // Partially or fully inside selection – split at boundaries.
@@ -230,21 +243,29 @@ class StyledLine {
             italic: span.italic,
             underline: span.underline,
             strikethrough: span.strikethrough,
-          ).toTextSpan(fontFamily: fontFamily, fontSize: fontSize));
+          ).toTextSpan(
+              fontFamily: fontFamily, fontSize: fontSize, paper: paper));
         }
 
         // Selected middle.
         final selStart = (startCol - spanStart).clamp(0, span.text.length);
         final selEnd = (endCol - spanStart).clamp(0, span.text.length);
+        // Inverse video. On paper, invert the remapped colours so the
+        // highlight is page-coloured text on dark ink, not on a pale yellow.
+        final plain = span.background == TerminalColors.defaultBackground;
         children.add(StyledSpan(
           text: span.text.substring(selStart, selEnd),
-          foreground: span.background,
-          background: span.foreground,
+          foreground:
+              paper && plain ? TerminalColors.paper : span.background,
+          background: paper && plain
+              ? TerminalColors.onPaper(span.foreground)
+              : span.foreground,
           bold: span.bold,
           italic: span.italic,
           underline: span.underline,
           strikethrough: span.strikethrough,
-        ).toTextSpan(fontFamily: fontFamily, fontSize: fontSize));
+        ).toTextSpan(
+            fontFamily: fontFamily, fontSize: fontSize, paper: paper));
 
         if (spanEnd > endCol) {
           // Unselected suffix.
@@ -256,7 +277,8 @@ class StyledLine {
             italic: span.italic,
             underline: span.underline,
             strikethrough: span.strikethrough,
-          ).toTextSpan(fontFamily: fontFamily, fontSize: fontSize));
+          ).toTextSpan(
+              fontFamily: fontFamily, fontSize: fontSize, paper: paper));
         }
       }
 

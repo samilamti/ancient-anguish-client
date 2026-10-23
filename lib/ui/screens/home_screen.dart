@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../providers/social_input_focus_provider.dart';
 import '../widgets/common/escape_dismiss.dart';
 import '../widgets/common/settings_drawer_route.dart';
@@ -745,7 +746,8 @@ class _OverflowToolbar extends StatelessWidget {
   Widget _buildDesktopButton(BuildContext context, _ToolbarItem item) {
     // An "on" toggle gets a green fill and outline, not just a tint: a
     // tinted label alone was too easy to miss.
-    final color = item.active ? _activeGreen : null;
+    final color =
+        item.active ? AppTheme.legible(context, _activeGreen) : null;
 
     return TextButton.icon(
       icon: _toolbarLeading(item, color: color),
@@ -981,6 +983,7 @@ class SettingsDrawer extends ConsumerWidget {
                     'rpg': 'RPG Fantasy',
                     'classic': 'Classic Dark',
                     'highContrast': 'High Contrast',
+                    'paper': 'Paper (Light)',
                     'custom': 'Custom',
                   }.entries)
                     RadioListTile<String>(

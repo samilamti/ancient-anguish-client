@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart' show setEquals;
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 /// A [TextEditingController] for the command input that paints alias
 /// keywords in [aliasColor], so typing `fb` turns blue as soon as `fb` is
@@ -11,6 +11,10 @@ class AliasHighlightingController extends TextEditingController {
   AliasHighlightingController({super.text});
 
   static const Color aliasColor = Color(0xFF3D8BFF);
+
+  /// [aliasColor] re-cut for the light theme: the bright blue reads at only
+  /// 3.4:1 on the white input, this one at 6:1.
+  static const Color paperAliasColor = Color(0xFF2F55C8);
 
   Set<String> _keywords = const {};
 
@@ -74,6 +78,9 @@ class AliasHighlightingController extends TextEditingController {
         ..add(composing.end);
     }
     final points = cuts.toList()..sort();
+    final keywordColor = Theme.of(context).brightness == Brightness.light
+        ? paperAliasColor
+        : aliasColor;
 
     final children = <TextSpan>[];
     for (var i = 0; i < points.length - 1; i++) {
@@ -87,7 +94,7 @@ class AliasHighlightingController extends TextEditingController {
           text: text.substring(a, b),
           style: isAlias || isComposing
               ? TextStyle(
-                  color: isAlias ? aliasColor : null,
+                  color: isAlias ? keywordColor : null,
                   decoration: isComposing ? TextDecoration.underline : null,
                 )
               : null,

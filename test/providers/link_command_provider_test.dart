@@ -2,6 +2,7 @@ import 'package:ancient_anguish_client/models/alias_rule.dart';
 import 'package:ancient_anguish_client/providers/alias_provider.dart';
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
 import 'package:ancient_anguish_client/providers/link_command_provider.dart';
+import 'package:ancient_anguish_client/providers/target_provider.dart';
 import 'package:ancient_anguish_client/services/alias/alias_engine.dart';
 import 'package:ancient_anguish_client/services/command_counterparts.dart';
 import 'package:ancient_anguish_client/services/connection/connection_service.dart';
@@ -123,6 +124,31 @@ void main() {
       container = containerWith();
       tap('   ');
       expect(container.read(commandHistoryProvider), isEmpty);
+    });
+  });
+
+  group('\$target', () {
+    test('a link using it with no target sends nothing and says so', () {
+      service = _FakeConnectionService();
+      container = ProviderContainer(overrides: [
+        connectionServiceProvider.overrideWithValue(service),
+      ]);
+      addTearDown(container.dispose);
+      tap(r'kill $target');
+      expect(service.sent, isEmpty);
+      expect(container.read(terminalBufferProvider).last.plainText,
+          'No target.');
+    });
+
+    test('with a target set it names the creature', () {
+      service = _FakeConnectionService();
+      container = ProviderContainer(overrides: [
+        connectionServiceProvider.overrideWithValue(service),
+      ]);
+      addTearDown(container.dispose);
+      container.read(targetProvider.notifier).set('orc 2');
+      tap(r'kill $target');
+      expect(service.sent, ['kill orc 2']);
     });
   });
 }

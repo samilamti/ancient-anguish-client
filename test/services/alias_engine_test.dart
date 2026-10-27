@@ -207,4 +207,53 @@ void main() {
       expect(copy.enabled, false);
     });
   });
+
+  group('AliasEngine - \$target', () {
+    late int missing;
+
+    setUp(() {
+      missing = 0;
+      engine.onMissingTarget = () => missing++;
+      engine.addRule(const AliasRule(
+          id: 'fb', keyword: 'fb', expansion: r'kill $target;cast fireball $target'));
+      engine.addRule(const AliasRule(id: 'k', keyword: 'k', expansion: r'kill $1'));
+      engine.addRule(const AliasRule(id: 'fb2', keyword: 'fb2', expansion: 'fb;say done'));
+    });
+
+    test('expands in an alias, in every command of a chain', () {
+      engine.targetLookup = () => 'orc 2';
+      expect(engine.expand('fb'), ['kill orc 2', 'cast fireball orc 2']);
+    });
+
+    test('expands in typed input and through nested aliases', () {
+      engine.targetLookup = () => 'rat';
+      expect(engine.expand(r'k $target'), ['kill rat']);
+      expect(engine.expand('fb2'),
+          ['kill rat', 'cast fireball rat', 'say done']);
+    });
+
+    test('refuses the whole line when no target is set', () {
+      engine.targetLookup = () => null;
+      expect(engine.expand('fb2'), isEmpty);
+      expect(engine.expand(r'say hi;kill $target'), isEmpty);
+      expect(missing, 2);
+    });
+
+    test('no lookup at all counts as no target', () {
+      expect(engine.expand('fb'), isEmpty);
+      expect(missing, 1);
+    });
+
+    test('lines without it are unaffected when no target is set', () {
+      expect(engine.expand('k orc'), ['kill orc']);
+      expect(missing, 0);
+    });
+
+    test('usesTarget follows aliases', () {
+      expect(engine.usesTarget('fb'), isTrue);
+      expect(engine.usesTarget('fb2'), isTrue);
+      expect(engine.usesTarget('k orc'), isFalse);
+      expect(missing, 0);
+    });
+  });
 }

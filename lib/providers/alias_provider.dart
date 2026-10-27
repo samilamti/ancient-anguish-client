@@ -5,11 +5,17 @@ import '../models/alias_rule.dart';
 import '../services/alias/alias_engine.dart';
 import '../services/config/markdown_config_parser.dart';
 import '../services/storage/storage_service.dart';
+import 'connection_provider.dart';
 import 'storage_provider.dart';
+import 'target_provider.dart';
 
 /// Provides the singleton [AliasEngine].
 final aliasEngineProvider = Provider<AliasEngine>((ref) {
-  return AliasEngine();
+  return AliasEngine()
+    ..targetLookup = (() => ref.read(targetProvider))
+    ..onMissingTarget = (() => ref
+        .read(terminalBufferProvider.notifier)
+        .addLocalLine('No target.', isError: true));
 });
 
 /// Provides the list of alias rules (for UI binding).

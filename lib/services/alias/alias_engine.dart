@@ -5,11 +5,23 @@ import '../../models/alias_rule.dart';
 /// Supports variable substitution in alias expansions:
 /// - `$0` — everything after the alias keyword
 /// - `$1`, `$2`, ... — individual space-separated arguments
+/// - `$target` — the current target (`orc`, `orc 2`), read from
+///   [targetLookup] at expansion time. A line that uses it while no target is
+///   set is refused whole: nothing is returned and [onMissingTarget] runs.
 ///
 /// Also supports command chaining via semicolons, allowing one alias
 /// to expand into multiple commands.
 class AliasEngine {
   final List<AliasRule> _rules = [];
+
+  /// The `$target` variable as written in aliases and typed input.
+  static const targetVariable = r'$target';
+
+  /// Returns the current target, or `null` when none is set.
+  String? Function()? targetLookup;
+
+  /// Called once when [expand] refuses a line for want of a target.
+  void Function()? onMissingTarget;
 
   /// Maximum expansion depth to prevent infinite alias loops.
   static const int maxExpansionDepth = 10;
@@ -59,25 +71,49 @@ class AliasEngine {
   /// alias expansions. An alias cannot re-trigger itself (prevents
   /// infinite loops when expansion starts with the same keyword).
   List<String> expand(String input) {
-    return _expandWithDepth(input, 0, const {});
+    try {
+      return _expandWithDepth(input, 0, const {}, targetLookup?.call());
+    } on _MissingTarget {
+      onMissingTarget?.call();
+      return const [];
+    }
+  }
+
+  /// Whether expanding [input] would need `$target`, directly or through
+  /// any alias it reaches. Used to dim action-bar slots while no target is
+  /// set.
+  bool usesTarget(String input) {
+    try {
+      _expandWithDepth(input, 0, const {}, null);
+      return false;
+    } on _MissingTarget {
+      return true;
+    }
   }
 
   List<String> _expandWithDepth(
     String input,
     int depth,
     Set<String> usedAliasIds,
+    String? target,
   ) {
     if (depth >= maxExpansionDepth) return [input];
 
-    final trimmed = input.trim();
+    var trimmed = input.trim();
     if (trimmed.isEmpty) return [trimmed];
+
+    // Replaced before the `;` split, so every command in a chain sees it.
+    if (trimmed.contains(targetVariable)) {
+      if (target == null) throw const _MissingTarget();
+      trimmed = trimmed.replaceAll(targetVariable, target);
+    }
 
     // Handle semicolon-separated commands.
     if (trimmed.contains(';')) {
       final parts = trimmed.split(';').map((s) => s.trim()).where((s) => s.isNotEmpty);
       final results = <String>[];
       for (final part in parts) {
-        results.addAll(_expandWithDepth(part, depth, usedAliasIds));
+        results.addAll(_expandWithDepth(part, depth, usedAliasIds, target));
       }
       return results;
     }
@@ -92,6 +128,7 @@ class AliasEngine {
           expanded,
           depth + 1,
           {...usedAliasIds, rule.id},
+          target,
         );
       }
     }
@@ -155,4 +192,10 @@ class AliasEngine {
       ),
     ];
   }
+}
+
+/// Thrown inside [AliasEngine] to unwind a whole expansion when `$target` is
+/// needed but unset, so no partial chain is ever returned.
+class _MissingTarget implements Exception {
+  const _MissingTarget();
 }

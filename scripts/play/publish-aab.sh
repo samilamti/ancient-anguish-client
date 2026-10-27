@@ -8,6 +8,11 @@
 #   bash scripts/play/publish-aab.sh                  # validate only
 #   bash scripts/play/publish-aab.sh --go             # internal track, live
 #   bash scripts/play/publish-aab.sh --track alpha --notes "Closed test" --go
+#   bash scripts/play/publish-aab.sh --track production --status draft --go
+#
+# --status draft is required on an app that has never been published: Play
+# refuses "completed" there ("Only releases with status draft may be created
+# on draft app"), and the draft is then sent for review from the Console.
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -17,12 +22,14 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 AAB="$SCRIPT_DIR/../../build/app/outputs/bundle/release/app-release.aab"
 TRACK="internal"
 NOTES=""
+STATUS="completed"
 GO=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --aab) AAB="$2"; shift 2 ;;
     --track) TRACK="$2"; shift 2 ;;
     --notes) NOTES="$2"; shift 2 ;;
+    --status) STATUS="$2"; shift 2 ;;
     --go) GO=1; shift ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
@@ -50,9 +57,9 @@ VC=$(jq -r .versionCode <<<"$RESP")
 echo "Uploaded versionCode=$VC sha256=$(jq -r .sha256 <<<"$RESP" | cut -c1-16)..."
 
 echo "=== Assigning versionCode $VC to track '$TRACK' ==="
-BODY=$(jq -n --arg track "$TRACK" --arg vc "$VC" --arg notes "$NOTES" \
+BODY=$(jq -n --arg track "$TRACK" --arg vc "$VC" --arg notes "$NOTES" --arg status "$STATUS" \
   '{track: $track,
-    releases: [({versionCodes: [$vc], status: "completed"}
+    releases: [({versionCodes: [$vc], status: $status}
       + (if $notes != "" then {releaseNotes: [{language: "en-US", text: $notes}]} else {} end))]}')
 RESP=$(play_api PUT "/edits/$EDIT_ID/tracks/$TRACK" \
   -H "Content-Type: application/json" -d "$BODY")

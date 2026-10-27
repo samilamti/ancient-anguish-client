@@ -28,7 +28,25 @@ void main() {
       expect(a?.text, 'Your skill in Two handed sword has gone up!');
     });
 
+    test('a skill gain with the new value suffix matches', () {
+      final a = AchievementParser.match(
+          'Your skill in Unarmed has gone up! You now have 1.');
+      expect(a?.text, 'Your skill in Unarmed has gone up! You now have 1.');
+      expect(
+          AchievementParser.match(
+              'Your skill in Two handed sword has gone up! You now have 100.'),
+          isNotNull);
+    });
+
     test('ordinary lines and lookalikes do not match', () {
+      expect(
+          AchievementParser.match(
+              'Bob says: Your skill in Unarmed has gone up! You now have 1.'),
+          isNull);
+      expect(
+          AchievementParser.match(
+              'Your skill in Unarmed has gone up! You now have .'),
+          isNull);
       expect(AchievementParser.match('You hit the orc.'), isNull);
       expect(
           AchievementParser.match('Bob says: Your skill in Spear has gone up!'),

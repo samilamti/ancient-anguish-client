@@ -35,8 +35,12 @@ class Achievement {
 /// rule here to capture a new kind of event; nothing else needs to change.
 class AchievementParser {
   static final List<(RegExp, String)> _rules = [
-    // "Your skill in Spear has gone up!"
-    (RegExp(r'^Your skill in .+ has gone up!$'), '🎉'),
+    // "Your skill in Unarmed has gone up! You now have 1."
+    // Older servers ended the line at "gone up!", so the value is optional.
+    (
+      RegExp(r'^Your skill in .+? has gone up!(?: You now have \d{1,3}\.)?$'),
+      '🎉'
+    ),
   ];
 
   /// The achievement [plainText] announces, or null when it is an ordinary line.

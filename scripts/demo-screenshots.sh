@@ -36,7 +36,7 @@ ALL_SCENES=(terminal hints kill recent rules)
 # Wide layouts (>=768pt) render the desktop UI, which has no Hints bar.
 WIDE_SCENES=(terminal kill recent rules)
 ADB="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}/platform-tools/adb"
-ANDROID_APP_ID="org.ancientanguish.ancient_anguish_client"
+ANDROID_APP_ID="org.ancientanguish.mudclient"
 
 # Seconds to wait after launch before capturing. The demo seeder waits ~0.9s
 # post-frame before opening its sheet, so give the app comfortably longer.

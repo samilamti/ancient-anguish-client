@@ -18,7 +18,7 @@ set -euo pipefail
 export LANG="${LANG:-en_US.UTF-8}"
 export LC_ALL="${LC_ALL:-en_US.UTF-8}"
 
-PKG="org.ancientanguish.ancient_anguish_client"
+PKG="org.ancientanguish.mudclient"
 KEYCHAIN_SERVICE="aa-client-play-sa-json"
 KEYCHAIN_ACCOUNT="play-publisher"
 API="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PKG"

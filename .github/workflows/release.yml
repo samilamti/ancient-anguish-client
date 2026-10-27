@@ -59,7 +59,7 @@ env:
 #    a. Create a Google Play Developer account ($25 one-time fee) if you
 #       don't already have one.
 #    b. Create the app with package name
-#       org.ancientanguish.ancient_anguish_client.
+#       org.ancientanguish.mudclient (Covey AB organisation account).
 #    c. Complete the app content declarations (privacy policy, target
 #       audience, content rating questionnaire) — required before first
 #       upload.
@@ -595,7 +595,7 @@ jobs:
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: org.ancientanguish.ancient_anguish_client
+          packageName: org.ancientanguish.mudclient
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
           track: internal
           status: completed

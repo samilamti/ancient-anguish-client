@@ -114,4 +114,45 @@ A wild boar.
       expect(notifier.state, ['tick', 'boar']);
     });
   });
+
+  group('RoomTargetsNotifier - duplicate counts', () {
+    test('counts each keyword the room listed', () {
+      _runBlock(notifier, '''
+Pine forest (n,e,s,w)
+A giant tick.
+An orc.
+A wild boar.
+An orc.
+A giant tick.
+An orc.
+''');
+      expect(notifier.counts, {'tick': 2, 'orc': 3, 'boar': 1});
+      expect(container.read(roomTargetInstancesProvider),
+          ['tick', 'tick 2', 'orc', 'orc 2', 'orc 3', 'boar']);
+    });
+
+    test('a new room resets the counts', () {
+      _runBlock(notifier, '''
+Pine forest (n,e,s,w)
+An orc.
+An orc.
+''');
+      expect(container.read(roomTargetInstancesProvider), ['orc', 'orc 2']);
+      _runBlock(notifier, '''
+Clearing (n,s)
+An orc.
+''');
+      expect(container.read(roomTargetInstancesProvider), ['orc']);
+      _runBlock(notifier, '''
+Empty room (n)
+''');
+      expect(notifier.counts, isEmpty);
+      expect(container.read(roomTargetInstancesProvider), isEmpty);
+    });
+
+    test('expandTargetInstances treats a missing count as one', () {
+      expect(expandTargetInstances(['rat', 'orc'], {'orc': 2}),
+          ['rat', 'orc', 'orc 2']);
+    });
+  });
 }

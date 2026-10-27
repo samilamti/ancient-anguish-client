@@ -15,9 +15,42 @@ final roomTargetsProvider =
     NotifierProvider<RoomTargetsNotifier, List<String>>(
         RoomTargetsNotifier.new);
 
+/// Every creature instance in the current room, in the order the room listed
+/// them, with Ancient Anguish's ordinal on the duplicates: two orcs give
+/// `orc`, `orc 2` (AA accepts `kill orc 2`). This is what Tab cycles through.
+///
+/// [roomTargetsProvider] itself stays one entry per keyword, because the Kill
+/// picker and the kill-link catalogue want each creature once.
+final roomTargetInstancesProvider = Provider<List<String>>((ref) {
+  final keywords = ref.watch(roomTargetsProvider);
+  return expandTargetInstances(
+      keywords, ref.read(roomTargetsProvider.notifier).counts);
+});
+
+/// Expands [keywords] into one entry per creature using [counts]: `orc` with
+/// a count of 3 becomes `orc`, `orc 2`, `orc 3`. A missing count means one.
+List<String> expandTargetInstances(
+    List<String> keywords, Map<String, int> counts) {
+  final out = <String>[];
+  for (final k in keywords) {
+    final n = counts[k] ?? 1;
+    out.add(k);
+    for (var i = 2; i <= n; i++) {
+      out.add('$k $i');
+    }
+  }
+  return List.unmodifiable(out);
+}
+
 class RoomTargetsNotifier extends Notifier<List<String>> {
   bool _inRoomBlock = false;
   final List<String> _pending = [];
+  final Map<String, int> _pendingCounts = {};
+
+  /// How many of each keyword the committed room block listed. Updated
+  /// together with [state], so a listener of [roomTargetsProvider] always
+  /// reads the counts that belong to the list it was handed.
+  Map<String, int> counts = const {};
 
   @override
   List<String> build() => const [];
@@ -38,6 +71,7 @@ class RoomTargetsNotifier extends Notifier<List<String>> {
       _commit();
       _inRoomBlock = true;
       _pending.clear();
+      _pendingCounts.clear();
       return null;
     }
 
@@ -52,6 +86,7 @@ class RoomTargetsNotifier extends Notifier<List<String>> {
     final target = RoomLineClassifier.npcKeywordIn(line);
     if (target == null) return null;
     if (!_pending.contains(target)) _pending.add(target);
+    _pendingCounts[target] = (_pendingCounts[target] ?? 0) + 1;
     return target;
   }
 
@@ -60,9 +95,11 @@ class RoomTargetsNotifier extends Notifier<List<String>> {
   /// consumers see in `commonTargetsProvider`.
   void _commit() {
     if (_pending.isEmpty) {
+      counts = const {};
       if (state.isNotEmpty) state = const [];
       return;
     }
+    counts = Map.unmodifiable(_pendingCounts);
     final next = List<String>.unmodifiable(_pending);
     state = next;
   }
@@ -73,6 +110,8 @@ class RoomTargetsNotifier extends Notifier<List<String>> {
   void resetForTest() {
     _inRoomBlock = false;
     _pending.clear();
+    _pendingCounts.clear();
+    counts = const {};
     state = const [];
   }
 }

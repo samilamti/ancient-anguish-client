@@ -236,6 +236,64 @@ class _AboutScreenState extends State<AboutScreen> {
                     keys: 'Tab',
                     description: 'Complete the current word from history',
                   ),
+                  const SizedBox(height: 6),
+                  _ShortcutRow(
+                    keys: _shortcutLabel(context, 'G'),
+                    description:
+                        'Play mode on/off (keyboard, not on phones)',
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'In play mode',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const _ShortcutRow(
+                    keys: 'W A S D',
+                    description: 'Move north / west / south / east',
+                  ),
+                  const SizedBox(height: 6),
+                  const _ShortcutRow(
+                    keys: 'Q E Z C',
+                    description: 'Move northwest / northeast / southwest / '
+                        'southeast',
+                  ),
+                  const SizedBox(height: 6),
+                  const _ShortcutRow(
+                    keys: 'R / F',
+                    description: 'Move up / down',
+                  ),
+                  const SizedBox(height: 6),
+                  const _ShortcutRow(
+                    keys: '1 … 0',
+                    description: 'Action bar slots (right-click a slot to '
+                        'assign an alias)',
+                  ),
+                  const SizedBox(height: 6),
+                  const _ShortcutRow(
+                    keys: 'Tab',
+                    description: r'Next target (Shift+Tab: previous); '
+                        r'aliases use it as $target',
+                  ),
+                  const SizedBox(height: 6),
+                  const _ShortcutRow(
+                    keys: 'X',
+                    description: 'Ignore the target and move to the next',
+                  ),
+                  const SizedBox(height: 6),
+                  const _ShortcutRow(
+                    keys: 'Esc',
+                    description: 'Clear the target',
+                  ),
+                  const SizedBox(height: 6),
+                  const _ShortcutRow(
+                    keys: 'Enter',
+                    description: 'Open the input; Enter again sends and '
+                        'closes it',
+                  ),
                 ],
               ),
             ),

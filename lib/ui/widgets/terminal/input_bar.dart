@@ -14,6 +14,7 @@ import '../../../providers/command_trigger_provider.dart'
 import '../../../providers/local_features_provider.dart';
 import '../../../providers/completion_rules_provider.dart';
 import '../../../providers/notification_provider.dart';
+import '../../../providers/play_mode_provider.dart';
 import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
@@ -27,6 +28,7 @@ import '../../../services/command_counterparts.dart';
 import '../../../services/command_loops.dart';
 import '../../../services/repeat_command.dart';
 import '../../../services/parser/emoji_parser.dart';
+import 'play_mode.dart';
 
 /// The command input bar at the bottom of the terminal.
 ///
@@ -71,6 +73,11 @@ class _InputBarState extends ConsumerState<InputBar> {
 
   /// Select all text when the input bar gains focus.
   void _onFocusChange() {
+    // Clicking away from the open input in play mode closes it again.
+    if (!_focusNode.hasFocus) {
+      ref.read(playModeProvider.notifier).closeInput();
+      return;
+    }
     if (_focusNode.hasFocus && _controller.text.isNotEmpty) {
       Future.microtask(() {
         _controller.selection = TextSelection(
@@ -138,6 +145,13 @@ class _InputBarState extends ConsumerState<InputBar> {
       baseOffset: 0,
       extentOffset: _controller.text.length,
     );
+
+    // Play mode: sending closes the input again (the WoW chat loop). The
+    // text stays, selected, so Enter Enter resends it.
+    if (ref.read(playModeProvider) == PlayMode.input) {
+      ref.read(playModeProvider.notifier).closeInput();
+      return;
+    }
 
     // On mobile with keyboard-hiding enabled, dismiss the keyboard after
     // sending so the user can see more of the output. Otherwise keep focus.
@@ -334,6 +348,16 @@ class _InputBarState extends ConsumerState<InputBar> {
     // Any non-TAB key resets completion state.
     _resetTabCompletion();
 
+    // Play mode: Enter or Esc on an empty input closes it without sending.
+    final playInput = ref.read(playModeProvider) == PlayMode.input;
+    if (playInput &&
+        _controller.text.trim().isEmpty &&
+        (event.logicalKey == LogicalKeyboardKey.escape ||
+            event.logicalKey == LogicalKeyboardKey.enter)) {
+      ref.read(playModeProvider.notifier).closeInput();
+      return KeyEventResult.handled;
+    }
+
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _controller.clear();
       _resetHistorySearch();
@@ -441,20 +465,38 @@ class _InputBarState extends ConsumerState<InputBar> {
       if (prev is LoginPromptDetected && next is! LoginPromptDetected) {
         if (_shouldHideKeyboard(ref.read(settingsProvider))) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _focusNode.requestFocus();
+          if (!mounted) return;
+          if (ref.read(playModeProvider) == PlayMode.play && !isMobile) {
+            ref.read(playModeFocusProvider).requestFocus();
+          } else {
+            _focusNode.requestFocus();
+          }
         });
       }
     });
+
+    // Play mode: the strip stands in for the closed input; Enter brings the
+    // field back, focused.
+    final playMode = isMobile ? PlayMode.off : ref.watch(playModeProvider);
+    ref.listen<PlayMode>(playModeProvider, (_, next) {
+      if (next != PlayMode.input) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusNode.requestFocus();
+      });
+    });
+    if (playMode == PlayMode.play) return const PlayModeStrip();
 
     final inputBar = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        border: Border(
-          top: BorderSide(
-            color: theme.colorScheme.primary.withAlpha(60),
-          ),
-        ),
+        border: playMode == PlayMode.input
+            ? Border.all(color: PlayModeStrip.green, width: 1.5)
+            : Border(
+                top: BorderSide(
+                  color: theme.colorScheme.primary.withAlpha(60),
+                ),
+              ),
       ),
       child: Row(
         children: [

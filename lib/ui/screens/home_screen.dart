@@ -19,6 +19,7 @@ import '../../providers/connection_provider.dart';
 import '../../providers/game_state_provider.dart';
 import '../../providers/link_command_provider.dart';
 import '../../providers/login_provider.dart';
+import '../../providers/play_mode_provider.dart';
 import '../../models/social_panel_state.dart';
 import '../../providers/reply_request_provider.dart';
 import '../../providers/command_trigger_provider.dart';
@@ -37,6 +38,7 @@ import '../widgets/status/battle_hud.dart';
 import '../widgets/status/status_bar.dart';
 import '../widgets/terminal/favorite_triggers_panel.dart';
 import '../widgets/terminal/input_bar.dart';
+import '../widgets/terminal/play_mode.dart';
 import '../widgets/terminal/terminal_view.dart';
 import 'about_screen.dart';
 import 'advanced_customization_screen.dart';
@@ -222,6 +224,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       ref.read(instantTriggersProvider.notifier).toggle(),
                   active: ref.watch(instantTriggersProvider),
                 ),
+              // Keyboard play mode (WASD, action bar). No play mode on phones.
+              if (!isMobile)
+                _ToolbarItem(
+                  icon: Icons.sports_esports,
+                  label: 'Play Mode',
+                  onPressed: _togglePlayMode,
+                  active: ref.watch(playModeProvider).isOn,
+                ),
               if (!isMobile) ...[
                 _ToolbarItem(
                   emoji: '🎨',
@@ -325,7 +335,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               _replyOrReconnect,
           const SingleActivator(LogicalKeyboardKey.keyR, meta: true):
               _replyOrReconnect,
+          // Ctrl/Cmd + G → keyboard play mode on/off.
+          const SingleActivator(LogicalKeyboardKey.keyG, control: true):
+              _togglePlayMode,
+          const SingleActivator(LogicalKeyboardKey.keyG, meta: true):
+              _togglePlayMode,
         },
+        child: PlayModeKeys(
+        available: !isMobile,
         child: SafeArea(
         child: Stack(
           children: [
@@ -405,7 +422,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ),
       ),
       ),
+      ),
     );
+  }
+
+  /// Ctrl/Cmd+G and the toolbar toggle. Play mode needs a keyboard, so it
+  /// stays off below the phone breakpoint.
+  void _togglePlayMode() {
+    if (MediaQuery.of(context).size.width < 768) return;
+    ref.read(playModeProvider.notifier).toggle();
   }
 
   /// Fires the command of the link most recently rendered into the

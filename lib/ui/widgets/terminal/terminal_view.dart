@@ -13,6 +13,7 @@ import '../../../providers/connection_provider.dart'
 import '../../../providers/link_command_provider.dart';
 import '../../../providers/local_features_provider.dart';
 import '../../../providers/notification_provider.dart';
+import '../../../providers/play_mode_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
@@ -270,6 +271,12 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
     _hadSelectionOnPointerDown = false;
     if (_selectionController.clearSelection()) setState(() {});
     if (dismissedSelection) return;
+    // In play mode a click on the output hands the keys back to play.
+    if (ref.read(playModeProvider) == PlayMode.play &&
+        MediaQuery.of(context).size.width >= 768) {
+      ref.read(playModeFocusProvider).requestFocus();
+      return;
+    }
     ref.read(inputFocusProvider).requestFocus();
   }
 

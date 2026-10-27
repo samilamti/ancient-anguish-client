@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart' show FocusNode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'settings_provider.dart';
@@ -57,4 +58,24 @@ class PlayModeNotifier extends Notifier<PlayMode> {
   void closeInput() {
     if (state == PlayMode.input) state = PlayMode.play;
   }
+}
+
+/// The node the play-mode key handler holds while the input is closed.
+/// Shared so a tap on the terminal can hand focus back to it.
+final playModeFocusProvider = Provider<FocusNode>((ref) {
+  final node = FocusNode(debugLabel: 'play mode');
+  ref.onDispose(node.dispose);
+  return node;
+});
+
+/// Bumped when a key that does nothing in play mode is pressed, so the strip
+/// can flash "Enter to type". The value is only a deduper.
+final playStripFlashProvider =
+    NotifierProvider<PlayStripFlashNotifier, int>(PlayStripFlashNotifier.new);
+
+class PlayStripFlashNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void flash() => state++;
 }

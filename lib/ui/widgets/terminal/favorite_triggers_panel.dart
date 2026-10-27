@@ -58,7 +58,9 @@ class _FavoriteTriggersOverlayState
               child: Material(
                 key: const ValueKey('favoriteTriggersPanel'),
                 elevation: 6,
-                color: theme.colorScheme.surface.withAlpha(235),
+                // Opaque: at 235 bright terminal text ghosted through the
+                // toggles and made both unreadable.
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(8),
                 clipBehavior: Clip.antiAlias,
                 child: Column(

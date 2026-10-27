@@ -71,13 +71,15 @@ class DPad extends ConsumerWidget {
             children: [
               _DPadButton(
                 label: 'Up',
-                emoji: '🔼',
+                // Line icons, matching the compass arrows beside them; the
+                // blue emoji tiles read as a different control set.
+                icon: Icons.keyboard_double_arrow_up,
                 onPressed: () => send('up'),
               ),
               const SizedBox(height: 4),
               _DPadButton(
                 label: 'Down',
-                emoji: '🔽',
+                icon: Icons.keyboard_double_arrow_down,
                 onPressed: () => send('down'),
               ),
               const SizedBox(height: 4),

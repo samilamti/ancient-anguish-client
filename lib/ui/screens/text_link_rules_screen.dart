@@ -291,6 +291,9 @@ class _ShortcutHintBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Phone layout (same 768pt cut-off the rest of the app uses): there is
+    // no keyboard to press it on, so the tip is just noise above the list.
+    if (MediaQuery.sizeOf(context).width < 768) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final hint = (theme.platform == TargetPlatform.macOS ||
             theme.platform == TargetPlatform.iOS)

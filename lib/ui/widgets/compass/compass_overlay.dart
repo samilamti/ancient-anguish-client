@@ -264,7 +264,12 @@ class _PlacedMarker {
   /// spot, but the name is dropped rather than piled onto a neighbour's.
   final bool showLabel;
 
-  const _PlacedMarker(this.entry, this.nudge, {required this.showLabel});
+  /// Where the name was placed, in rose coordinates; null when it is hidden.
+  /// The painter drops a cardinal letter this covers.
+  final Rect? labelRect;
+
+  const _PlacedMarker(this.entry, this.nudge,
+      {required this.showLabel, this.labelRect});
 }
 
 /// The two rectangles a marker occupies: its icon, and its name label below.
@@ -395,7 +400,8 @@ List<_PlacedMarker> _placeMarkers({
         overhang: overhang,
       ).icon);
     } else {
-      placed.add(_PlacedMarker(entries[i], chosen.nudge, showLabel: true));
+      placed.add(_PlacedMarker(entries[i], chosen.nudge,
+          showLabel: true, labelRect: chosen.rects.label));
       placedLabels.add(chosen.rects.label.inflate(halfGap));
       placedIcons.add(chosen.rects.icon);
     }
@@ -642,6 +648,12 @@ class _CompassRosePainter extends CustomPainter {
       final angle = i * math.pi / 2;
       final position = center +
           Offset(math.sin(angle), -math.cos(angle)) * (ringRadius - 30);
+      // A place name sitting on the letter wins: the tick still shows the
+      // direction, and the two together read as neither.
+      final letterBox = Rect.fromCenter(center: position, width: 14, height: 20);
+      if (placed.any((m) => m.labelRect?.overlaps(letterBox) ?? false)) {
+        continue;
+      }
       final painter = TextPainter(
         text: TextSpan(
           text: _cardinals[i],

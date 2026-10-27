@@ -37,6 +37,7 @@ import '../widgets/social/social_windows_overlay.dart';
 import '../widgets/status/battle_hud.dart';
 import '../widgets/status/status_bar.dart';
 import '../widgets/terminal/favorite_triggers_panel.dart';
+import '../widgets/terminal/action_bar.dart';
 import '../widgets/terminal/input_bar.dart';
 import '../widgets/terminal/play_mode.dart';
 import '../widgets/terminal/terminal_view.dart';
@@ -343,6 +344,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         },
         child: PlayModeKeys(
         available: !isMobile,
+        onSlot: runActionBarSlot,
         child: SafeArea(
         child: Stack(
           children: [
@@ -397,6 +399,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       settings.useDPad &&
                       settings.quickCommandsVisible)
                     const DPad(),
+
+                  // Play mode's action bar sits directly above the input strip.
+                  if (!isMobile && ref.watch(playModeProvider).isOn)
+                    const ActionBar(),
 
                   // Command input bar.
                   const InputBar(),

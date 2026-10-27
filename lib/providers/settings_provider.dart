@@ -44,6 +44,7 @@ class AppSettings {
   final List<String>
       ignoredKillTargets; // words that must never render as red kill links
   final bool playModeEnabled; // keyboard play mode (WASD, action bar) on
+  final List<String?> actionBarAliasIds; // 10 play-mode slots → alias IDs
 
   /// Maximum number of alias rules that can be pinned to the D-Pad's
   /// quick-slot column at once.
@@ -97,7 +98,15 @@ class AppSettings {
     this.killAliasSteps = const {},
     this.ignoredKillTargets = const [],
     this.playModeEnabled = false,
+    this.actionBarAliasIds = emptyActionBar,
   });
+
+  /// Number of action-bar slots (keys 1…9, 0).
+  static const int actionBarSlots = 10;
+
+  static const List<String?> emptyActionBar = [
+    null, null, null, null, null, null, null, null, null, null,
+  ];
 
   AppSettings copyWith({
     double? fontSize,
@@ -129,6 +138,7 @@ class AppSettings {
     Map<String, List<String>>? killAliasSteps,
     List<String>? ignoredKillTargets,
     bool? playModeEnabled,
+    List<String?>? actionBarAliasIds,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -166,6 +176,7 @@ class AppSettings {
       killAliasSteps: killAliasSteps ?? this.killAliasSteps,
       ignoredKillTargets: ignoredKillTargets ?? this.ignoredKillTargets,
       playModeEnabled: playModeEnabled ?? this.playModeEnabled,
+      actionBarAliasIds: actionBarAliasIds ?? this.actionBarAliasIds,
     );
   }
 
@@ -202,6 +213,7 @@ class AppSettings {
         'killAliasSteps': killAliasSteps,
         'ignoredKillTargets': ignoredKillTargets,
         'playModeEnabled': playModeEnabled,
+        'actionBarAliasIds': actionBarAliasIds,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -258,6 +270,14 @@ class AppSettings {
           ? List<String>.from(json['ignoredKillTargets'] as List)
           : const [],
       playModeEnabled: json['playModeEnabled'] as bool? ?? false,
+      actionBarAliasIds: json['actionBarAliasIds'] != null
+          ? List<String?>.unmodifiable([
+              for (var i = 0; i < actionBarSlots; i++)
+                i < (json['actionBarAliasIds'] as List).length
+                    ? (json['actionBarAliasIds'] as List)[i] as String?
+                    : null,
+            ])
+          : emptyActionBar,
     );
   }
 
@@ -518,6 +538,15 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void setPlayModeEnabled(bool enabled) {
     if (state.playModeEnabled == enabled) return;
     state = state.copyWith(playModeEnabled: enabled);
+    _saveSettings();
+  }
+
+  /// Points action-bar [slot] (0-based) at [aliasId], or empties it.
+  void setActionBarSlot(int slot, String? aliasId) {
+    if (slot < 0 || slot >= AppSettings.actionBarSlots) return;
+    final next = [...state.actionBarAliasIds];
+    next[slot] = aliasId;
+    state = state.copyWith(actionBarAliasIds: List.unmodifiable(next));
     _saveSettings();
   }
 

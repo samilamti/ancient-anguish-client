@@ -43,6 +43,7 @@ class AppSettings {
       killAliasSteps; // normalized target → ordered combat steps (Kill picker "Customise")
   final List<String>
       ignoredKillTargets; // words that must never render as red kill links
+  final bool playModeEnabled; // keyboard play mode (WASD, action bar) on
 
   /// Maximum number of alias rules that can be pinned to the D-Pad's
   /// quick-slot column at once.
@@ -95,6 +96,7 @@ class AppSettings {
     this.pinnedTargets = const [],
     this.killAliasSteps = const {},
     this.ignoredKillTargets = const [],
+    this.playModeEnabled = false,
   });
 
   AppSettings copyWith({
@@ -126,6 +128,7 @@ class AppSettings {
     List<String>? pinnedTargets,
     Map<String, List<String>>? killAliasSteps,
     List<String>? ignoredKillTargets,
+    bool? playModeEnabled,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -162,6 +165,7 @@ class AppSettings {
       pinnedTargets: pinnedTargets ?? this.pinnedTargets,
       killAliasSteps: killAliasSteps ?? this.killAliasSteps,
       ignoredKillTargets: ignoredKillTargets ?? this.ignoredKillTargets,
+      playModeEnabled: playModeEnabled ?? this.playModeEnabled,
     );
   }
 
@@ -197,6 +201,7 @@ class AppSettings {
         'pinnedTargets': pinnedTargets,
         'killAliasSteps': killAliasSteps,
         'ignoredKillTargets': ignoredKillTargets,
+        'playModeEnabled': playModeEnabled,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -252,6 +257,7 @@ class AppSettings {
       ignoredKillTargets: json['ignoredKillTargets'] != null
           ? List<String>.from(json['ignoredKillTargets'] as List)
           : const [],
+      playModeEnabled: json['playModeEnabled'] as bool? ?? false,
     );
   }
 
@@ -506,6 +512,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
     if (!state.ignoredKillTargets.contains(normalized)) return;
     final current = [...state.ignoredKillTargets]..remove(normalized);
     state = state.copyWith(ignoredKillTargets: List.unmodifiable(current));
+    _saveSettings();
+  }
+
+  void setPlayModeEnabled(bool enabled) {
+    if (state.playModeEnabled == enabled) return;
+    state = state.copyWith(playModeEnabled: enabled);
     _saveSettings();
   }
 

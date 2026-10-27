@@ -59,6 +59,7 @@ import 'social_message_provider.dart';
 import 'social_panel_provider.dart';
 import 'recent_words_provider.dart';
 import 'room_targets_provider.dart';
+import 'target_provider.dart';
 import 'trigger_provider.dart';
 
 /// Provides the singleton [MudConnectionService].
@@ -579,6 +580,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                     rawLine: plainText.trim(),
                     startsRound: !battleRoundCounted,
                   );
+              ref.read(targetProvider.notifier).onBattleLine(battleMatch);
               battleRoundCounted = true;
               if (battleMatch.isFilterable) {
                 switch (settings.battleFilterMode) {

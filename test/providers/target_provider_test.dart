@@ -182,4 +182,24 @@ void main() {
       container.read(battleStateProvider.notifier).reset();
     });
   });
+
+  group('ignore list', () {
+    test('ignoring the current target elsewhere drops it', () {
+      enterRoom(['An orc.', 'A wild boar.']);
+      target().set('orc 2');
+      // The long-press "Stop highlighting this" path.
+      container.read(settingsProvider.notifier).addIgnoredKillTarget('orc');
+      expect(current(), isNull);
+      target().next();
+      expect(current(), 'boar');
+    });
+
+    test('an ignored creature can still be chosen from the Kill picker', () {
+      container.read(settingsProvider.notifier).addIgnoredKillTarget('orc');
+      target().set('orc');
+      expect(current(), 'orc');
+      container.read(settingsProvider.notifier).addIgnoredKillTarget('rat');
+      expect(current(), 'orc');
+    });
+  });
 }

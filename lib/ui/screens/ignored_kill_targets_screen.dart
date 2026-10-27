@@ -22,7 +22,7 @@ class IgnoredKillTargetsScreen extends ConsumerWidget {
 
     return EscapeDismiss(
       child: Scaffold(
-        appBar: AppBar(title: const Text('Ignored Kill Targets')),
+        appBar: AppBar(title: const Text('Ignored targets')),
         body: ignored.isEmpty
             ? Center(
                 child: Padding(
@@ -58,8 +58,9 @@ class IgnoredKillTargetsScreen extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                     child: Text(
-                      'These words are never highlighted as attackable. They '
-                      'are still available in the Kill picker.',
+                      'These words are never highlighted as attackable and '
+                      'are skipped by Tab and auto-targeting. They are still '
+                      'available in the Kill picker.',
                       style: TextStyle(
                         fontSize: 12,
                         color: theme.colorScheme.onSurface.withAlpha(150),

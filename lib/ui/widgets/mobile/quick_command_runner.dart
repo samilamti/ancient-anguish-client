@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/quick_command.dart';
 import '../../../providers/common_targets_provider.dart';
 import '../../../providers/connection_provider.dart';
+import '../../../providers/target_provider.dart';
 import 'target_picker_sheet.dart';
 
 /// Runs a [QuickCommand]: sends it directly, or — for `selectTarget: true` —
@@ -39,5 +40,7 @@ Future<void> runQuickCommand(
     commandLabel: cmd.label,
   );
   if (chosen == null || chosen.isEmpty) return;
+  // Choosing a creature also makes it the `$target`.
+  ref.read(targetProvider.notifier).set(chosen);
   service.sendCommand('${cmd.command} $chosen');
 }

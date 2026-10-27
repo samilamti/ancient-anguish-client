@@ -40,6 +40,7 @@ import '../widgets/terminal/favorite_triggers_panel.dart';
 import '../widgets/terminal/action_bar.dart';
 import '../widgets/terminal/input_bar.dart';
 import '../widgets/terminal/play_mode.dart';
+import '../widgets/terminal/target_chip.dart';
 import '../widgets/terminal/terminal_view.dart';
 import 'about_screen.dart';
 import 'advanced_customization_screen.dart';
@@ -397,12 +398,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   // soft keyboard is summoned by tapping the input field below.
                   if (isMobile &&
                       settings.useDPad &&
-                      settings.quickCommandsVisible)
+                      settings.quickCommandsVisible) ...[
+                    // `$target` works in the pinned alias slots too, so the
+                    // phone shows what it names while something is targeted.
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(8, 4, 8, 0),
+                        child: TargetChip(hideWhenEmpty: true),
+                      ),
+                    ),
                     const DPad(),
+                  ],
 
                   // Play mode's action bar sits directly above the input strip.
                   if (!isMobile && ref.watch(playModeProvider).isOn)
-                    const ActionBar(),
+                    const ActionBar(leading: TargetChip()),
 
                   // Command input bar.
                   const InputBar(),
@@ -961,11 +972,12 @@ class SettingsDrawer extends ConsumerWidget {
               );
               return _DrawerNavTile(
                 icon: const Icon(Icons.link_off, size: 20),
-                title: 'Ignored Kill Targets',
+                title: 'Ignored targets',
                 subtitle: ignoredCount == 0
-                    ? 'Long-press a red link to add one'
+                    ? 'Not highlighted, skipped by Tab. Long-press a red link '
+                        'to add one'
                     : '$ignoredCount word${ignoredCount == 1 ? '' : 's'} '
-                        'never highlighted',
+                        'never highlighted or targeted',
                 onTap: () =>
                     _openScreen(context, const IgnoredKillTargetsScreen()),
               );

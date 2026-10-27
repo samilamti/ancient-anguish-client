@@ -14,6 +14,7 @@ import '../../../providers/link_command_provider.dart';
 import '../../../providers/local_features_provider.dart';
 import '../../../providers/notification_provider.dart';
 import '../../../providers/play_mode_provider.dart';
+import '../../../providers/target_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
 import '../../../models/social_panel_state.dart';
@@ -299,6 +300,9 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
   /// command is alias-expanded exactly as typed input would be.
   void _sendLinkCommand(String command) {
     if (command.trim().isEmpty) return;
+    // A red kill link also makes its creature the `$target`.
+    final killTarget = _killTargetOf(command);
+    if (killTarget != null) ref.read(targetProvider.notifier).set(killTarget);
     ref.read(linkCommandSenderProvider)(command);
     if (MediaQuery.of(context).size.width < 768) {
       ref.read(inputFocusProvider).unfocus();
@@ -346,7 +350,8 @@ class _TerminalViewState extends ConsumerState<TerminalView> {
               leading: const Icon(Icons.link_off),
               title: const Text('Stop highlighting this'),
               subtitle: Text(
-                "'$target' will no longer show as a red kill link",
+                "'$target' will no longer show as a red kill link or "
+                'come up when cycling targets',
               ),
               onTap: () {
                 Navigator.of(sheetContext).pop();

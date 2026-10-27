@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/protocol/ansi/styled_span.dart';
 import 'package:ancient_anguish_client/providers/settings_provider.dart';
+import 'package:ancient_anguish_client/providers/target_provider.dart';
 
 import 'terminal_view_helpers.dart';
 
@@ -83,5 +84,18 @@ void main() {
 
     expect(container.read(settingsProvider).ignoredKillTargets, isEmpty);
     expect(find.text('Stop highlighting this'), findsNothing);
+  });
+
+  testWidgets('tapping a kill link makes its creature the target',
+      (tester) async {
+    final container = await pumpTerminalView(
+      tester,
+      lines: [lineWithLink('The ', 'goblin', 'kill goblin')],
+    );
+
+    await tester.tap(find.text('goblin'));
+    await tester.pumpAndSettle();
+
+    expect(container.read(targetProvider), 'goblin');
   });
 }

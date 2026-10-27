@@ -41,6 +41,18 @@ class TargetNotifier extends Notifier<String?> {
       onRoomTargets(instances,
           inBattle: ref.read(battleStateProvider).inBattle);
     });
+    // Ignoring a creature (X, or long-pressing its red link) drops it from
+    // the cycle, and from the target if it was the one. Choosing it again
+    // from the Kill picker afterwards is still allowed.
+    ref.listen<List<String>>(
+        settingsProvider.select((s) => s.ignoredKillTargets), (prev, next) {
+      final current = state;
+      if (current == null) return;
+      final keyword = targetBaseKeyword(current);
+      if (next.contains(keyword) && !(prev ?? const []).contains(keyword)) {
+        state = null;
+      }
+    });
     return null;
   }
 

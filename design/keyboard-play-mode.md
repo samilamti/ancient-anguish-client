@@ -51,7 +51,7 @@ Three parts: WASD movement, a WoW-style action bar on 1–0, and a `$target` tha
 | any other key | flash "Enter to type" on the strip; nothing is sent |
 
 - Movement uses the full words, as the D-pad does, and goes through `gameStateProvider.recordDirectionalAttempt` like the D-pad, so the compass and `MovementTracker` see it.
-- **Key repeat is ignored** for movement and for bar slots (`KeyRepeatEvent` is dropped). Holding W must not run you through ten rooms, and holding 1 must not spam a macro.
+- **Holding a movement key walks:** each OS key repeat sends the move again, so holding W keeps going north (Sami, 2026-10-27, after trying the first build). **Key repeat is ignored for everything else** (`KeyRepeatEvent` is dropped), so holding 1 must not spam a macro.
 - Ctrl/Cmd chords keep working in play mode (they go to the HomeScreen `CallbackShortcuts` map as today).
 
 ### Where the keys are handled
@@ -118,7 +118,7 @@ The point is to narrow the room down to the creatures you actually want: ignore 
 Ancient Anguish forbids automated play. Every action here is **one keypress → one user-initiated dispatch**, exactly as an alias or a D-pad tap is today:
 
 - no command is ever sent without a key or tap;
-- key repeat is ignored, so holding a key does not loop;
+- holding a movement key walks at the OS key-repeat rate, one move per repeat the player is physically holding down; bar slots and target keys never repeat;
 - the bar does not run `#N` repeats or trigger anything; local-only command triggers stay local-only and are not reachable from a slot;
 - `$target` only names a creature; it never chooses to attack one.
 

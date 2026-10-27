@@ -92,13 +92,13 @@ void main() {
     ]);
   });
 
-  testWidgets('a held key moves once', (tester) async {
+  testWidgets('a held movement key keeps walking', (tester) async {
     await pumpPlay(tester);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.keyW);
     await tester.sendKeyRepeatEvent(LogicalKeyboardKey.keyW);
     await tester.sendKeyRepeatEvent(LogicalKeyboardKey.keyW);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.keyW);
-    expect(service.sent, ['north']);
+    expect(service.sent, ['north', 'north', 'north']);
   });
 
   testWidgets('digits fire slots 1-10, held digits fire once', (tester) async {

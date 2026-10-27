@@ -41,8 +41,9 @@ final Map<LogicalKeyboardKey, int> playModeSlotKeys = {
 typedef ActionSlotRunner = void Function(WidgetRef ref, int slot);
 
 /// Holds keyboard focus while play mode is on and the input is closed, and
-/// turns keys into moves, bar slots and targeting. Every key is one dispatch:
-/// key repeat is dropped, so holding W does not run through ten rooms.
+/// turns keys into moves, bar slots and targeting. Holding a movement key
+/// walks (each OS key repeat sends the move again); every other key is one
+/// dispatch, so holding 1 does not spam a macro.
 ///
 /// Anything with Ctrl/Cmd (or Alt) is left alone so the HomeScreen chords
 /// still bubble up, and nothing is handled while a text field holds focus.
@@ -120,12 +121,12 @@ class _PlayModeKeysState extends ConsumerState<PlayModeKeys> {
         key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter;
 
-    // Held keys never repeat an action.
-    if (event is KeyRepeatEvent) {
+    final move = playModeMovementKeys[key];
+    // Held movement keys walk; anything else held never repeats an action.
+    if (event is KeyRepeatEvent && move == null) {
       return mapped ? KeyEventResult.handled : KeyEventResult.ignored;
     }
 
-    final move = playModeMovementKeys[key];
     if (move != null) {
       _move(move);
       return KeyEventResult.handled;

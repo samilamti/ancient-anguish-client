@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/parser/battle_text_classifier.dart';
 import 'battle_provider.dart';
+import 'connection_provider.dart' show terminalBufferProvider;
 import 'room_targets_provider.dart';
 import 'settings_provider.dart';
 
@@ -59,11 +60,22 @@ class TargetNotifier extends Notifier<String?> {
   Set<String> get _ignored =>
       ref.read(settingsProvider).ignoredKillTargets.toSet();
 
-  /// The Tab cycle: every creature instance in the room, minus ignored ones.
-  List<String> get candidates => [
-        for (final t in ref.read(roomTargetInstancesProvider))
-          if (!_ignored.contains(targetBaseKeyword(t))) t,
-      ];
+  /// The Tab cycle, minus ignored creatures: every creature instance in the
+  /// room, then the kill targets recently linked in the output (the ones
+  /// Ctrl/Cmd+K reaches) that the room listing didn't already name.
+  List<String> get candidates {
+    final room = ref.read(roomTargetInstancesProvider);
+    final inRoom = {for (final t in room) targetBaseKeyword(t)};
+    final linked = ref
+        .read(terminalBufferProvider.notifier)
+        .recentKillTargets()
+        .where((t) => !inRoom.contains(targetBaseKeyword(t)));
+    final ignored = _ignored;
+    return [
+      for (final t in [...room, ...linked])
+        if (!ignored.contains(targetBaseKeyword(t))) t,
+    ];
+  }
 
   /// Sets the target from a kill-link click or the Kill picker.
   void set(String target) {

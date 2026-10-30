@@ -45,7 +45,8 @@ Three parts: WASD movement, a WoW-style action bar on 1–0, and a `$target` tha
 | R / F | `up` / `down` |
 | 1 … 9, 0 | action bar slots 1–10 |
 | Tab / Shift+Tab | next / previous target |
-| X | ignore current target, move to the next |
+| T | `kill TARGET` (Sami, 2026-10-30) |
+| X / Shift+T | ignore current target, move to the next |
 | Esc | clear target |
 | Enter | open the input |
 | any other key | flash "Enter to type" on the strip; nothing is sent |
@@ -90,7 +91,7 @@ A single creature keyword, the same string the red kill links use (`orc`, `hare`
 
 | Source | When |
 |---|---|
-| Tab / Shift+Tab | cycles through `roomTargetsProvider` in the order the room listed them, **minus ignored keywords**. Duplicates get AA's ordinal: two orcs give `orc` then `orc 2`, and `$target` expands to `orc 2` so `kill $target` becomes `kill orc 2`. |
+| Tab / Shift+Tab | cycles through `roomTargetsProvider` in the order the room listed them, then the kill targets linked in the last 100 lines of output (what Ctrl/Cmd+K reaches, newest first; added 2026-10-30), **minus ignored keywords**. Duplicates get AA's ordinal: two orcs give `orc` then `orc 2`, and `$target` expands to `orc 2` so `kill $target` becomes `kill orc 2`. |
 | Clicking a red kill link | sets the target to that keyword (the link still sends `kill …` as today) |
 | Kill picker | choosing a creature sets the target |
 | Fight starts | if no target is set, `BattleStats.target` (the opponent of record) becomes the target. That is a display name (`Ship rat`), so it is lowercased and reduced to its head noun (`rat`), the same way kill links pick a keyword. |

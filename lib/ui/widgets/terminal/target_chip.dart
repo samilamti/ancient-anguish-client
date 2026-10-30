@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/terminal_colors.dart';
+import '../../../providers/connection_provider.dart' show terminalBufferProvider;
 import '../../../providers/room_targets_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/target_provider.dart';
@@ -22,13 +23,12 @@ class TargetChip extends ConsumerWidget {
     final target = ref.watch(targetProvider);
     if (target == null && hideWhenEmpty) return const SizedBox.shrink();
 
-    // "Tab" hints that there is something else to cycle to.
-    final ignored =
-        ref.watch(settingsProvider.select((s) => s.ignoredKillTargets));
-    final candidates = ref
-        .watch(roomTargetInstancesProvider)
-        .where((t) => !ignored.contains(targetBaseKeyword(t)))
-        .length;
+    // "Tab" hints that there is something else to cycle to. Watched so the
+    // hint follows the room, new kill links and the ignore list.
+    ref.watch(settingsProvider.select((s) => s.ignoredKillTargets));
+    ref.watch(roomTargetInstancesProvider);
+    ref.watch(terminalBufferProvider);
+    final candidates = ref.read(targetProvider.notifier).candidates.length;
     final red = TerminalColors.brightRed;
     final style = TextStyle(
       fontFamily: 'JetBrainsMono',

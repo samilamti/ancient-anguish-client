@@ -272,4 +272,43 @@ void main() {
       expect(AppSettings.fromJson(json).actionBarCommands.first, 'kill orc');
     });
   });
+
+  group('T', () {
+    testWidgets('kills the target', (tester) async {
+      final container = await pumpPlay(tester);
+      container.read(targetProvider.notifier).set('orc 2');
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+      expect(service.sent, ['kill orc 2']);
+    });
+
+    testWidgets('held T kills once', (tester) async {
+      final container = await pumpPlay(tester);
+      container.read(targetProvider.notifier).set('orc');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyT);
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.keyT);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyT);
+      expect(service.sent, ['kill orc']);
+    });
+
+    testWidgets('with no target sends nothing and says so', (tester) async {
+      final container = await pumpPlay(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+      expect(service.sent, isEmpty);
+      expect(container.read(terminalBufferProvider).last.plainText,
+          'No target.');
+    });
+
+    testWidgets('Shift+T ignores the target instead', (tester) async {
+      final container = await pumpPlay(tester);
+      container.read(targetProvider.notifier).set('orc');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      expect(service.sent, isEmpty);
+      expect(container.read(settingsProvider).ignoredKillTargets, ['orc']);
+      expect(container.read(targetProvider), isNull);
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+    });
+  });
 }

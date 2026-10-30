@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../providers/connection_provider.dart' show connectionServiceProvider;
+import '../../../providers/connection_provider.dart'
+    show connectionServiceProvider, terminalBufferProvider;
 import '../../../providers/game_state_provider.dart';
+import '../../../providers/link_command_provider.dart';
 import '../../../providers/notification_provider.dart';
 import '../../../providers/play_mode_provider.dart';
 import '../../../providers/settings_provider.dart';
@@ -103,6 +105,19 @@ class _PlayModeKeysState extends ConsumerState<PlayModeKeys> {
         );
   }
 
+  /// T: attacks the current target, exactly as clicking its red kill link
+  /// would (alias-expanded, into history). One press, one `kill`.
+  void _killTarget() {
+    final target = ref.read(targetProvider);
+    if (target == null) {
+      ref
+          .read(terminalBufferProvider.notifier)
+          .addLocalLine('No target.', isError: true);
+      return;
+    }
+    ref.read(linkCommandSenderProvider)('kill $target');
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (!_active || !node.hasPrimaryFocus) return KeyEventResult.ignored;
     if (event is KeyUpEvent) return KeyEventResult.ignored;
@@ -117,6 +132,7 @@ class _PlayModeKeysState extends ConsumerState<PlayModeKeys> {
         playModeSlotKeys.containsKey(key) ||
         key == LogicalKeyboardKey.tab ||
         key == LogicalKeyboardKey.keyX ||
+        key == LogicalKeyboardKey.keyT ||
         key == LogicalKeyboardKey.escape ||
         key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter;
@@ -143,6 +159,11 @@ class _PlayModeKeysState extends ConsumerState<PlayModeKeys> {
     }
     if (key == LogicalKeyboardKey.keyX) {
       _ignoreTarget();
+      return KeyEventResult.handled;
+    }
+    // T kills the target; Shift+T ignores it, like X.
+    if (key == LogicalKeyboardKey.keyT) {
+      keys.isShiftPressed ? _ignoreTarget() : _killTarget();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.escape) {
@@ -187,7 +208,7 @@ class PlayModeStrip extends ConsumerStatefulWidget {
   static const green = Color(0xFF4CAF50);
 
   static const text =
-      'PLAY · WASD move · 1–0 bar · Tab target · Enter to type';
+      'PLAY · WASD move · 1–0 bar · Tab target · T kill · Enter to type';
 
   @override
   ConsumerState<PlayModeStrip> createState() => _PlayModeStripState();

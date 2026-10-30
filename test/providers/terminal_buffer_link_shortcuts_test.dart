@@ -7,6 +7,8 @@ import 'package:ancient_anguish_client/models/text_link_rule.dart';
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
 import 'package:ancient_anguish_client/providers/game_state_provider.dart'
     show areaDetectorProvider, promptParserProvider;
+import 'package:ancient_anguish_client/providers/settings_provider.dart';
+import 'package:ancient_anguish_client/providers/target_provider.dart';
 import 'package:ancient_anguish_client/providers/text_link_rule_provider.dart';
 import 'package:ancient_anguish_client/providers/unified_area_config_provider.dart';
 import 'package:ancient_anguish_client/protocol/telnet/telnet_events.dart';
@@ -90,5 +92,31 @@ void main() {
   test('an empty buffer offers neither', () {
     expect(buffer().mostRecentKillCommand, isNull);
     expect(buffer().mostRecentTextLinkCommand, isNull);
+  });
+
+  group('play-mode Tab sees identified kill targets', () {
+    test('recentKillTargets lists linked creatures newest first, once each',
+        () async {
+      await feed(['Light pine forest (n,e,s)', 'A giant eagle.']);
+      await feed(['Dark cave (n)', 'A giant eagle.', 'A wild boar.']);
+      expect(buffer().recentKillTargets(), ['boar', 'eagle']);
+    });
+
+    test('the Tab cycle adds them after the room, skipping ignored', () async {
+      // Room block still open (no prompt yet), so only the links know it.
+      await feed(['Light pine forest (n,e,s)', 'A giant eagle.']);
+      final target = container.read(targetProvider.notifier);
+      expect(target.candidates, ['eagle']);
+      target.next();
+      expect(container.read(targetProvider), 'eagle');
+      container.read(settingsProvider.notifier).addIgnoredKillTarget('eagle');
+      expect(target.candidates, isEmpty);
+    });
+
+    test('a creature the room listed is not offered twice', () async {
+      await feed(['Light pine forest (n,e,s)', 'A giant eagle.', 'An eagle.', '']);
+      expect(container.read(targetProvider.notifier).candidates,
+          ['eagle', 'eagle 2']);
+    });
   });
 }

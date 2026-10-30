@@ -280,7 +280,12 @@ class _AboutScreenState extends State<AboutScreen> {
                   ),
                   const SizedBox(height: 6),
                   const _ShortcutRow(
-                    keys: 'X',
+                    keys: 'T',
+                    description: 'Attack the target (kill TARGET)',
+                  ),
+                  const SizedBox(height: 6),
+                  const _ShortcutRow(
+                    keys: 'X / Shift+T',
                     description: 'Ignore the target and move to the next',
                   ),
                   const SizedBox(height: 6),

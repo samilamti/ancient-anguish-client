@@ -1140,6 +1140,25 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   String? get mostRecentTextLinkCommand =>
       _mostRecentCommandWhere((cmd) => !_isKillCommand(cmd));
 
+  /// Creatures offered as red kill links in the last [lines] lines of
+  /// output, newest first, each once. These are the "identified" targets
+  /// Ctrl/Cmd+K reaches; play-mode Tab cycles them after the room's own.
+  List<String> recentKillTargets({int lines = 100}) {
+    final out = <String>[];
+    final stop = state.length > lines ? state.length - lines : 0;
+    for (var i = state.length - 1; i >= stop; i--) {
+      final spans = state[i].spans;
+      for (var j = spans.length - 1; j >= 0; j--) {
+        final cmd = spans[j].command;
+        if (cmd == null || !_isKillCommand(cmd)) continue;
+        final target = AppSettings.normalizeTarget(
+            cmd.trimLeft().substring('kill '.length));
+        if (target.isNotEmpty && !out.contains(target)) out.add(target);
+      }
+    }
+    return out;
+  }
+
   static bool _isKillCommand(String command) =>
       command.trimLeft().toLowerCase().startsWith('kill ');
 

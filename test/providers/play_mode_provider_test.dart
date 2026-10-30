@@ -60,4 +60,11 @@ void main() {
     expect(s.playModeEnabled, isTrue);
     expect(AppSettings.fromJson(const {}).playModeEnabled, isFalse);
   });
+
+  test('the key overlay is on by default and round-trips', () {
+    expect(AppSettings.fromJson(const {}).playModeKeyOverlay, isTrue);
+    final s = AppSettings.fromJson(
+        const AppSettings(playModeKeyOverlay: false).toJson());
+    expect(s.playModeKeyOverlay, isFalse);
+  });
 }

@@ -48,6 +48,7 @@ import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
 import 'history_screen.dart';
 import 'ignored_kill_targets_screen.dart';
+import 'play_mode_settings_screen.dart';
 import 'support_screen.dart';
 import 'text_link_rules_screen.dart';
 import 'trigger_settings_screen.dart';
@@ -144,6 +145,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         // Starred command triggers (local only); hidden when none are.
         const Positioned.fill(child: FavoriteTriggersOverlay()),
+        // The last play-mode key and what it sent; off in Play Mode settings.
+        if (!isMobile) const Positioned.fill(child: PlayKeyOverlay()),
         const Positioned(
           top: 0,
           left: 0,
@@ -940,6 +943,15 @@ class SettingsDrawer extends ConsumerWidget {
               onTap: () => _openScreen(
                   context, const AdvancedCustomizationScreen()),
             ),
+
+            if (!isMobile)
+              _DrawerNavTile(
+                icon: const Icon(Icons.sports_esports, size: 20),
+                title: 'Play Mode',
+                subtitle: 'Keyboard play, pressed-key overlay',
+                onTap: () =>
+                    _openScreen(context, const PlayModeSettingsScreen()),
+              ),
 
             _DrawerNavTile(
               icon: const Icon(Icons.link, size: 20),

@@ -59,6 +59,10 @@ Three parts: WASD movement, a WoW-style action bar on 1–0, and a `$target` tha
 
 A dedicated `Focus` around the terminal area holds focus in play mode and handles the keys above in `onKeyEvent`, returning `ignored` for anything with Ctrl/Cmd so global chords still bubble up. The `InputBar`'s `_handleKey` is untouched, apart from Enter/Esc telling the play-mode notifier to close the input when play mode is on.
 
+### Key overlay
+
+Each key that sends something (a move, a bar slot, T) briefly shows itself and what it sent, translucent, in the middle of the output: `W  north`, `1  bow; smile`. It holds for about 0.7 s, then fades, and never takes a click. It is on by default and switched off under Settings → Play Mode, which also holds the play-mode on/off switch.
+
 ## 2. Action bar
 
 ### Slots point to aliases

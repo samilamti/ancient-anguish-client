@@ -79,3 +79,39 @@ class PlayStripFlashNotifier extends Notifier<int> {
 
   void flash() => state++;
 }
+
+/// One play-mode key press that sent something, for the key overlay.
+class PlayKeyPress {
+  /// The key as printed on the keyboard: `W`, `1`, `T`.
+  final String key;
+
+  /// What it sent, after alias expansion. Several commands are joined
+  /// with `; `.
+  final String command;
+
+  /// Distinguishes two presses of the same key, so each one restarts the
+  /// overlay's fade.
+  final int seq;
+
+  const PlayKeyPress(this.key, this.command, this.seq);
+}
+
+/// The latest key press for the overlay, or null before the first one.
+/// Nothing is recorded while `AppSettings.playModeKeyOverlay` is off.
+final playKeyPressProvider =
+    NotifierProvider<PlayKeyPressNotifier, PlayKeyPress?>(
+        PlayKeyPressNotifier.new);
+
+class PlayKeyPressNotifier extends Notifier<PlayKeyPress?> {
+  int _seq = 0;
+
+  @override
+  PlayKeyPress? build() => null;
+
+  void show(String key, Iterable<String> commands) {
+    if (!ref.read(settingsProvider).playModeKeyOverlay) return;
+    final command = commands.where((c) => c.isNotEmpty).join('; ');
+    if (command.isEmpty) return;
+    state = PlayKeyPress(key, command, ++_seq);
+  }
+}

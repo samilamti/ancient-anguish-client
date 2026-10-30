@@ -40,7 +40,8 @@ final Map<LogicalKeyboardKey, int> playModeSlotKeys = {
 };
 
 /// Signature of the action-bar dispatcher the key handler calls for 1…0.
-typedef ActionSlotRunner = void Function(WidgetRef ref, int slot);
+/// Returns the commands it sent, for the key overlay.
+typedef ActionSlotRunner = List<String> Function(WidgetRef ref, int slot);
 
 /// Holds keyboard focus while play mode is on and the input is closed, and
 /// turns keys into moves, bar slots and targeting. Holding a movement key
@@ -88,10 +89,15 @@ class _PlayModeKeysState extends ConsumerState<PlayModeKeys> {
   static bool _isTyping(FocusNode? node) =>
       node?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
 
-  void _move(String direction) {
+  void _move(LogicalKeyboardKey key, String direction) {
     ref.read(connectionServiceProvider).sendCommand(direction);
     ref.read(gameStateProvider.notifier).recordDirectionalAttempt(direction);
+    _announce(key.keyLabel, [direction]);
   }
+
+  /// Feeds the key overlay; it checks the setting itself.
+  void _announce(String key, Iterable<String> commands) =>
+      ref.read(playKeyPressProvider.notifier).show(key, commands);
 
   void _ignoreTarget() {
     final keyword = ref.read(targetProvider.notifier).ignoreCurrent();
@@ -116,6 +122,7 @@ class _PlayModeKeysState extends ConsumerState<PlayModeKeys> {
       return;
     }
     ref.read(linkCommandSenderProvider)('kill $target');
+    _announce('T', ['kill $target']);
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -144,12 +151,13 @@ class _PlayModeKeysState extends ConsumerState<PlayModeKeys> {
     }
 
     if (move != null) {
-      _move(move);
+      _move(key, move);
       return KeyEventResult.handled;
     }
     final slot = playModeSlotKeys[key];
     if (slot != null) {
-      widget.onSlot?.call(ref, slot);
+      final sent = widget.onSlot?.call(ref, slot);
+      if (sent != null) _announce(key.keyLabel, sent);
       return KeyEventResult.handled;
     }
     final target = ref.read(targetProvider.notifier);
@@ -260,6 +268,126 @@ class _PlayModeStripState extends ConsumerState<PlayModeStrip>
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// Shows the last play-mode key and what it sent, translucent, in the middle
+/// of the output: `W  north`. Each press restarts it; it holds briefly and
+/// fades. Never takes a pointer, so clicks reach the links underneath.
+class PlayKeyOverlay extends ConsumerStatefulWidget {
+  const PlayKeyOverlay({super.key});
+
+  /// Fully shown for the first part of [duration], then fades out.
+  static const duration = Duration(milliseconds: 1100);
+
+  @override
+  ConsumerState<PlayKeyOverlay> createState() => _PlayKeyOverlayState();
+}
+
+class _PlayKeyOverlayState extends ConsumerState<PlayKeyOverlay>
+    with SingleTickerProviderStateMixin {
+  // Created in initState, not lazily: a lazy one would first be built in
+  // dispose when no key was ever pressed, after the ticker's context is gone.
+  late final AnimationController _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _fade = AnimationController(vsync: this, duration: PlayKeyOverlay.duration);
+  }
+
+  @override
+  void dispose() {
+    _fade.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<PlayKeyPress?>(playKeyPressProvider, (_, next) {
+      if (next != null) _fade.forward(from: 0);
+    });
+    final press = ref.watch(playKeyPressProvider);
+    final enabled =
+        ref.watch(settingsProvider.select((s) => s.playModeKeyOverlay));
+    final on = ref.watch(playModeProvider.select((m) => m.isOn));
+    if (press == null || !enabled || !on) return const SizedBox.shrink();
+
+    return IgnorePointer(
+      child: Center(
+        child: AnimatedBuilder(
+          animation: _fade,
+          builder: (context, child) {
+            // Hold for 60%, then fade. Hidden until the first forward().
+            final t = _fade.value;
+            final opacity = !_fade.isAnimating && t == 0
+                ? 0.0
+                : t < 0.6
+                    ? 1.0
+                    : 1 - (t - 0.6) / 0.4;
+            return Opacity(opacity: opacity, child: child);
+          },
+          child: _KeyCard(press: press),
+        ),
+      ),
+    );
+  }
+}
+
+class _KeyCard extends StatelessWidget {
+  final PlayKeyPress press;
+
+  const _KeyCard({required this.press});
+
+  @override
+  Widget build(BuildContext context) {
+    const green = PlayModeStrip.green;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 420),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.black.withAlpha(150),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: green.withAlpha(120)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            constraints: const BoxConstraints(minWidth: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: green.withAlpha(60),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: green.withAlpha(200)),
+            ),
+            child: Text(
+              press.key,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'JetBrainsMono',
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Flexible(
+            child: Text(
+              press.command,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'JetBrainsMono',
+                fontSize: 20,
+                color: Colors.white.withAlpha(230),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -36,13 +36,17 @@ String? _slotLine(WidgetRef ref, int slot) =>
 /// Fires action-bar [slot] (0-based): its alias or saved command, expanded
 /// exactly as if it had been typed. One press, one dispatch; a `$target` line
 /// with no target is refused by the alias engine, which says "No target.".
-void runActionBarSlot(WidgetRef ref, int slot) {
+/// Returns the commands sent, for the play-mode key overlay.
+List<String> runActionBarSlot(WidgetRef ref, int slot) {
   final line = _slotLine(ref, slot);
-  if (line == null) return;
+  if (line == null) return const [];
   final service = ref.read(connectionServiceProvider);
-  for (final outgoing in ref.read(aliasEngineProvider).expand(line)) {
-    if (outgoing.isNotEmpty) service.sendCommand(outgoing);
-  }
+  final sent = [
+    for (final outgoing in ref.read(aliasEngineProvider).expand(line))
+      if (outgoing.isNotEmpty) outgoing,
+  ];
+  sent.forEach(service.sendCommand);
+  return sent;
 }
 
 /// Called with each line typed and sent in play mode: puts it on the bar's

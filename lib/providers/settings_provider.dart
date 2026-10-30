@@ -44,6 +44,7 @@ class AppSettings {
   final List<String>
       ignoredKillTargets; // words that must never render as red kill links
   final bool playModeEnabled; // keyboard play mode (WASD, action bar) on
+  final bool playModeKeyOverlay; // flash each play-mode key and its command
   final List<String?> actionBarAliasIds; // 10 play-mode slots → alias IDs
   final List<String?> actionBarCommands; // commands typed in play mode, auto-slotted
 
@@ -99,6 +100,7 @@ class AppSettings {
     this.killAliasSteps = const {},
     this.ignoredKillTargets = const [],
     this.playModeEnabled = false,
+    this.playModeKeyOverlay = true,
     this.actionBarAliasIds = emptyActionBar,
     this.actionBarCommands = emptyActionBar,
   });
@@ -140,6 +142,7 @@ class AppSettings {
     Map<String, List<String>>? killAliasSteps,
     List<String>? ignoredKillTargets,
     bool? playModeEnabled,
+    bool? playModeKeyOverlay,
     List<String?>? actionBarAliasIds,
     List<String?>? actionBarCommands,
   }) {
@@ -179,6 +182,7 @@ class AppSettings {
       killAliasSteps: killAliasSteps ?? this.killAliasSteps,
       ignoredKillTargets: ignoredKillTargets ?? this.ignoredKillTargets,
       playModeEnabled: playModeEnabled ?? this.playModeEnabled,
+      playModeKeyOverlay: playModeKeyOverlay ?? this.playModeKeyOverlay,
       actionBarAliasIds: actionBarAliasIds ?? this.actionBarAliasIds,
       actionBarCommands: actionBarCommands ?? this.actionBarCommands,
     );
@@ -217,6 +221,7 @@ class AppSettings {
         'killAliasSteps': killAliasSteps,
         'ignoredKillTargets': ignoredKillTargets,
         'playModeEnabled': playModeEnabled,
+        'playModeKeyOverlay': playModeKeyOverlay,
         'actionBarAliasIds': actionBarAliasIds,
         'actionBarCommands': actionBarCommands,
       };
@@ -275,6 +280,7 @@ class AppSettings {
           ? List<String>.from(json['ignoredKillTargets'] as List)
           : const [],
       playModeEnabled: json['playModeEnabled'] as bool? ?? false,
+      playModeKeyOverlay: json['playModeKeyOverlay'] as bool? ?? true,
       actionBarAliasIds: _actionBarFromJson(json['actionBarAliasIds']),
       actionBarCommands: _actionBarFromJson(json['actionBarCommands']),
     );
@@ -546,6 +552,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void setPlayModeEnabled(bool enabled) {
     if (state.playModeEnabled == enabled) return;
     state = state.copyWith(playModeEnabled: enabled);
+    _saveSettings();
+  }
+
+  void setPlayModeKeyOverlay(bool enabled) {
+    if (state.playModeKeyOverlay == enabled) return;
+    state = state.copyWith(playModeKeyOverlay: enabled);
     _saveSettings();
   }
 

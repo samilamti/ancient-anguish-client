@@ -45,9 +45,12 @@ void main() {
           body: Builder(
             builder: (context) => PlayModeKeys(
               available: MediaQuery.of(context).size.width >= 768,
-              onSlot: (_, slot) => slots.add(slot),
+              onSlot: (_, slot) {
+                slots.add(slot);
+                return slot == 0 ? const ['bow', 'smile'] : const [];
+              },
               child: const Column(
-                children: [Expanded(child: SizedBox()), InputBar()],
+                children: [Expanded(child: PlayKeyOverlay()), InputBar()],
               ),
             ),
           ),
@@ -110,6 +113,43 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.digit3);
     expect(slots, [0, 9, 2]);
     expect(service.sent, isEmpty);
+  });
+
+  testWidgets('the overlay shows the key and what it sent, then fades',
+      (tester) async {
+    await pumpPlay(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyW);
+    await tester.pump();
+    expect(find.text('W'), findsOneWidget);
+    expect(find.text('north'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+    await tester.pump();
+    expect(find.text('1'), findsOneWidget);
+    expect(find.text('bow; smile'), findsOneWidget);
+
+    await tester.pump(PlayKeyOverlay.duration);
+    final opacity = tester.widget<Opacity>(find.ancestor(
+        of: find.text('bow; smile'), matching: find.byType(Opacity)));
+    expect(opacity.opacity, 0);
+  });
+
+  testWidgets('an empty slot shows nothing', (tester) async {
+    await pumpPlay(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
+    await tester.pump();
+    expect(find.text('2'), findsNothing);
+  });
+
+  testWidgets('the overlay stays away when switched off in settings',
+      (tester) async {
+    final container = await pumpPlay(tester);
+    container.read(settingsProvider.notifier).setPlayModeKeyOverlay(false);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyW);
+    await tester.pump();
+    expect(service.sent, ['north']);
+    expect(find.text('north'), findsNothing);
   });
 
   testWidgets('Ctrl/Cmd chords are left for the global shortcuts',

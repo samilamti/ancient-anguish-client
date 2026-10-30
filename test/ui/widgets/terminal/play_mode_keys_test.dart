@@ -201,4 +201,75 @@ void main() {
     expect(find.byType(TextField), findsOneWidget);
     expect(container.read(playModeFocusProvider).hasFocus, isFalse);
   });
+
+  group('typed commands fill the action bar', () {
+    Future<void> type(WidgetTester tester, String line) async {
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), line);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('each new command takes the next free slot', (tester) async {
+      final container = await pumpPlay(tester);
+      container.read(settingsProvider.notifier).setActionBarSlot(1, 'alias_sc');
+      await type(tester, 'kill orc');
+      await type(tester, 'kill orc'); // already on the bar
+      await type(tester, 'north'); // movement has its own keys
+      await type(tester, 'sc'); // already on the bar as slot 2's alias
+      await type(tester, 'drink potion');
+      final s = container.read(settingsProvider);
+      expect(s.actionBarCommands.take(3), ['kill orc', null, 'drink potion']);
+      expect(s.actionBarAliasIds[1], 'alias_sc');
+    });
+
+    testWidgets('nothing is added outside play mode', (tester) async {
+      final container = await pumpPlay(tester);
+      container.read(playModeProvider.notifier).setEnabled(false);
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'kill orc');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(container.read(settingsProvider).actionBarCommands,
+          everyElement(isNull));
+    });
+  });
+
+  group('autoAddActionBarCommand', () {
+    test('stops once all ten slots are taken', () {
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      final s = c.read(settingsProvider.notifier);
+      s.setActionBarSlot(4, 'mine');
+      for (var i = 0; i < 9; i++) {
+        expect(s.autoAddActionBarCommand('cmd $i'), isNotNull);
+      }
+      expect(s.autoAddActionBarCommand('one too many'), isNull);
+      final bar = c.read(settingsProvider);
+      expect(bar.actionBarAliasIds[4], 'mine');
+      expect(bar.actionBarCommands[4], isNull);
+      expect(bar.actionBarCommands.whereType<String>(), hasLength(9));
+    });
+
+    test('assigning or clearing a slot replaces its command', () {
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      final s = c.read(settingsProvider.notifier);
+      s.autoAddActionBarCommand('kill orc');
+      s.setActionBarSlot(0, null);
+      expect(c.read(settingsProvider).actionBarCommands[0], isNull);
+      // The freed slot is filled again by the next typed command.
+      expect(s.autoAddActionBarCommand('kill orc'), 0);
+    });
+
+    test('commands round-trip through settings.json', () {
+      final json = const AppSettings().copyWith(actionBarCommands: [
+        'kill orc', null, null, null, null, null, null, null, null, null,
+      ]).toJson();
+      expect(AppSettings.fromJson(json).actionBarCommands.first, 'kill orc');
+    });
+  });
 }

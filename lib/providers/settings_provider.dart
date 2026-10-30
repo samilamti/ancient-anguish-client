@@ -45,6 +45,7 @@ class AppSettings {
       ignoredKillTargets; // words that must never render as red kill links
   final bool playModeEnabled; // keyboard play mode (WASD, action bar) on
   final List<String?> actionBarAliasIds; // 10 play-mode slots → alias IDs
+  final List<String?> actionBarCommands; // commands typed in play mode, auto-slotted
 
   /// Maximum number of alias rules that can be pinned to the D-Pad's
   /// quick-slot column at once.
@@ -99,6 +100,7 @@ class AppSettings {
     this.ignoredKillTargets = const [],
     this.playModeEnabled = false,
     this.actionBarAliasIds = emptyActionBar,
+    this.actionBarCommands = emptyActionBar,
   });
 
   /// Number of action-bar slots (keys 1…9, 0).
@@ -139,6 +141,7 @@ class AppSettings {
     List<String>? ignoredKillTargets,
     bool? playModeEnabled,
     List<String?>? actionBarAliasIds,
+    List<String?>? actionBarCommands,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -177,6 +180,7 @@ class AppSettings {
       ignoredKillTargets: ignoredKillTargets ?? this.ignoredKillTargets,
       playModeEnabled: playModeEnabled ?? this.playModeEnabled,
       actionBarAliasIds: actionBarAliasIds ?? this.actionBarAliasIds,
+      actionBarCommands: actionBarCommands ?? this.actionBarCommands,
     );
   }
 
@@ -214,6 +218,7 @@ class AppSettings {
         'ignoredKillTargets': ignoredKillTargets,
         'playModeEnabled': playModeEnabled,
         'actionBarAliasIds': actionBarAliasIds,
+        'actionBarCommands': actionBarCommands,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -270,15 +275,18 @@ class AppSettings {
           ? List<String>.from(json['ignoredKillTargets'] as List)
           : const [],
       playModeEnabled: json['playModeEnabled'] as bool? ?? false,
-      actionBarAliasIds: json['actionBarAliasIds'] != null
-          ? List<String?>.unmodifiable([
-              for (var i = 0; i < actionBarSlots; i++)
-                i < (json['actionBarAliasIds'] as List).length
-                    ? (json['actionBarAliasIds'] as List)[i] as String?
-                    : null,
-            ])
-          : emptyActionBar,
+      actionBarAliasIds: _actionBarFromJson(json['actionBarAliasIds']),
+      actionBarCommands: _actionBarFromJson(json['actionBarCommands']),
     );
+  }
+
+  /// Reads a slot list back as exactly [actionBarSlots] entries.
+  static List<String?> _actionBarFromJson(Object? raw) {
+    if (raw is! List) return emptyActionBar;
+    return List<String?>.unmodifiable([
+      for (var i = 0; i < actionBarSlots; i++)
+        i < raw.length ? raw[i] as String? : null,
+    ]);
   }
 
   /// TextField properties driven by [mobileAutoCorrectEnabled].
@@ -541,13 +549,37 @@ class SettingsNotifier extends Notifier<AppSettings> {
     _saveSettings();
   }
 
-  /// Points action-bar [slot] (0-based) at [aliasId], or empties it.
+  /// Points action-bar [slot] (0-based) at [aliasId], or empties it. Either
+  /// way it replaces an auto-added command in that slot.
   void setActionBarSlot(int slot, String? aliasId) {
     if (slot < 0 || slot >= AppSettings.actionBarSlots) return;
     final next = [...state.actionBarAliasIds];
     next[slot] = aliasId;
-    state = state.copyWith(actionBarAliasIds: List.unmodifiable(next));
+    final commands = [...state.actionBarCommands];
+    commands[slot] = null;
+    state = state.copyWith(
+      actionBarAliasIds: List.unmodifiable(next),
+      actionBarCommands: List.unmodifiable(commands),
+    );
     _saveSettings();
+  }
+
+  /// Puts a command typed in play mode into the first free slot. Skipped
+  /// when it is already on the bar or every slot is taken; slots the player
+  /// assigned an alias to are never touched. Returns the slot used, or null.
+  int? autoAddActionBarCommand(String command, {Set<String> onBar = const {}}) {
+    final cmd = command.trim();
+    if (cmd.isEmpty) return null;
+    final commands = [...state.actionBarCommands];
+    if (commands.contains(cmd) || onBar.contains(cmd)) return null;
+    for (var i = 0; i < AppSettings.actionBarSlots; i++) {
+      if (state.actionBarAliasIds[i] != null || commands[i] != null) continue;
+      commands[i] = cmd;
+      state = state.copyWith(actionBarCommands: List.unmodifiable(commands));
+      _saveSettings();
+      return i;
+    }
+    return null;
   }
 
   void toggleMobileAutoCorrect() {

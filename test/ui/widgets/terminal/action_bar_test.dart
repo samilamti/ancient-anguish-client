@@ -136,4 +136,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(settingsProvider).actionBarAliasIds[0], isNull);
   });
+
+  testWidgets('an auto-added command shows and fires from its slot',
+      (tester) async {
+    final container = await pumpBar(tester);
+    container
+        .read(settingsProvider.notifier)
+        .autoAddActionBarCommand('drink potion');
+    await tester.pump();
+    expect(container.read(settingsProvider).actionBarCommands[1],
+        'drink potion');
+    expect(find.text('drink potion'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
+    expect(service.sent, ['drink potion']);
+  });
 }

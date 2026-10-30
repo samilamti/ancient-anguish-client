@@ -28,6 +28,7 @@ import '../../../services/command_counterparts.dart';
 import '../../../services/command_loops.dart';
 import '../../../services/repeat_command.dart';
 import '../../../services/parser/emoji_parser.dart';
+import 'action_bar.dart' show autoAddTypedCommand;
 import 'play_mode.dart';
 
 /// The command input bar at the bottom of the terminal.
@@ -149,6 +150,8 @@ class _InputBarState extends ConsumerState<InputBar> {
     // Play mode: sending closes the input again (the WoW chat loop). The
     // text stays, selected, so Enter Enter resends it.
     if (ref.read(playModeProvider) == PlayMode.input) {
+      // Typed commands fill the action bar's free slots.
+      autoAddTypedCommand(ref, command);
       ref.read(playModeProvider.notifier).closeInput();
       return;
     }

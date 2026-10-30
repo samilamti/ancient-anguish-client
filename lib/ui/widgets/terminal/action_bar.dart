@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/alias_rule.dart';
+import '../../../models/game_state.dart';
 import '../../../providers/alias_provider.dart';
 import '../../../providers/connection_provider.dart' show connectionServiceProvider;
 import '../../../providers/settings_provider.dart';
@@ -19,16 +20,46 @@ AliasRule? actionBarAlias(WidgetRef ref, int slot) {
   return null;
 }
 
-/// Fires action-bar [slot] (0-based): its alias, expanded exactly as if the
-/// keyword had been typed. One press, one dispatch; a `$target` line with
-/// no target is refused by the alias engine, which says "No target.".
+/// The command typed in play mode that was auto-added to [slot], or null.
+/// A slot the player gave an alias never shows one.
+String? actionBarCommand(WidgetRef ref, int slot) {
+  final settings = ref.read(settingsProvider);
+  if (slot < 0 || slot >= AppSettings.actionBarSlots) return null;
+  if (settings.actionBarAliasIds[slot] != null) return null;
+  return settings.actionBarCommands[slot];
+}
+
+/// What pressing [slot] would run: the alias keyword or the saved command.
+String? _slotLine(WidgetRef ref, int slot) =>
+    actionBarAlias(ref, slot)?.keyword ?? actionBarCommand(ref, slot);
+
+/// Fires action-bar [slot] (0-based): its alias or saved command, expanded
+/// exactly as if it had been typed. One press, one dispatch; a `$target` line
+/// with no target is refused by the alias engine, which says "No target.".
 void runActionBarSlot(WidgetRef ref, int slot) {
-  final rule = actionBarAlias(ref, slot);
-  if (rule == null) return;
+  final line = _slotLine(ref, slot);
+  if (line == null) return;
   final service = ref.read(connectionServiceProvider);
-  for (final outgoing in ref.read(aliasEngineProvider).expand(rule.keyword)) {
+  for (final outgoing in ref.read(aliasEngineProvider).expand(line)) {
     if (outgoing.isNotEmpty) service.sendCommand(outgoing);
   }
+}
+
+/// Called with each line typed and sent in play mode: puts it on the bar's
+/// first free slot. Movement (it has its own keys) and client `#` commands
+/// are left off, as is anything already on the bar, by command or by alias
+/// keyword. Once all ten slots are taken nothing more is added.
+void autoAddTypedCommand(WidgetRef ref, String command) {
+  final cmd = command.trim();
+  if (cmd.isEmpty || cmd.startsWith('#')) return;
+  if (GameState.directionalCommands.contains(cmd.toLowerCase())) return;
+  final onBar = {
+    for (var i = 0; i < AppSettings.actionBarSlots; i++)
+      ?actionBarAlias(ref, i)?.keyword,
+  };
+  ref
+      .read(settingsProvider.notifier)
+      .autoAddActionBarCommand(cmd, onBar: onBar);
 }
 
 /// Opens the alias picker for [slot] and stores the choice.
@@ -36,6 +67,7 @@ Future<void> assignActionBarSlot(
     BuildContext context, WidgetRef ref, int slot) async {
   final aliases = ref.read(aliasRulesProvider);
   final current = ref.read(settingsProvider).actionBarAliasIds[slot];
+  final hasCommand = actionBarCommand(ref, slot) != null;
   final choice = await showDialog<_SlotChoice>(
     context: context,
     builder: (context) => SimpleDialog(
@@ -72,7 +104,7 @@ Future<void> assignActionBarSlot(
           onPressed: () => Navigator.pop(context, const _SlotChoice.create()),
           child: const Text('New alias…'),
         ),
-        if (current != null)
+        if (current != null || hasCommand)
           SimpleDialogOption(
             onPressed: () => Navigator.pop(context, const _SlotChoice.clear()),
             child: const Text('Clear slot'),
@@ -122,6 +154,7 @@ class ActionBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Watched so the bar redraws on assignment, alias edits and targeting.
     ref.watch(settingsProvider.select((s) => s.actionBarAliasIds));
+    ref.watch(settingsProvider.select((s) => s.actionBarCommands));
     ref.watch(aliasRulesProvider);
     final hasTarget = ref.watch(targetProvider) != null;
     final engine = ref.read(aliasEngineProvider);
@@ -137,12 +170,14 @@ class ActionBar extends ConsumerWidget {
             Expanded(
               child: Builder(builder: (context) {
                 final rule = actionBarAlias(ref, i);
-                final needsTarget =
-                    rule != null && engine.usesTarget(rule.keyword);
+                final command = actionBarCommand(ref, i);
+                final line = rule?.keyword ?? command;
+                final needsTarget = line != null && engine.usesTarget(line);
                 return _Slot(
                   keyLabel: _keyLabel(i),
-                  label: rule?.keyword,
-                  tooltip: rule?.expansion,
+                  label: line,
+                  tooltip: rule?.expansion ?? command,
+                  auto: rule == null && command != null,
                   dimmed: needsTarget && !hasTarget,
                   onTap: () => runActionBarSlot(ref, i),
                   onAssign: () => assignActionBarSlot(context, ref, i),
@@ -160,6 +195,9 @@ class _Slot extends StatelessWidget {
   final String? label;
   final String? tooltip;
   final bool dimmed;
+
+  /// Filled from a typed command rather than assigned: shown in italics.
+  final bool auto;
   final VoidCallback onTap;
   final VoidCallback onAssign;
 
@@ -168,6 +206,7 @@ class _Slot extends StatelessWidget {
     required this.label,
     required this.tooltip,
     required this.dimmed,
+    this.auto = false,
     required this.onTap,
     required this.onAssign,
   });
@@ -213,6 +252,7 @@ class _Slot extends StatelessWidget {
                       fontFamily: 'JetBrainsMono',
                       fontSize: 13,
                       color: label == null ? primary.withAlpha(120) : primary,
+                      fontStyle: auto ? FontStyle.italic : null,
                     ),
                   ),
                 ),

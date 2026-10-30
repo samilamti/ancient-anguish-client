@@ -1,6 +1,7 @@
 import 'package:ancient_anguish_client/models/alias_rule.dart';
 import 'package:ancient_anguish_client/providers/alias_provider.dart';
 import 'package:ancient_anguish_client/providers/connection_provider.dart';
+import 'package:ancient_anguish_client/providers/notification_provider.dart';
 import 'package:ancient_anguish_client/providers/play_mode_provider.dart';
 import 'package:ancient_anguish_client/providers/settings_provider.dart';
 import 'package:ancient_anguish_client/providers/target_provider.dart';
@@ -12,6 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'terminal_view_helpers.dart' show settleNotifications;
 
 class _FakeConnectionService extends TcpConnectionService {
   final List<String> sent = [];
@@ -43,6 +46,7 @@ void main() {
           body: PlayModeKeys(
             available: true,
             onSlot: runActionBarSlot,
+            onAssignSlot: assignActionBarSlot,
             child: Column(
               children: [Expanded(child: SizedBox()), ActionBar()],
             ),
@@ -149,5 +153,54 @@ void main() {
     expect(find.text('drink potion'), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
     expect(service.sent, ['drink potion']);
+  });
+
+  testWidgets('Shift+digit empties the slot, alias or typed command',
+      (tester) async {
+    final container = await pumpBar(tester);
+    container
+        .read(settingsProvider.notifier)
+        .autoAddActionBarCommand('drink potion');
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+
+    final settings = container.read(settingsProvider);
+    expect(settings.actionBarAliasIds[0], isNull);
+    expect(settings.actionBarCommands[1], isNull);
+    expect(settings.actionBarAliasIds[9], 'heal');
+    expect(service.sent, isEmpty);
+    expect(container.read(appNotificationsProvider).map((n) => n.message),
+        contains('Slot 2 cleared'));
+    await settleNotifications(tester);
+  });
+
+  testWidgets('Alt+digit opens the picker and reassigns the slot',
+      (tester) async {
+    final container = await pumpBar(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pumpAndSettle();
+    expect(find.text('Slot 1'), findsOneWidget);
+    await tester.tap(find.text('heal').last);
+    await tester.pumpAndSettle();
+    expect(container.read(settingsProvider).actionBarAliasIds[0], 'heal');
+    expect(service.sent, isEmpty);
+  });
+
+  testWidgets('Shift-click empties a slot', (tester) async {
+    final container = await pumpBar(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.tap(find.text('heal'));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(container.read(settingsProvider).actionBarAliasIds[9], isNull);
+    expect(service.sent, isEmpty);
+    await settleNotifications(tester);
   });
 }

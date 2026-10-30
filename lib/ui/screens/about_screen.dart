@@ -274,6 +274,16 @@ class _AboutScreenState extends State<AboutScreen> {
                   ),
                   const SizedBox(height: 6),
                   const _ShortcutRow(
+                    keys: 'Shift+1 … 0',
+                    description: 'Empty that slot',
+                  ),
+                  const SizedBox(height: 6),
+                  const _ShortcutRow(
+                    keys: 'Alt+1 … 0',
+                    description: 'Assign that slot another alias',
+                  ),
+                  const SizedBox(height: 6),
+                  const _ShortcutRow(
                     keys: 'Tab',
                     description: r'Next target (Shift+Tab: previous); '
                         r'aliases use it as $target',

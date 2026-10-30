@@ -78,7 +78,7 @@ That keeps one place to edit commands (the alias screen) and means anything that
 
 ### The bar on screen
 
-- Desktop, play mode on: a row of 10 slots directly above the input strip. Each slot shows its key number and the alias keyword (`1 fb`). Empty slots show `+`. Click a slot to send it; right-click or long-press to assign an alias (a picker over the alias list, plus "New alias…").
+- Desktop, play mode on: a row of 10 slots directly above the input strip. Each slot shows its key number and the alias keyword (`1 fb`). Empty slots show `+`. Click a slot to send it; right-click or long-press to assign an alias (a picker over the alias list, plus "New alias…"). Shift+digit (or Shift-click) empties a slot; Alt+digit (or Alt-click) opens the picker to give it another alias.
 - A slot whose expansion contains `$target` is dimmed while no target is set. Pressing it anyway sends nothing and puts a red local line in the terminal: `No target.`
 - Play mode off: the bar is hidden.
 - **Typed commands fill free slots** (Sami, 2026-10-30): a line typed and sent in play mode goes into the first slot that has neither an alias nor a command, unless it is already on the bar (as a command or as a slot alias's keyword). Movement and `#` commands are skipped. Once all ten slots are taken nothing more is added. Auto-filled slots are stored in `actionBarCommands` and shown in italics; assigning an alias or Clear slot replaces one.

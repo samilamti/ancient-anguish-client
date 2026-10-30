@@ -10,6 +10,7 @@ import '../../../providers/notification_provider.dart';
 import '../../../providers/play_mode_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/target_provider.dart';
+import 'action_bar.dart' show clearActionBarSlot;
 
 /// Play-mode movement keys. Full words, as the D-pad sends them.
 final Map<LogicalKeyboardKey, String> playModeMovementKeys = {
@@ -39,17 +40,38 @@ final Map<LogicalKeyboardKey, int> playModeSlotKeys = {
   LogicalKeyboardKey.digit0: 9,
 };
 
+/// The same slots by physical key. With Shift or Alt held the logical key
+/// can be the shifted character (`!`, `¡`) instead of the digit.
+final Map<PhysicalKeyboardKey, int> _playModeSlotPhysicalKeys = {
+  PhysicalKeyboardKey.digit1: 0,
+  PhysicalKeyboardKey.digit2: 1,
+  PhysicalKeyboardKey.digit3: 2,
+  PhysicalKeyboardKey.digit4: 3,
+  PhysicalKeyboardKey.digit5: 4,
+  PhysicalKeyboardKey.digit6: 5,
+  PhysicalKeyboardKey.digit7: 6,
+  PhysicalKeyboardKey.digit8: 7,
+  PhysicalKeyboardKey.digit9: 8,
+  PhysicalKeyboardKey.digit0: 9,
+};
+
 /// Signature of the action-bar dispatcher the key handler calls for 1…0.
 /// Returns the commands it sent, for the key overlay.
 typedef ActionSlotRunner = List<String> Function(WidgetRef ref, int slot);
+
+/// Opens the alias picker for an action bar slot.
+typedef ActionSlotAssigner = Future<void> Function(
+    BuildContext context, WidgetRef ref, int slot);
 
 /// Holds keyboard focus while play mode is on and the input is closed, and
 /// turns keys into moves, bar slots and targeting. Holding a movement key
 /// walks (each OS key repeat sends the move again); every other key is one
 /// dispatch, so holding 1 does not spam a macro.
 ///
-/// Anything with Ctrl/Cmd (or Alt) is left alone so the HomeScreen chords
-/// still bubble up, and nothing is handled while a text field holds focus.
+/// Shift+digit empties that slot and Alt+digit opens its alias picker.
+/// Anything else with Ctrl/Cmd (or Alt) is left alone so the HomeScreen
+/// chords still bubble up, and nothing is handled while a text field holds
+/// focus.
 class PlayModeKeys extends ConsumerStatefulWidget {
   final Widget child;
 
@@ -59,11 +81,15 @@ class PlayModeKeys extends ConsumerStatefulWidget {
   /// Fires action bar slot `n` (0-based). Null until the bar exists.
   final ActionSlotRunner? onSlot;
 
+  /// Alt+digit: reassigns slot `n`. Null until the bar exists.
+  final ActionSlotAssigner? onAssignSlot;
+
   const PlayModeKeys({
     super.key,
     required this.child,
     required this.available,
     this.onSlot,
+    this.onAssignSlot,
   });
 
   @override
@@ -130,11 +156,24 @@ class _PlayModeKeysState extends ConsumerState<PlayModeKeys> {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
 
     final keys = HardwareKeyboard.instance;
-    if (keys.isControlPressed || keys.isMetaPressed || keys.isAltPressed) {
-      return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final slot =
+        playModeSlotKeys[key] ?? _playModeSlotPhysicalKeys[event.physicalKey];
+    final plain = !keys.isControlPressed && !keys.isMetaPressed;
+
+    // Shift+digit empties the slot; Alt+digit reassigns it.
+    if (slot != null && plain && (keys.isShiftPressed || keys.isAltPressed)) {
+      if (event is KeyRepeatEvent) return KeyEventResult.handled;
+      if (keys.isAltPressed) {
+        widget.onAssignSlot?.call(context, ref, slot);
+      } else {
+        clearActionBarSlot(ref, slot);
+      }
+      return KeyEventResult.handled;
     }
 
-    final key = event.logicalKey;
+    if (!plain || keys.isAltPressed) return KeyEventResult.ignored;
+
     final mapped = playModeMovementKeys.containsKey(key) ||
         playModeSlotKeys.containsKey(key) ||
         key == LogicalKeyboardKey.tab ||
@@ -154,7 +193,6 @@ class _PlayModeKeysState extends ConsumerState<PlayModeKeys> {
       _move(key, move);
       return KeyEventResult.handled;
     }
-    final slot = playModeSlotKeys[key];
     if (slot != null) {
       final sent = widget.onSlot?.call(ref, slot);
       if (sent != null) _announce(key.keyLabel, sent);

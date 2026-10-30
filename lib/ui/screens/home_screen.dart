@@ -349,6 +349,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         child: PlayModeKeys(
         available: !isMobile,
         onSlot: runActionBarSlot,
+        onAssignSlot: assignActionBarSlot,
         child: SafeArea(
         child: Stack(
           children: [

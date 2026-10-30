@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/alias_rule.dart';
 import '../../../models/game_state.dart';
 import '../../../providers/alias_provider.dart';
 import '../../../providers/connection_provider.dart' show connectionServiceProvider;
+import '../../../providers/notification_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/target_provider.dart';
 import '../../screens/alias_settings_screen.dart' show openAliasEditor;
@@ -64,6 +66,19 @@ void autoAddTypedCommand(WidgetRef ref, String command) {
   ref
       .read(settingsProvider.notifier)
       .autoAddActionBarCommand(cmd, onBar: onBar);
+}
+
+/// Empties [slot]: its alias or saved command. Shift+digit in play mode, or
+/// Shift-click. Says so, since the slot may be off screen-centre.
+void clearActionBarSlot(WidgetRef ref, int slot) {
+  if (_slotLine(ref, slot) == null &&
+      ref.read(settingsProvider).actionBarAliasIds[slot] == null) {
+    return;
+  }
+  ref.read(settingsProvider.notifier).setActionBarSlot(slot, null);
+  ref
+      .read(appNotificationsProvider.notifier)
+      .show('Slot ${_keyLabel(slot)} cleared');
 }
 
 /// Opens the alias picker for [slot] and stores the choice.
@@ -147,7 +162,8 @@ class _SlotChoice {
 String _keyLabel(int slot) => slot == 9 ? '0' : '${slot + 1}';
 
 /// The 10-slot row shown above the input strip in play mode. Click a slot to
-/// fire it; right-click or long-press to assign an alias.
+/// fire it; right-click, long-press or Alt-click to assign an alias, and
+/// Shift-click to empty it.
 class ActionBar extends ConsumerWidget {
   /// Shown at the left of the bar (the target chip).
   final Widget? leading;
@@ -183,7 +199,17 @@ class ActionBar extends ConsumerWidget {
                   tooltip: rule?.expansion ?? command,
                   auto: rule == null && command != null,
                   dimmed: needsTarget && !hasTarget,
-                  onTap: () => runActionBarSlot(ref, i),
+                  onTap: () {
+                    // Shift-click empties, Alt-click reassigns, like the keys.
+                    final keys = HardwareKeyboard.instance;
+                    if (keys.isShiftPressed) {
+                      clearActionBarSlot(ref, i);
+                    } else if (keys.isAltPressed) {
+                      assignActionBarSlot(context, ref, i);
+                    } else {
+                      runActionBarSlot(ref, i);
+                    }
+                  },
                   onAssign: () => assignActionBarSlot(context, ref, i),
                 );
               }),

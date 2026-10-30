@@ -61,14 +61,15 @@ class TargetNotifier extends Notifier<String?> {
       ref.read(settingsProvider).ignoredKillTargets.toSet();
 
   /// The Tab cycle, minus ignored creatures: every creature instance in the
-  /// room, then the kill targets recently linked in the output (the ones
-  /// Ctrl/Cmd+K reaches) that the room listing didn't already name.
+  /// room, then the kill targets linked in the output since you entered it
+  /// (the ones Ctrl/Cmd+K reaches) that the room listing didn't already name.
+  /// Links from rooms you have walked out of are not offered.
   List<String> get candidates {
     final room = ref.read(roomTargetInstancesProvider);
     final inRoom = {for (final t in room) targetBaseKeyword(t)};
     final linked = ref
         .read(terminalBufferProvider.notifier)
-        .recentKillTargets()
+        .recentKillTargets(currentRoomOnly: true)
         .where((t) => !inRoom.contains(targetBaseKeyword(t)));
     final ignored = _ignored;
     return [

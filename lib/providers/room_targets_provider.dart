@@ -68,7 +68,9 @@ class RoomTargetsNotifier extends Notifier<List<String>> {
     final line = plainText.trimRight();
 
     if (RoomLineClassifier.isRoomHeader(line)) {
-      _commit();
+      // Only an unfinished block is committed here; a finished one already
+      // was, and re-publishing it would hand listeners the room just left.
+      if (_inRoomBlock) _commit();
       _inRoomBlock = true;
       _pending.clear();
       _pendingCounts.clear();
@@ -96,7 +98,10 @@ class RoomTargetsNotifier extends Notifier<List<String>> {
   void _commit() {
     if (_pending.isEmpty) {
       counts = const {};
-      if (state.isNotEmpty) state = const [];
+      // A fresh list even when it was already empty: every room entered is
+      // news to listeners (the target drops when you walk into an empty
+      // room, as it does when you walk into a full one).
+      state = List<String>.unmodifiable(const <String>[]);
       return;
     }
     counts = Map.unmodifiable(_pendingCounts);

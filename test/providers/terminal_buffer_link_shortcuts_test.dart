@@ -113,6 +113,32 @@ void main() {
       expect(target.candidates, isEmpty);
     });
 
+    test('walking on drops creatures linked in the room you left', () async {
+      await feed(['Troll cave (n,s)', 'A huge Troll.', '']);
+      final target = container.read(targetProvider.notifier);
+      expect(target.candidates, ['troll']);
+      target.next();
+      expect(container.read(targetProvider), 'troll');
+
+      // An empty room: nothing to cycle, and the troll is no longer targeted.
+      await feed(['Narrow passage (n,s)', '']);
+      expect(target.candidates, isEmpty);
+      expect(container.read(targetProvider), isNull);
+      // Ctrl/Cmd+K still reaches back through scrollback.
+      expect(buffer().recentKillTargets(), ['troll']);
+
+      await feed(['Light pine forest (n,e,s)', 'A giant eagle.', '']);
+      expect(target.candidates, ['eagle']);
+    });
+
+    test('the target drops when you walk from one empty room to another',
+        () async {
+      await feed(['Narrow passage (n,s)', '']);
+      container.read(targetProvider.notifier).set('troll');
+      await feed(['Dark cave (n)', '']);
+      expect(container.read(targetProvider), isNull);
+    });
+
     test('a creature the room listed is not offered twice', () async {
       await feed(['Light pine forest (n,e,s)', 'A giant eagle.', 'An eagle.', '']);
       expect(container.read(targetProvider.notifier).candidates,

@@ -26,6 +26,7 @@ import '../services/parser/emoji_parser.dart';
 import '../services/parser/link_parser.dart';
 import '../services/parser/map_emoji_transformer.dart';
 import '../services/parser/output_parser.dart';
+import '../services/parser/room_line_classifier.dart';
 import '../services/parser/sheet_parser.dart';
 import '../services/parser/text_link_processor.dart';
 import '../services/movement_tracker.dart';
@@ -1143,11 +1144,19 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
   /// Creatures offered as red kill links in the last [lines] lines of
   /// output, newest first, each once. These are the "identified" targets
   /// Ctrl/Cmd+K reaches; play-mode Tab cycles them after the room's own.
-  List<String> recentKillTargets({int lines = 100}) {
+  ///
+  /// With [currentRoomOnly] the scan stops at the latest room header, so a
+  /// troll linked three rooms back is not offered once you have walked on.
+  List<String> recentKillTargets({
+    int lines = 100,
+    bool currentRoomOnly = false,
+  }) {
     final out = <String>[];
     final stop = state.length > lines ? state.length - lines : 0;
     for (var i = state.length - 1; i >= stop; i--) {
       final spans = state[i].spans;
+      final atRoomStart = currentRoomOnly &&
+          RoomLineClassifier.isRoomHeader(state[i].plainText);
       for (var j = spans.length - 1; j >= 0; j--) {
         final cmd = spans[j].command;
         if (cmd == null || !_isKillCommand(cmd)) continue;
@@ -1155,6 +1164,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             cmd.trimLeft().substring('kill '.length));
         if (target.isNotEmpty && !out.contains(target)) out.add(target);
       }
+      if (atRoomStart) break;
     }
     return out;
   }

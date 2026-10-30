@@ -39,8 +39,17 @@ class PanelTitleBar extends StatelessWidget {
     required this.onPanEnd,
   });
 
+  /// Below this width the pills drop their labels (icon + tooltip only), so
+  /// a narrow panel doesn't overflow its title bar.
+  static const compactWidth = 360.0;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) => _buildBar(context,
+            compact: constraints.maxWidth < compactWidth),
+      );
+
+  Widget _buildBar(BuildContext context, {required bool compact}) {
     final theme = Theme.of(context);
     final primary = theme.colorScheme.primary;
 
@@ -79,12 +88,14 @@ class PanelTitleBar extends StatelessWidget {
               _LabeledPill(
                 icon: Icons.splitscreen,
                 label: 'Separate',
+                compact: compact,
                 onPressed: onSeparateTabs!,
               )
             else if (!isTabbed && onCombineTabs != null)
               _LabeledPill(
                 icon: Icons.join_full,
                 label: 'Combine',
+                compact: compact,
                 onPressed: onCombineTabs!,
               ),
 
@@ -94,6 +105,7 @@ class PanelTitleBar extends StatelessWidget {
                 icon: timestampModeIcon!,
                 label: timestampModeLabel ?? 'Time',
                 tooltip: timestampModeTooltip ?? 'Cycle timestamp display',
+                compact: compact,
                 onPressed: onCycleTimestampMode!,
               ),
 
@@ -103,6 +115,7 @@ class PanelTitleBar extends StatelessWidget {
                 icon: Icons.open_in_new,
                 label: 'Undock',
                 tooltip: 'Undock',
+                compact: compact,
                 onPressed: onUndock!,
               )
             else if (!isDocked && onDock != null)
@@ -135,10 +148,14 @@ class _LabeledPill extends StatelessWidget {
   final String? tooltip;
   final VoidCallback onPressed;
 
+  /// Icon only, with the label moved into the tooltip.
+  final bool compact;
+
   const _LabeledPill({
     required this.icon,
     required this.label,
     this.tooltip,
+    this.compact = false,
     required this.onPressed,
   });
 
@@ -159,7 +176,8 @@ class _LabeledPill extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 13, color: primary),
-              const SizedBox(width: 4),
+              if (!compact) const SizedBox(width: 4),
+              if (!compact)
               Text(
                 label,
                 style: TextStyle(
@@ -175,8 +193,8 @@ class _LabeledPill extends StatelessWidget {
       ),
     );
 
-    if (tooltip != null) {
-      pill = Tooltip(message: tooltip!, child: pill);
+    if (tooltip != null || compact) {
+      pill = Tooltip(message: tooltip ?? label, child: pill);
     }
 
     return Padding(

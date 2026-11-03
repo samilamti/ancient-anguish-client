@@ -59,6 +59,7 @@ import 'settings_provider.dart';
 import 'social_message_provider.dart';
 import 'social_panel_provider.dart';
 import 'recent_words_provider.dart';
+import 'room_insight_provider.dart';
 import 'room_targets_provider.dart';
 import 'target_provider.dart';
 import 'trigger_provider.dart';
@@ -237,6 +238,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
       ref.read(recentWordsProvider.notifier).extractFromLine(plainText);
       final npcTarget =
           ref.read(roomTargetsProvider.notifier).processLine(plainText);
+      ref.read(roomInsightProvider.notifier).processLine(plainText);
       ref.read(gameStateProvider.notifier).processLine(plainText);
 
       // Flushed one line at a time on purpose. Batching the whole transcript
@@ -616,6 +618,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             // value is the target this line announced, if any.
             final npcTarget =
                 ref.read(roomTargetsProvider.notifier).processLine(plainText);
+            ref.read(roomInsightProvider.notifier).processLine(plainText);
 
             // Normal trigger processing. A battle-HUD gag is applied here
             // rather than by `continue`ing earlier, so a gagged combat line

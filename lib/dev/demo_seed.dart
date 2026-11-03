@@ -209,6 +209,12 @@ class _DemoHomeScreenState extends ConsumerState<DemoHomeScreen> {
         // Typing into the shared controller is all the Hints bar needs —
         // it rebuilds off the controller, not off a focus or key event.
         ref.read(inputControllerProvider).text = _hintsInput;
+      case 'room':
+        // The Room tab of the docked social cluster, showing the seeded
+        // forest (it settled during the delay above).
+        ref.read(socialPanelProvider.notifier)
+          ..combineIntoTabs()
+          ..setActiveTab(5);
       default:
         break; // 'terminal' — the seeded output is the shot.
     }

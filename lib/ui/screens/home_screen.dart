@@ -1191,6 +1191,13 @@ class SettingsDrawer extends ConsumerWidget {
               onChanged: (_) => notifier.toggleAchievements(),
             ),
 
+            _DrawerToggle(
+              label: 'Room Insight',
+              icon: Icons.travel_explore,
+              value: settings.roomInsightEnabled,
+              onChanged: (_) => notifier.toggleRoomInsight(),
+            ),
+
             const SizedBox(height: 8),
 
             // ── Battle Text ──

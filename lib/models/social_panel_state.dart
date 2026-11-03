@@ -51,7 +51,7 @@ class SocialWindowsState {
   final SocialPanelState partyPanel;
   final SocialPanelState notesPanel;
   final PanelTabMode tabMode;
-  final int activeTab; // 0=chat, 1=tells, 2=party, 3=notes, 4=achievements (when tabbed)
+  final int activeTab; // 0=chat, 1=tells, 2=party, 3=notes, 4=achievements, 5=room (when tabbed)
   final bool chatHasUnread;
   final bool tellsHasUnread;
   final bool partyHasUnread;

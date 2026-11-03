@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/room_insight.dart';
 import '../services/parser/room_line_classifier.dart';
+import 'settings_provider.dart';
 
 /// The room the Room Insight panel shows, or `null` while there is none to
 /// show (nothing seen yet, or a room was entered less than
@@ -13,6 +14,20 @@ import '../services/parser/room_line_classifier.dart';
 final roomInsightProvider =
     NotifierProvider<RoomInsightNotifier, RoomInsight?>(
         RoomInsightNotifier.new);
+
+/// [roomInsightProvider] with the player's recategorisations
+/// (`AppSettings.roomEntityKinds`) applied. What the Room tab renders.
+final roomInsightViewProvider = Provider<RoomInsight?>((ref) {
+  final room = ref.watch(roomInsightProvider);
+  if (room == null) return null;
+  final stored = ref.watch(settingsProvider.select((s) => s.roomEntityKinds));
+  final overrides = <String, RoomEntityKind>{};
+  stored.forEach((phrase, name) {
+    final kind = RoomEntityKind.fromName(name);
+    if (kind != null) overrides[phrase] = kind;
+  });
+  return room.withOverrides(overrides);
+});
 
 class RoomInsightNotifier extends Notifier<RoomInsight?> {
   /// How long a room must stay the current one before the panel shows it.

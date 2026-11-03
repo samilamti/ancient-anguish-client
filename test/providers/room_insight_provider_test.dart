@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ancient_anguish_client/models/room_insight.dart';
 import 'package:ancient_anguish_client/providers/room_insight_provider.dart';
+import 'package:ancient_anguish_client/providers/settings_provider.dart';
 
 /// `kind: label (count)` + commands, one string per entity, so a room's
 /// whole reading fits on one expect line.
@@ -33,7 +34,7 @@ void main() {
       final room = _parse('Nice forest (n,e,s,w)\n29 gold coins.');
       expect(room.name, 'Nice forest');
       expect(room.exits, ['north', 'east', 'south', 'west']);
-      expect(_describe(room), ['object: gold coins (29) | get coins']);
+      expect(_describe(room), ['item: gold coins (29) | get coins, look at coins']);
     });
 
     test('single creatures', () {
@@ -58,7 +59,7 @@ void main() {
       expect(room.exits, ['north', 'east', 'south', 'northwest']);
       expect(_describe(room), [
         'npc: tick | look at tick, kill tick',
-        'object: branch | get branch',
+        'item: branch | get branch, look at branch',
       ]);
     });
 
@@ -67,7 +68,7 @@ void main() {
           'Forest with leftovers (n,e)\nA sugar crystal.\nAn army of five ants.');
       expect(room.exits, ['north', 'east']);
       expect(_describe(room), [
-        'object: crystal | get crystal, eat crystal',
+        'edible: crystal | get crystal, eat crystal',
         'npc: army | look at army, kill army',
       ]);
     });
@@ -77,10 +78,41 @@ void main() {
           'A thin mist drifts between the trunks to the north.\n'
           'A shimmering blue door.\nA weathered signpost.\nA giant eagle.');
       expect(_describe(room), [
-        'object: door | look at door, open door',
-        'object: signpost | look at signpost, read signpost',
+        'misc: door | look at door, open door',
+        'misc: signpost | look at signpost, read signpost',
         'npc: eagle | look at eagle, kill eagle',
       ]);
+    });
+
+    test('a room-unique thing defaults to NPC until the player refiles it',
+        () {
+      final room = _parse(
+          "Forest (e,s,w,ne)\nA wasps' nest.\nA swarm of five wasps.");
+      expect(room.exits, ['east', 'south', 'west', 'northeast']);
+      expect(_describe(room), [
+        'npc: nest | look at nest, kill nest',
+        'npc: swarm | look at swarm, kill swarm',
+      ]);
+      expect(room.entities.first.phrase, 'wasps nest');
+
+      final refiled = room.withOverrides({'wasps nest': RoomEntityKind.misc});
+      expect(_describe(refiled), [
+        'misc: nest | look at nest',
+        'npc: swarm | look at swarm, kill swarm',
+      ]);
+      expect(refiled.entities.first.isOverridden, isTrue);
+      expect(refiled.entities.first.autoKind, RoomEntityKind.npc);
+    });
+
+    test('every kind has its own commands', () {
+      final e = RoomInsightParser.parseEntity('A long sword.', {})!;
+      expect(e.kind, RoomEntityKind.item);
+      expect(e.withKind(RoomEntityKind.edible).commands,
+          ['get sword', 'eat sword']);
+      expect(RoomInsightParser.parseEntity('Some ale.', {})!.commands,
+          ['get ale', 'drink ale']);
+      expect(RoomInsightParser.parseEntity('A red apple.', {})!.kind,
+          RoomEntityKind.edible);
     });
 
     test('prose and player lines list nothing', () {
@@ -90,6 +122,39 @@ void main() {
           isNull);
       expect(RoomInsightParser.parseEntity('Tuinn the Wizard', seen), isNull);
       expect(RoomInsightParser.parseHeader('You hit the orc.'), isNull);
+    });
+  });
+
+  group('roomInsightViewProvider', () {
+    test('applies the recategorisation stored in settings', () {
+      fakeAsync((async) {
+        final container = ProviderContainer();
+        final n = container.read(roomInsightProvider.notifier);
+        for (final l in ['Forest (e,s,w,ne)', "A wasps' nest.", '']) {
+          n.processLine(l);
+        }
+        async.elapse(const Duration(seconds: 1));
+        expect(container.read(roomInsightViewProvider)!.entities.single.kind,
+            RoomEntityKind.npc);
+
+        final settings = container.read(settingsProvider.notifier);
+        settings.setRoomEntityKind('wasps nest', 'misc');
+        expect(container.read(roomInsightViewProvider)!.entities.single.kind,
+            RoomEntityKind.misc);
+
+        settings.setRoomEntityKind('wasps nest', null);
+        expect(container.read(roomInsightViewProvider)!.entities.single.kind,
+            RoomEntityKind.npc);
+        async.flushMicrotasks();
+        container.dispose();
+      });
+    });
+
+    test('settings round-trip the choices', () {
+      final json = const AppSettings(roomEntityKinds: {'wasps nest': 'misc'})
+          .toJson();
+      expect(AppSettings.fromJson(json).roomEntityKinds, {'wasps nest': 'misc'});
+      expect(AppSettings.fromJson(const {}).roomEntityKinds, isEmpty);
     });
   });
 

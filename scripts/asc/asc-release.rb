@@ -247,20 +247,20 @@ def submit_for_review(version_id, platform)
   puts "    → submit #{platform} for App Review#{TAG}"
   return if !APPLY || version_id.start_with?("(dry-run")
 
-  rs = api(:post, "/v1/reviewSubmissions", {
-    data: { type: "reviewSubmissions", attributes: { platform: platform },
-            relationships: { app: { data: { type: "apps", id: APP_ID } } } },
-  }, false)
-  if rs.is_a?(Hash) && rs["_error"]
-    # Only one open submission per app+platform: adopt the existing one rather
-    # than failing, so a re-run after a partial failure completes the job.
-    abort "    ✗ reviewSubmissions POST → #{rs['_code']}: #{rs['_body']}" unless rs["_code"] == 409
-    open = (api(:get, "/v1/apps/#{APP_ID}/reviewSubmissions?filter[state]=READY_FOR_REVIEW&limit=50")["data"] || [])
-           .find { |s| s.dig("attributes", "platform") == platform }
-    abort "    ✗ 409 on create but no open READY_FOR_REVIEW submission found" if open.nil?
+  # Adopt an open submission first. Apple will happily create a second empty
+  # one beside it, and a failed run leaves one behind (reviewSubmissions can't
+  # be deleted), so creating unconditionally piles them up on every retry.
+  open = (api(:get, "/v1/apps/#{APP_ID}/reviewSubmissions?filter[state]=READY_FOR_REVIEW&limit=50")["data"] || [])
+         .find { |s| s.dig("attributes", "platform") == platform }
+  if open
     puts "    adopting open reviewSubmission #{open['id'][0, 8]}"
     rsid = open["id"]
   else
+    rs = api(:post, "/v1/reviewSubmissions", {
+      data: { type: "reviewSubmissions", attributes: { platform: platform },
+              relationships: { app: { data: { type: "apps", id: APP_ID } } } },
+    }, false)
+    abort "    ✗ reviewSubmissions POST → #{rs['_code']}: #{rs['_body']}" if rs.is_a?(Hash) && rs["_error"]
     rsid = rs.dig("data", "id")
     puts "    reviewSubmission #{rsid[0, 8]} created"
   end
@@ -272,8 +272,18 @@ def submit_for_review(version_id, platform)
               appStoreVersion: { data: { type: "appStoreVersions", id: version_id } },
             } },
   }, false)
-  if it.is_a?(Hash) && it["_error"] && it["_code"] != 409
-    abort "    ✗ reviewSubmissionItems POST → #{it['_code']}: #{it['_body']}"
+  # A 409 is fine only when the version is already in this submission (a
+  # re-run). Anything else is Apple refusing the version, and its reason is in
+  # meta.associatedErrors: say it rather than going on to PATCH an empty
+  # submission, whose error ("does not have any items") hides the cause.
+  if it.is_a?(Hash) && it["_error"]
+    items = api(:get, "/v1/reviewSubmissions/#{rsid}/items?include=appStoreVersion", nil, false)
+    already = items.is_a?(Hash) && (items["included"] || []).any? { |v| v["id"] == version_id }
+    unless already
+      puts "    ✗ Apple refused #{platform} #{VERSION_STRING} for review (#{it['_code']}):"
+      explain_errors(it["_body"])
+      exit 1
+    end
   end
 
   sub = api(:patch, "/v1/reviewSubmissions/#{rsid}", {
@@ -281,6 +291,19 @@ def submit_for_review(version_id, platform)
   }, false)
   abort "    ✗ reviewSubmissions PATCH → #{sub['_code']}: #{sub['_body']}" if sub.is_a?(Hash) && sub["_error"]
   puts "    ✓ submitted — state=#{sub.dig('data', 'attributes', 'state')}"
+end
+
+# Prints each error's detail, including the nested associatedErrors Apple
+# uses to name the real blocker (a missing age-rating answer, say).
+def explain_errors(body)
+  errs = (JSON.parse(body)["errors"] rescue nil)
+  return puts("      #{body}") unless errs
+  errs.each do |e|
+    puts "      #{e['title']}"
+    (e.dig("meta", "associatedErrors") || {}).each do |path, list|
+      list.each { |a| puts "      #{path}: #{a['detail']}" }
+    end
+  end
 end
 
 # ---- Run -------------------------------------------------------------------

@@ -922,6 +922,66 @@ class _AchievementsBody extends ConsumerWidget {
   }
 }
 
+/// `Kind: label` for one Room tab entry. Tapping it opens a menu that files
+/// the entry under another kind (stored per noun phrase in settings), or
+/// hands it back to the parser.
+class _RoomEntityHeader extends ConsumerWidget {
+  final RoomEntity entity;
+
+  const _RoomEntityHeader({required this.entity});
+
+  static const _reset = 'auto';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final e = entity;
+    final color = e.kind == RoomEntityKind.npc
+        ? Colors.redAccent
+        : theme.colorScheme.onSurface;
+    return PopupMenuButton<String>(
+      tooltip: 'Change what "${e.phrase}" is',
+      padding: EdgeInsets.zero,
+      position: PopupMenuPosition.under,
+      onSelected: (choice) => ref
+          .read(settingsProvider.notifier)
+          .setRoomEntityKind(e.phrase, choice == _reset ? null : choice),
+      itemBuilder: (_) => [
+        for (final k in RoomEntityKind.values)
+          CheckedPopupMenuItem<String>(
+            value: k.name,
+            checked: k == e.kind,
+            child: Text(k.label),
+          ),
+        if (e.isOverridden) ...[
+          const PopupMenuDivider(),
+          PopupMenuItem<String>(
+            value: _reset,
+            child: Text('Automatic (${e.autoKind.label})'),
+          ),
+        ],
+      ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              '${e.kind.label}: '
+              '${e.label}${e.count == null ? '' : ' (${e.count})'}',
+              style: TextStyle(
+                fontFamily: 'JetBrainsMono',
+                fontSize: 13,
+                color: color,
+              ),
+            ),
+          ),
+          Icon(Icons.arrow_drop_down, size: 16, color: color.withAlpha(160)),
+        ],
+      ),
+    );
+  }
+}
+
 /// The current room: name, exits and what is in it, each with the commands
 /// that make sense for it. Tapping an exit or a command sends it, the same
 /// way a tapped link in the output does.
@@ -943,7 +1003,7 @@ class _RoomInsightBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final room = ref.watch(roomInsightProvider);
+    final room = ref.watch(roomInsightViewProvider);
     final muted = theme.colorScheme.onSurface.withAlpha(120);
 
     final Widget child;
@@ -994,17 +1054,7 @@ class _RoomInsightBody extends ConsumerWidget {
           ],
           for (final e in room.entities) ...[
             const SizedBox(height: 12),
-            Text(
-              '${e.kind == RoomEntityKind.npc ? 'NPC' : 'Object'}: '
-              '${e.label}${e.count == null ? '' : ' (${e.count})'}',
-              style: TextStyle(
-                fontFamily: _mono,
-                fontSize: 13,
-                color: e.kind == RoomEntityKind.npc
-                    ? Colors.redAccent
-                    : theme.colorScheme.onSurface,
-              ),
-            ),
+            _RoomEntityHeader(entity: e),
             Text(e.line,
                 style:
                     TextStyle(fontFamily: _mono, fontSize: 11, color: muted)),

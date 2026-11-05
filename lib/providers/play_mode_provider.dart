@@ -41,7 +41,7 @@ class PlayModeNotifier extends Notifier<PlayMode> {
         : PlayMode.off;
   }
 
-  /// Ctrl/Cmd+G and the toolbar toggle.
+  /// Ctrl/Cmd+P and the toolbar toggle.
   void toggle() => setEnabled(!state.isOn);
 
   void setEnabled(bool enabled) {

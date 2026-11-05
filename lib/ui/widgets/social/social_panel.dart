@@ -4,15 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/achievement.dart';
 import '../../../models/social_panel_state.dart';
 import '../../../models/timestamp_mode.dart';
-import '../../../models/room_insight.dart';
 import '../../../providers/achievements_provider.dart';
-import '../../../providers/link_command_provider.dart';
 import '../../../providers/notes_content_provider.dart';
-import '../../../providers/room_insight_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_input_focus_provider.dart';
+import '../../../providers/social_message_provider.dart';
 import '../../../providers/social_panel_provider.dart';
-import '../../../providers/target_provider.dart';
 import 'panel_title_bar.dart';
 import 'social_input_bar.dart';
 import 'social_message_list.dart';
@@ -233,6 +230,44 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
     }
   }
 
+  /// The clear button's action for [tab] (0=chat, 1=tells, 2=party,
+  /// 4=achievements). Notes has none: it is a document, not a log.
+  VoidCallback? _clearAction(int tab) {
+    final (String name, void Function() clear) = switch (tab) {
+      0 => ('Chat', () => ref.read(chatMessagesProvider.notifier).clear()),
+      1 => ('Tells', () => ref.read(tellMessagesProvider.notifier).clear()),
+      2 => ('Party', () => ref.read(partyMessagesProvider.notifier).clear()),
+      4 => (
+          'Achievements',
+          () => ref.read(achievementsProvider.notifier).clear()
+        ),
+      _ => ('', () {}),
+    };
+    if (name.isEmpty) return null;
+    return () async {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Clear $name?'),
+          content: Text(tab == 4
+              ? 'Removes every achievement from the list.'
+              : 'Empties the window. The history files on disk are kept.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Clear'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true) clear();
+    };
+  }
+
   // ── Timestamp trifold helpers ──
 
   /// Whether the current view shows social messages (i.e. should render the
@@ -241,19 +276,17 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
     if (widget.panelType == SocialPanelType.notes) return false;
     if (widget.panelType == SocialPanelType.tabbed) {
       final tab = _activeTab(panelState);
-      return tab < 3;
+      return tab != 3 && tab != 4;
     }
     return true;
   }
 
   /// The tab the tabbed view shows. Falls back to Chat when the Achievements
-  /// or Room tab is active but has since been switched off in settings.
+  /// tab is active but has since been switched off in settings.
   int _activeTab(SocialWindowsState panelState) {
     final tab = panelState.activeTab;
-    final settings = ref.read(settingsProvider);
-    if (tab == 4 && !settings.achievementsEnabled) return 0;
-    if (tab == 5 && !settings.roomInsightEnabled) return 0;
-    return tab.clamp(0, 5);
+    if (tab == 4 && !ref.read(settingsProvider).achievementsEnabled) return 0;
+    return tab.clamp(0, 4);
   }
 
   IconData _timestampIcon(TimestampMode mode) {
@@ -330,6 +363,12 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
                   _ => false,
                 },
                 onClose: _close,
+                onClear: _clearAction(switch (widget.panelType) {
+                  SocialPanelType.chat => 0,
+                  SocialPanelType.tells => 1,
+                  SocialPanelType.party => 2,
+                  _ => 3,
+                }),
                 onDock: panel.isFloating ? _dockRight : null,
                 onUndock: panel.isDocked ? _undock : null,
                 onCombineTabs: _canCombine(panelState)
@@ -437,12 +476,13 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
     TimestampMode timestampMode,
     bool showTimestampToggle,
   ) {
-    final titles = ['Chat', 'Tells', 'Party', 'Notes', 'Achievements', 'Room'];
+    final titles = ['Chat', 'Tells', 'Party', 'Notes', 'Achievements'];
     return PanelTitleBar(
       title: titles[_activeTab(panelState)],
       isDocked: panelState.chatPanel.isDocked,
       isTabbed: true,
       onClose: _close,
+      onClear: _clearAction(_activeTab(panelState)),
       onDock: panelState.chatPanel.isFloating ? _dockRight : null,
       onUndock: panelState.chatPanel.isDocked ? _undock : null,
       onSeparateTabs: () =>
@@ -467,9 +507,6 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
     final primary = theme.colorScheme.primary;
     final achievementsEnabled = ref.watch(
       settingsProvider.select((s) => s.achievementsEnabled),
-    );
-    final roomInsightEnabled = ref.watch(
-      settingsProvider.select((s) => s.roomInsightEnabled),
     );
 
     return Container(
@@ -516,13 +553,6 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
               onTap: () =>
                   ref.read(socialPanelProvider.notifier).setActiveTab(4),
             ),
-          if (roomInsightEnabled)
-            _TabButton(
-              label: '🧭 Room',
-              active: panelState.activeTab == 5,
-              onTap: () =>
-                  ref.read(socialPanelProvider.notifier).setActiveTab(5),
-            ),
         ],
       ),
     );
@@ -545,9 +575,6 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
       }
       if (tab == 4) {
         return const _AchievementsBody();
-      }
-      if (tab == 5) {
-        return const _RoomInsightBody();
       }
       final idx = tab.clamp(0, 2);
       final type = _tabListTypes[idx];
@@ -574,7 +601,7 @@ class _SocialPanelState extends ConsumerState<SocialPanel> {
     }
     if (widget.panelType == SocialPanelType.tabbed) {
       final tab = _activeTab(panelState);
-      if (tab >= 3) {
+      if (tab == 3 || tab == 4) {
         return const SizedBox.shrink();
       }
       final idx = tab.clamp(0, 2);
@@ -918,199 +945,6 @@ class _AchievementsBody extends ConsumerWidget {
           ),
         );
       },
-    );
-  }
-}
-
-/// `Kind: label` for one Room tab entry. Tapping it opens a menu that files
-/// the entry under another kind (stored per noun phrase in settings), or
-/// hands it back to the parser.
-class _RoomEntityHeader extends ConsumerWidget {
-  final RoomEntity entity;
-
-  const _RoomEntityHeader({required this.entity});
-
-  static const _reset = 'auto';
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final e = entity;
-    final color = e.kind == RoomEntityKind.npc
-        ? Colors.redAccent
-        : theme.colorScheme.onSurface;
-    return PopupMenuButton<String>(
-      tooltip: 'Change what "${e.phrase}" is',
-      padding: EdgeInsets.zero,
-      position: PopupMenuPosition.under,
-      onSelected: (choice) => ref
-          .read(settingsProvider.notifier)
-          .setRoomEntityKind(e.phrase, choice == _reset ? null : choice),
-      itemBuilder: (_) => [
-        for (final k in RoomEntityKind.values)
-          CheckedPopupMenuItem<String>(
-            value: k.name,
-            checked: k == e.kind,
-            child: Text(k.label),
-          ),
-        if (e.isOverridden) ...[
-          const PopupMenuDivider(),
-          PopupMenuItem<String>(
-            value: _reset,
-            child: Text('Automatic (${e.autoKind.label})'),
-          ),
-        ],
-      ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            child: Text(
-              '${e.kind.label}: '
-              '${e.label}${e.count == null ? '' : ' (${e.count})'}',
-              style: TextStyle(
-                fontFamily: 'JetBrainsMono',
-                fontSize: 13,
-                color: color,
-              ),
-            ),
-          ),
-          Icon(Icons.arrow_drop_down, size: 16, color: color.withAlpha(160)),
-        ],
-      ),
-    );
-  }
-}
-
-/// The current room: name, exits and what is in it, each with the commands
-/// that make sense for it. Tapping an exit or a command sends it, the same
-/// way a tapped link in the output does.
-///
-/// The room appears [RoomInsightNotifier.settleDelay] after it is entered,
-/// so rooms only passed through never flash by.
-class _RoomInsightBody extends ConsumerWidget {
-  const _RoomInsightBody();
-
-  static const _mono = 'JetBrainsMono';
-
-  void _send(WidgetRef ref, String command) {
-    if (command.startsWith('kill ')) {
-      ref.read(targetProvider.notifier).set(command.substring(5));
-    }
-    ref.read(linkCommandSenderProvider)(command);
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final room = ref.watch(roomInsightViewProvider);
-    final muted = theme.colorScheme.onSurface.withAlpha(120);
-
-    final Widget child;
-    if (room == null) {
-      child = Center(
-        key: const ValueKey('room-none'),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            'The room you stop in appears here.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontFamily: _mono, fontSize: 12, color: muted),
-          ),
-        ),
-      );
-    } else {
-      child = ListView(
-        key: ValueKey(room),
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        children: [
-          Text(
-            room.name,
-            style: TextStyle(
-              fontFamily: _mono,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final exit in room.exits)
-                _CommandChip(
-                  label: exit,
-                  icon: Icons.directions_walk,
-                  onTap: () => _send(ref, exit),
-                ),
-            ],
-          ),
-          if (room.entities.isEmpty) ...[
-            const SizedBox(height: 12),
-            Text('Nothing here.',
-                style:
-                    TextStyle(fontFamily: _mono, fontSize: 12, color: muted)),
-          ],
-          for (final e in room.entities) ...[
-            const SizedBox(height: 12),
-            _RoomEntityHeader(entity: e),
-            Text(e.line,
-                style:
-                    TextStyle(fontFamily: _mono, fontSize: 11, color: muted)),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final c in e.commands)
-                  _CommandChip(label: c, onTap: () => _send(ref, c)),
-              ],
-            ),
-          ],
-        ],
-      );
-    }
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      child: child,
-    );
-  }
-}
-
-class _CommandChip extends StatelessWidget {
-  final String label;
-  final IconData? icon;
-  final VoidCallback onTap;
-
-  const _CommandChip({required this.label, required this.onTap, this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          border: Border.all(color: primary.withAlpha(90)),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 12, color: primary),
-              const SizedBox(width: 4),
-            ],
-            Text(label,
-                style: TextStyle(
-                    fontFamily: 'JetBrainsMono', fontSize: 12, color: primary)),
-          ],
-        ),
-      ),
     );
   }
 }

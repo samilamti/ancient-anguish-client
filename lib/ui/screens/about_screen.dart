@@ -238,7 +238,7 @@ class _AboutScreenState extends State<AboutScreen> {
                   ),
                   const SizedBox(height: 6),
                   _ShortcutRow(
-                    keys: _shortcutLabel(context, 'G'),
+                    keys: _shortcutLabel(context, 'P'),
                     description:
                         'Play mode on/off (keyboard, not on phones)',
                   ),

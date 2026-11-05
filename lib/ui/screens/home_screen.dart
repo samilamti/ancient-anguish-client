@@ -340,10 +340,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               _replyOrReconnect,
           const SingleActivator(LogicalKeyboardKey.keyR, meta: true):
               _replyOrReconnect,
-          // Ctrl/Cmd + G → keyboard play mode on/off.
-          const SingleActivator(LogicalKeyboardKey.keyG, control: true):
+          // Ctrl/Cmd + P → keyboard play mode on/off.
+          const SingleActivator(LogicalKeyboardKey.keyP, control: true):
               _togglePlayMode,
-          const SingleActivator(LogicalKeyboardKey.keyG, meta: true):
+          const SingleActivator(LogicalKeyboardKey.keyP, meta: true):
               _togglePlayMode,
         },
         child: PlayModeKeys(
@@ -447,7 +447,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  /// Ctrl/Cmd+G and the toolbar toggle. Play mode needs a keyboard, so it
+  /// Ctrl/Cmd+P and the toolbar toggle. Play mode needs a keyboard, so it
   /// stays off below the phone breakpoint.
   void _togglePlayMode() {
     if (MediaQuery.of(context).size.width < 768) return;
@@ -1189,13 +1189,6 @@ class SettingsDrawer extends ConsumerWidget {
               icon: Icons.emoji_events_outlined,
               value: settings.achievementsEnabled,
               onChanged: (_) => notifier.toggleAchievements(),
-            ),
-
-            _DrawerToggle(
-              label: 'Room Insight',
-              icon: Icons.travel_explore,
-              value: settings.roomInsightEnabled,
-              onChanged: (_) => notifier.toggleRoomInsight(),
             ),
 
             const SizedBox(height: 8),

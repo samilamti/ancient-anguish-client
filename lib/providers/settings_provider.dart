@@ -33,9 +33,6 @@ class AppSettings {
   final bool emojiMapsEnabled; // swap ASCII map tiles for emoji
   final bool sheetsEnabled; // render skills/score/shop output as widgets
   final bool achievementsEnabled; // Achievements tab in the social windows
-  final bool roomInsightEnabled; // Room tab in the social windows
-  final Map<String, String>
-      roomEntityKinds; // Room tab noun phrase → RoomEntityKind name chosen by the player
   final BattleFilterMode battleFilterMode; // how combat spam reaches the buffer
   final LineSpacing lineSpacing; // extra leading between terminal lines
   final bool compassEnabled; // desktop-only navigation compass overlay
@@ -94,8 +91,6 @@ class AppSettings {
     this.emojiMapsEnabled = false,
     this.sheetsEnabled = true,
     this.achievementsEnabled = true,
-    this.roomInsightEnabled = true,
-    this.roomEntityKinds = const {},
     this.battleFilterMode = BattleFilterMode.off,
     this.lineSpacing = LineSpacing.none,
     this.compassEnabled = true,
@@ -138,8 +133,6 @@ class AppSettings {
     bool? emojiMapsEnabled,
     bool? sheetsEnabled,
     bool? achievementsEnabled,
-    bool? roomInsightEnabled,
-    Map<String, String>? roomEntityKinds,
     BattleFilterMode? battleFilterMode,
     LineSpacing? lineSpacing,
     bool? compassEnabled,
@@ -179,8 +172,6 @@ class AppSettings {
       emojiMapsEnabled: emojiMapsEnabled ?? this.emojiMapsEnabled,
       sheetsEnabled: sheetsEnabled ?? this.sheetsEnabled,
       achievementsEnabled: achievementsEnabled ?? this.achievementsEnabled,
-      roomInsightEnabled: roomInsightEnabled ?? this.roomInsightEnabled,
-      roomEntityKinds: roomEntityKinds ?? this.roomEntityKinds,
       battleFilterMode: battleFilterMode ?? this.battleFilterMode,
       lineSpacing: lineSpacing ?? this.lineSpacing,
       compassEnabled: compassEnabled ?? this.compassEnabled,
@@ -221,8 +212,6 @@ class AppSettings {
         'emojiMapsEnabled': emojiMapsEnabled,
         'sheetsEnabled': sheetsEnabled,
         'achievementsEnabled': achievementsEnabled,
-        'roomInsightEnabled': roomInsightEnabled,
-        'roomEntityKinds': roomEntityKinds,
         'battleFilterMode': battleFilterMode.storageKey,
         'lineSpacing': lineSpacing.storageKey,
         'compassEnabled': compassEnabled,
@@ -270,10 +259,6 @@ class AppSettings {
       emojiMapsEnabled: json['emojiMapsEnabled'] as bool? ?? false,
       sheetsEnabled: json['sheetsEnabled'] as bool? ?? true,
       achievementsEnabled: json['achievementsEnabled'] as bool? ?? true,
-      roomInsightEnabled: json['roomInsightEnabled'] as bool? ?? true,
-      roomEntityKinds: json['roomEntityKinds'] is Map
-          ? Map<String, String>.from(json['roomEntityKinds'] as Map)
-          : const {},
       battleFilterMode:
           BattleFilterMode.fromStorageKey(json['battleFilterMode'] as String?),
       lineSpacing: LineSpacing.fromStorageKey(json['lineSpacing'] as String?),
@@ -430,25 +415,6 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void toggleAchievements() {
     state = state.copyWith(achievementsEnabled: !state.achievementsEnabled);
-    _saveSettings();
-  }
-
-  void toggleRoomInsight() {
-    state = state.copyWith(roomInsightEnabled: !state.roomInsightEnabled);
-    _saveSettings();
-  }
-
-  /// Files the Room tab entry [phrase] (a `RoomEntity.phrase`) under [kind],
-  /// a `RoomEntityKind` name; `null` hands it back to the parser.
-  void setRoomEntityKind(String phrase, String? kind) {
-    final next = Map<String, String>.from(state.roomEntityKinds);
-    if (kind == null) {
-      if (next.remove(phrase) == null) return;
-    } else {
-      if (next[phrase] == kind) return;
-      next[phrase] = kind;
-    }
-    state = state.copyWith(roomEntityKinds: Map.unmodifiable(next));
     _saveSettings();
   }
 

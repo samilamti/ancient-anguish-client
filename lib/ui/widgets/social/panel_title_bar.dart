@@ -7,6 +7,9 @@ class PanelTitleBar extends StatelessWidget {
   final bool isTabbed;
   final bool hasUnread;
   final VoidCallback onClose;
+
+  /// Empties the window's contents. Null hides the button (Notes).
+  final VoidCallback? onClear;
   final VoidCallback? onDock;
   final VoidCallback? onUndock;
   final VoidCallback? onCombineTabs;
@@ -26,6 +29,7 @@ class PanelTitleBar extends StatelessWidget {
     required this.isTabbed,
     this.hasUnread = false,
     required this.onClose,
+    this.onClear,
     this.onDock,
     this.onUndock,
     this.onCombineTabs,
@@ -107,6 +111,14 @@ class PanelTitleBar extends StatelessWidget {
                 tooltip: timestampModeTooltip ?? 'Cycle timestamp display',
                 compact: compact,
                 onPressed: onCycleTimestampMode!,
+              ),
+
+            // Clear the window's contents.
+            if (onClear != null)
+              _TitleButton(
+                icon: Icons.delete_sweep_outlined,
+                tooltip: 'Clear $title',
+                onPressed: onClear!,
               ),
 
             // Dock/undock button.

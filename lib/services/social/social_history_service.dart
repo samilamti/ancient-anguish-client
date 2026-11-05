@@ -16,6 +16,9 @@ import 'social_message_parser.dart';
 /// 09:15 Gandalf: Hello everyone!
 /// 09:16 Frodo: Pretty rough actually
 /// ```
+/// Which history a [SocialHistoryService.markCleared] call is about.
+enum SocialHistoryKind { chat, tells, party }
+
 class SocialHistoryService {
   // Write queues serialize disk I/O per file so that continuation lines
   // are always written after the initial message completes.
@@ -146,7 +149,8 @@ class SocialHistoryService {
     try {
       final date = _formatDate(DateTime.now());
       final fileName = '$_partyFolder/$date.md';
-      final contents = await storage.readFile(fileName);
+      final contents = await _afterCleared(
+          storage, _partyFolder, date, await storage.readFile(fileName));
       if (contents.trim().isEmpty) return [];
       return _parsePartyHistory(contents, date: date);
     } catch (e) {
@@ -211,7 +215,8 @@ class SocialHistoryService {
     try {
       final folder = isChat ? _chatFolder : _tellFolder;
       final fileName = '$folder/$date.md';
-      final contents = await storage.readFile(fileName);
+      final contents =
+          await _afterCleared(storage, folder, date, await storage.readFile(fileName));
       if (contents.trim().isEmpty) return [];
       return _parseHistory(contents, date: date, isChat: isChat);
     } catch (e) {
@@ -296,6 +301,64 @@ class SocialHistoryService {
         timestamp: timestamp,
       );
     }
+  }
+
+  /// Records that the chat/tell/party window was cleared, so today's lines
+  /// written so far don't come back on the next launch. The history files
+  /// themselves are kept: they are the player's archive.
+  static Future<void> markCleared(
+    StorageService storage, {
+    required SocialHistoryKind kind,
+  }) {
+    final folder = switch (kind) {
+      SocialHistoryKind.chat => _chatFolder,
+      SocialHistoryKind.tells => _tellFolder,
+      SocialHistoryKind.party => _partyFolder,
+    };
+    Future<void> write() async {
+      try {
+        final date = _formatDate(DateTime.now());
+        final lines = (await storage.readFile('$folder/$date.md')).split('\n');
+        await storage.writeFile('$folder/$_clearedMarker', '$date ${lines.length - 1}');
+      } catch (e) {
+        debugPrint('SocialHistoryService.markCleared: $e');
+      }
+    }
+
+    // Queue behind pending appends so the line count covers them.
+    switch (kind) {
+      case SocialHistoryKind.chat:
+        return _chatQueue = _chatQueue.then((_) => write());
+      case SocialHistoryKind.tells:
+        return _tellQueue = _tellQueue.then((_) => write());
+      case SocialHistoryKind.party:
+        return _partyQueue = _partyQueue.then((_) => write());
+    }
+  }
+
+  static const _clearedMarker = '.cleared';
+
+  /// Drops the lines of [contents] that were already written when the window
+  /// was last cleared today.
+  static Future<String> _afterCleared(
+    StorageService storage,
+    String folder,
+    String date,
+    String contents,
+  ) async {
+    String marker;
+    try {
+      marker = (await storage.readFile('$folder/$_clearedMarker')).trim();
+    } catch (_) {
+      return contents;
+    }
+    final parts = marker.split(' ');
+    if (parts.length != 2 || parts[0] != date) return contents;
+    final skip = int.tryParse(parts[1]) ?? 0;
+    final lines = contents.split('\n');
+    if (skip <= 0) return contents;
+    if (skip >= lines.length) return '';
+    return lines.sublist(skip).join('\n');
   }
 
   static String _stripChatPrefix(String body) {

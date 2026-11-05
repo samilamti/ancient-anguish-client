@@ -26,7 +26,7 @@ class PlayModeSettingsScreen extends ConsumerWidget {
               title: const Text('Play mode'),
               subtitle: const Text(
                   'WASD moves, 1–0 fire the action bar, Enter opens the '
-                  'input. Also Ctrl/Cmd+G.'),
+                  'input. Also Ctrl/Cmd+P.'),
               value: on,
               onChanged: (v) =>
                   ref.read(playModeProvider.notifier).setEnabled(v),

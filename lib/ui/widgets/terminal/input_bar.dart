@@ -479,10 +479,12 @@ class _InputBarState extends ConsumerState<InputBar> {
     });
 
     // Play mode: the strip stands in for the closed input; Enter brings the
-    // field back, focused.
+    // field back, focused. Leaving play mode focuses it too, so typing
+    // carries on straight away.
     final playMode = isMobile ? PlayMode.off : ref.watch(playModeProvider);
-    ref.listen<PlayMode>(playModeProvider, (_, next) {
-      if (next != PlayMode.input) return;
+    ref.listen<PlayMode>(playModeProvider, (prev, next) {
+      final left = next == PlayMode.off && prev != null && prev.isOn;
+      if (next != PlayMode.input && !left) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _focusNode.requestFocus();
       });

@@ -190,6 +190,16 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('leaving play mode focuses the input bar', (tester) async {
+    final container = await pumpPlay(tester);
+    container.read(playModeProvider.notifier).toggle();
+    await tester.pump();
+    await tester.pump();
+    expect(container.read(playModeProvider), PlayMode.off);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(container.read(inputFocusProvider).hasFocus, isTrue);
+  });
+
   testWidgets('Enter opens the input; sending closes it again',
       (tester) async {
     final container = await pumpPlay(tester);

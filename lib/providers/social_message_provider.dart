@@ -58,7 +58,10 @@ class ChatMessagesNotifier extends Notifier<List<SocialMessage>> {
     SocialHistoryService.appendContinuation(_storage, plainText, isChat: true);
   }
 
-  void clear() => state = [];
+  void clear() {
+    state = [];
+    SocialHistoryService.markCleared(_storage, kind: SocialHistoryKind.chat);
+  }
 }
 
 /// Party message buffer.
@@ -110,7 +113,10 @@ class PartyMessagesNotifier extends Notifier<List<SocialMessage>> {
     SocialHistoryService.appendPartyContinuation(_storage, plainText);
   }
 
-  void clear() => state = [];
+  void clear() {
+    state = [];
+    SocialHistoryService.markCleared(_storage, kind: SocialHistoryKind.party);
+  }
 }
 
 /// Tell message buffer.
@@ -181,6 +187,7 @@ class TellMessagesNotifier extends Notifier<List<SocialMessage>> {
   void clear() {
     _lastRecipient = null;
     state = [];
+    SocialHistoryService.markCleared(_storage, kind: SocialHistoryKind.tells);
   }
 }
 

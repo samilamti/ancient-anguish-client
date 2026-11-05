@@ -45,6 +45,10 @@ targets = (subs["data"] || []).map do |s|
   vid = s.dig("relationships", "appStoreVersionForReview", "data", "id")
   v = versions[vid]
   next unless v && v["versionString"] == VERSION_STRING
+  # A draft that was never submitted is not in review and Apple refuses to
+  # cancel it ("not in cancellable state"); one sat beside an approved iOS
+  # 6.52.0 and aborted the run before macOS was reached.
+  next if s["attributes"]["submittedDate"].nil?
   { id: s["id"], state: s["attributes"]["state"], platform: s["attributes"]["platform"],
     version_id: vid }
 end.compact

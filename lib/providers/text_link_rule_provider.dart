@@ -136,6 +136,12 @@ class TextLinkRulesNotifier extends Notifier<List<TextLinkRule>> {
     return '$prefix $n';
   }
 
+  /// Removes every rule. The trigger screen's "Remove all" uses it.
+  void clearAll() {
+    state = const [];
+    _saveToDisk();
+  }
+
   /// Resets the list back to the bundled defaults. Used by the config
   /// screen's "Reset to defaults" affordance after a confirm dialog.
   void resetToDefaults() {

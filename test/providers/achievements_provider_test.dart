@@ -38,6 +38,15 @@ void main() {
           isNotNull);
     });
 
+    test('a Soulbinder skill increase matches', () {
+      expect(AchievementParser.match('You have increased in icicle skill.')?.text,
+          'You have increased in icicle skill.');
+      expect(
+          AchievementParser.match(
+              'Bob says: You have increased in icicle skill.'),
+          isNull);
+    });
+
     test('ordinary lines and lookalikes do not match', () {
       expect(
           AchievementParser.match(

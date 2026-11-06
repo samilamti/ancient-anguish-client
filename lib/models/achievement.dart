@@ -41,6 +41,8 @@ class AchievementParser {
       RegExp(r'^Your skill in .+? has gone up!(?: You now have \d{1,3}\.)?$'),
       '🎉'
     ),
+    // Soulbinders: "You have increased in icicle skill."
+    (RegExp(r'^You have increased in .+? skill\.$'), '🎉'),
   ];
 
   /// The achievement [plainText] announces, or null when it is an ordinary line.

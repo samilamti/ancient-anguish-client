@@ -66,4 +66,30 @@ void main() {
       expect(find.text('33%'), findsOneWidget);
     });
   }
+
+  testWidgets('desktop layout options live on the Layout sheet',
+      (tester) async {
+    final container = await pumpDrawer(tester, size: const Size(1280, 800));
+
+    for (final section in ['Appearance', 'Output', 'Commands', 'Session']) {
+      await tester.scrollUntilVisible(find.text(section), 200,
+          scrollable: find.byType(Scrollable).first);
+      expect(find.text(section), findsOneWidget);
+    }
+    expect(find.text('Social Windows'), findsNothing);
+    expect(find.text('Navigation Compass'), findsNothing);
+
+    await tester.scrollUntilVisible(find.text('Layout'), -200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Layout'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Social windows'), findsOneWidget);
+    expect(find.text('Navigation compass'), findsOneWidget);
+    expect(find.text('HUD stats'), findsOneWidget);
+    final before = container.read(settingsProvider).compassEnabled;
+    await tester.tap(find.text('Navigation compass'));
+    await tester.pumpAndSettle();
+    expect(container.read(settingsProvider).compassEnabled, !before);
+  });
 }

@@ -96,6 +96,17 @@ class SocialPanelNotifier extends Notifier<SocialWindowsState> {
     );
   }
 
+  /// Reopens every panel. The Communications button uses this when the
+  /// windows are on but each one was closed with its X.
+  void showAll() {
+    state = state.copyWith(
+      chatPanel: state.chatPanel.copyWith(visible: true),
+      tellsPanel: state.tellsPanel.copyWith(visible: true),
+      partyPanel: state.partyPanel.copyWith(visible: true),
+      notesPanel: state.notesPanel.copyWith(visible: true),
+    );
+  }
+
   // ── Floating position ──
 
   void updateChatPosition(double x, double y) {

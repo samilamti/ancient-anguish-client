@@ -204,4 +204,23 @@ void main() {
     expect(saved.meter?.direction, MeterDirection.either);
     expect(saved.pattern, isEmpty);
   });
+
+  testWidgets('Remove all clears every trigger after a confirm',
+      (tester) async {
+    final container = await pump(
+      tester,
+      const TextLinkRulesScreen(kind: RuleListKind.commandTrigger),
+    );
+    expect(container.read(commandTriggerRulesProvider), hasLength(2));
+
+    await tester.tap(find.byTooltip('Remove all'));
+    await tester.pumpAndSettle();
+    expect(find.text('Remove all triggers?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Remove all'));
+    await tester.pumpAndSettle();
+
+    expect(container.read(commandTriggerRulesProvider), isEmpty);
+    expect(jsonDecode(storage.files['Command Triggers.json']!), isEmpty);
+    expect(find.byTooltip('Remove all'), findsNothing);
+  });
 }

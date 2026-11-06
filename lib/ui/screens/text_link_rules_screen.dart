@@ -67,6 +67,12 @@ class TextLinkRulesScreen extends ConsumerWidget {
               onPressed: () => _showHelpDialog(context),
               tooltip: 'Help',
             ),
+            if (_isTrigger && rules.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.delete_sweep_outlined),
+                onPressed: () => _confirmClearAll(context, ref, rules.length),
+                tooltip: 'Remove all',
+              ),
             if (!_isTrigger)
               IconButton(
                 icon: const Icon(Icons.restore),
@@ -151,6 +157,32 @@ class TextLinkRulesScreen extends ConsumerWidget {
 
   void _openEditor(BuildContext context, TextLinkRule? existing) {
     openTextLinkRuleEditor(context, existing: existing, kind: kind);
+  }
+
+  void _confirmClearAll(BuildContext context, WidgetRef ref, int count) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove all triggers?'),
+        content: Text(
+          'This deletes all $count ${count == 1 ? 'trigger' : 'triggers'}. '
+          'It cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              ref.read(kind.provider.notifier).clearAll();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Remove all'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _confirmResetDefaults(BuildContext context, WidgetRef ref) {

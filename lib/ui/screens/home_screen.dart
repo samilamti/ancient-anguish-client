@@ -43,7 +43,7 @@ import '../widgets/terminal/play_mode.dart';
 import '../widgets/terminal/target_chip.dart';
 import '../widgets/terminal/terminal_view.dart';
 import 'about_screen.dart';
-import 'advanced_customization_screen.dart';
+import 'layout_settings_screen.dart';
 import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
 import 'history_screen.dart';
@@ -261,12 +261,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 _ToolbarItem(
                   emoji: '💬',
                   label: 'Communications',
-                  onPressed: () {
-                    ref
-                        .read(settingsProvider.notifier)
-                        .toggleSocialWindows();
-                  },
-                  active: settings.socialWindowsEnabled,
+                  onPressed: _toggleCommunications,
+                  active: settings.socialWindowsEnabled &&
+                      _anyPanelOpen(ref.watch(socialPanelProvider)),
                 ),
               // History + About live in the AppBar on desktop; on mobile
               // they're relocated to the Settings drawer to free toolbar
@@ -445,6 +442,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
       ),
     );
+  }
+
+  static bool _anyPanelOpen(SocialWindowsState s) =>
+      s.chatPanel.visible ||
+      s.tellsPanel.visible ||
+      s.partyPanel.visible ||
+      s.notesPanel.visible;
+
+  /// The Communications button. With the windows on but every one closed
+  /// by its X, a press reopens them instead of switching the feature off.
+  void _toggleCommunications() {
+    final enabled = ref.read(settingsProvider).socialWindowsEnabled;
+    final panels = ref.read(socialPanelProvider.notifier);
+    if (_anyPanelOpen(ref.read(socialPanelProvider))) {
+      ref.read(settingsProvider.notifier).toggleSocialWindows();
+      return;
+    }
+    panels.showAll();
+    if (!enabled) ref.read(settingsProvider.notifier).toggleSocialWindows();
   }
 
   /// Ctrl/Cmd+P and the toolbar toggle. Play mode needs a keyboard, so it
@@ -896,139 +912,7 @@ class SettingsDrawer extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
-
-            // ── Configuration ──
-            // On mobile, the Immersions / Aliases / Areas screens live here
-            // because the AppBar can't fit their buttons; on desktop they
-            // remain in the AppBar so this section just holds Advanced
-            // Customization.
-            _DrawerSectionHeader(
-                title: 'Configuration', icon: Icons.settings_applications),
-            const SizedBox(height: 4),
-
-            if (isMobile) ...[
-              _DrawerNavTile(
-                icon: const Text('🎨', style: TextStyle(fontSize: 18)),
-                title: 'Immersions',
-                onTap: () => _openScreen(
-                    context, const TriggerSettingsScreen()),
-              ),
-              _DrawerNavTile(
-                icon: const Text('🔡', style: TextStyle(fontSize: 18)),
-                title: 'Command Aliases',
-                onTap: () => _openScreen(
-                    context, const AliasSettingsScreen()),
-              ),
-              _DrawerNavTile(
-                icon: const Icon(Icons.landscape, size: 20),
-                title: 'Area Configuration',
-                onTap: () => _openScreen(
-                    context, const AreaConfigurationScreen()),
-              ),
-              _DrawerNavTile(
-                icon: const Icon(Icons.history, size: 20),
-                title: 'Command History',
-                onTap: () => _openScreen(context, const HistoryScreen()),
-              ),
-              _DrawerNavTile(
-                icon: const Icon(Icons.info_outline, size: 20),
-                title: 'About',
-                onTap: () => _openScreen(context, const AboutScreen()),
-              ),
-            ],
-
-            _DrawerNavTile(
-              icon: const Icon(Icons.tune, size: 20),
-              title: 'Advanced Customization',
-              subtitle: 'HUD stat visibility',
-              onTap: () => _openScreen(
-                  context, const AdvancedCustomizationScreen()),
-            ),
-
-            if (!isMobile)
-              _DrawerNavTile(
-                icon: const Icon(Icons.sports_esports, size: 20),
-                title: 'Play Mode',
-                subtitle: 'Keyboard play, pressed-key overlay',
-                onTap: () =>
-                    _openScreen(context, const PlayModeSettingsScreen()),
-              ),
-
-            _DrawerNavTile(
-              icon: const Icon(Icons.link, size: 20),
-              title: 'Text Link Rules',
-              subtitle: 'MUD output → tappable commands',
-              onTap: () =>
-                  _openScreen(context, const TextLinkRulesScreen()),
-            ),
-
-            // Local-only: present just when the gitignored marker asset was
-            // bundled into this build.
-            Consumer(builder: (context, ref, _) {
-              final available =
-                  ref.watch(localFeaturesAvailableProvider).value ?? false;
-              if (!available) return const SizedBox.shrink();
-              return _DrawerNavTile(
-                icon: const Icon(Icons.bolt, size: 20),
-                title: 'Command Triggers',
-                subtitle: 'Local only · 3s idle, 1s delay',
-                onTap: () => _openScreen(
-                  context,
-                  const TextLinkRulesScreen(kind: RuleListKind.commandTrigger),
-                ),
-              );
-            }),
-
-            Consumer(builder: (context, ref, _) {
-              final ignoredCount = ref.watch(
-                settingsProvider.select((s) => s.ignoredKillTargets.length),
-              );
-              return _DrawerNavTile(
-                icon: const Icon(Icons.link_off, size: 20),
-                title: 'Ignored targets',
-                subtitle: ignoredCount == 0
-                    ? 'Not highlighted, skipped by Tab. Long-press a red link '
-                        'to add one'
-                    : '$ignoredCount word${ignoredCount == 1 ? '' : 's'} '
-                        'never highlighted or targeted',
-                onTap: () =>
-                    _openScreen(context, const IgnoredKillTargetsScreen()),
-              );
-            }),
-
-            const Divider(height: 24),
-
-            // ── Support ── (store-backed platforms only)
-            if (kSupportTiersAvailable) ...[
-              _DrawerSectionHeader(title: 'Support', icon: Icons.favorite),
-              const SizedBox(height: 8),
-              Consumer(builder: (context, ref, _) {
-                final sub = ref.watch(subscriptionProvider);
-                final subtitle = sub.isActive
-                    ? 'Supporting: ${sub.activeTier!.displayName}'
-                    : 'Optional monthly tiers — nothing gated';
-                return ListTile(
-                  leading: const Icon(Icons.favorite_border, size: 20),
-                  title: const Text('Support Tiers'),
-                  subtitle: Text(subtitle),
-                  trailing: const Icon(Icons.chevron_right, size: 18),
-                  dense: true,
-                  onTap: () {
-                    Navigator.of(context).pop(); // close drawer
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const SupportScreen(),
-                      ),
-                    );
-                  },
-                );
-              }),
-
-              const Divider(height: 24),
-            ],
-
-            // ── Theme ──
-            _DrawerSectionHeader(title: 'Theme', icon: Icons.palette),
+            _DrawerSectionHeader(title: 'Appearance', icon: Icons.palette),
             const SizedBox(height: 8),
             RadioGroup<String>(
               groupValue: settings.themeMode,
@@ -1135,64 +1019,20 @@ class SettingsDrawer extends ConsumerWidget {
                   notifier.setLineSpacing(LineSpacing.values[v.round()]),
             ),
 
+            _DrawerNavTile(
+              icon: const Icon(Icons.dashboard_customize, size: 20),
+              title: 'Layout',
+              subtitle: isMobile
+                  ? 'Quick commands, D-Pad, HUD stats'
+                  : 'Social windows, compass, HUD stats',
+              onTap: () =>
+                  _openScreen(context, LayoutSettingsScreen(isMobile: isMobile)),
+            ),
+
             const Divider(height: 24),
 
-            // ── Toggles ──
-            _DrawerSectionHeader(title: 'Options', icon: Icons.tune),
-            const SizedBox(height: 4),
-
-            if (!isMobile) ...[
-              _DrawerToggle(
-                label: 'Social Windows',
-                icon: Icons.chat,
-                value: settings.socialWindowsEnabled,
-                onChanged: (_) => notifier.toggleSocialWindows(),
-              ),
-              if (settings.socialWindowsEnabled)
-                _DrawerToggle(
-                  label: 'Hide Social from Terminal',
-                  icon: Icons.visibility_off,
-                  value: settings.gagSocialFromTerminal,
-                  onChanged: (_) => notifier.toggleGagSocial(),
-                ),
-              _DrawerToggle(
-                label: 'Navigation Compass',
-                icon: Icons.explore,
-                value: settings.compassEnabled,
-                onChanged: (_) => notifier.toggleCompass(),
-              ),
-            ],
-
-            _DrawerToggle(
-              label: 'Emoji Parsing',
-              icon: Icons.emoji_emotions,
-              value: settings.emojiParsingEnabled,
-              onChanged: (_) => notifier.toggleEmojiParsing(),
-            ),
-
-            _DrawerToggle(
-              label: 'Emoji Maps',
-              icon: Icons.map,
-              value: settings.emojiMapsEnabled,
-              onChanged: (_) => notifier.toggleEmojiMaps(),
-            ),
-
-            _DrawerToggle(
-              label: 'Sheets',
-              icon: Icons.table_chart,
-              value: settings.sheetsEnabled,
-              onChanged: (_) => notifier.toggleSheets(),
-            ),
-
-            _DrawerToggle(
-              label: 'Achievements',
-              icon: Icons.emoji_events_outlined,
-              value: settings.achievementsEnabled,
-              onChanged: (_) => notifier.toggleAchievements(),
-            ),
-
+            _DrawerSectionHeader(title: 'Output', icon: Icons.subject),
             const SizedBox(height: 8),
-
             // ── Battle Text ──
             Row(
               children: [
@@ -1228,44 +1068,112 @@ class SettingsDrawer extends ConsumerWidget {
               ),
             ),
 
-            if (isMobile) ...[
-              _DrawerToggle(
-                label: 'Quick Commands',
-                icon: Icons.grid_view,
-                value: settings.quickCommandsVisible,
-                onChanged: (_) => notifier.toggleQuickCommands(),
-              ),
-              if (settings.quickCommandsVisible)
-                _DrawerToggle(
-                  label: 'Use D-Pad',
-                  icon: Icons.explore,
-                  value: settings.useDPad,
-                  onChanged: (_) => notifier.toggleDPad(),
-                ),
-            ],
-
             _DrawerToggle(
-              label: 'Session Logging',
-              icon: Icons.save,
-              value: settings.loggingEnabled,
-              onChanged: (_) => notifier.toggleLogging(),
+              label: 'Emoji Parsing',
+              icon: Icons.emoji_emotions,
+              value: settings.emojiParsingEnabled,
+              onChanged: (_) => notifier.toggleEmojiParsing(),
             ),
 
-            if (settings.loggingEnabled)
-              Padding(
-                padding: const EdgeInsets.only(left: 40, bottom: 4),
-                child: Text(
-                  ref.read(logServiceProvider).currentLogName ?? '',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: theme.colorScheme.onSurface.withAlpha(100),
-                    fontFamily: 'JetBrainsMono',
-                  ),
-                ),
-              ),
+            _DrawerToggle(
+              label: 'Emoji Maps',
+              icon: Icons.map,
+              value: settings.emojiMapsEnabled,
+              onChanged: (_) => notifier.toggleEmojiMaps(),
+            ),
+
+            _DrawerToggle(
+              label: 'Sheets',
+              icon: Icons.table_chart,
+              value: settings.sheetsEnabled,
+              onChanged: (_) => notifier.toggleSheets(),
+            ),
+
+            _DrawerToggle(
+              label: 'Achievements',
+              icon: Icons.emoji_events_outlined,
+              value: settings.achievementsEnabled,
+              onChanged: (_) => notifier.toggleAchievements(),
+            ),
 
             const Divider(height: 24),
 
+            // Immersions / Aliases / Areas sit in the toolbar on desktop.
+            _DrawerSectionHeader(title: 'Commands', icon: Icons.keyboard),
+            const SizedBox(height: 4),
+            if (isMobile) ...[
+              _DrawerNavTile(
+                icon: const Text('🎨', style: TextStyle(fontSize: 18)),
+                title: 'Immersions',
+                onTap: () => _openScreen(
+                    context, const TriggerSettingsScreen()),
+              ),
+              _DrawerNavTile(
+                icon: const Text('🔡', style: TextStyle(fontSize: 18)),
+                title: 'Command Aliases',
+                onTap: () => _openScreen(
+                    context, const AliasSettingsScreen()),
+              ),
+              _DrawerNavTile(
+                icon: const Icon(Icons.landscape, size: 20),
+                title: 'Area Configuration',
+                onTap: () => _openScreen(
+                    context, const AreaConfigurationScreen()),
+              ),
+            ],
+
+            _DrawerNavTile(
+              icon: const Icon(Icons.link, size: 20),
+              title: 'Text Link Rules',
+              subtitle: 'MUD output → tappable commands',
+              onTap: () =>
+                  _openScreen(context, const TextLinkRulesScreen()),
+            ),
+
+            // Local-only: present just when the gitignored marker asset was
+            // bundled into this build.
+            Consumer(builder: (context, ref, _) {
+              final available =
+                  ref.watch(localFeaturesAvailableProvider).value ?? false;
+              if (!available) return const SizedBox.shrink();
+              return _DrawerNavTile(
+                icon: const Icon(Icons.bolt, size: 20),
+                title: 'Command Triggers',
+                subtitle: 'Local only · 3s idle, 1s delay',
+                onTap: () => _openScreen(
+                  context,
+                  const TextLinkRulesScreen(kind: RuleListKind.commandTrigger),
+                ),
+              );
+            }),
+
+            Consumer(builder: (context, ref, _) {
+              final ignoredCount = ref.watch(
+                settingsProvider.select((s) => s.ignoredKillTargets.length),
+              );
+              return _DrawerNavTile(
+                icon: const Icon(Icons.link_off, size: 20),
+                title: 'Ignored targets',
+                subtitle: ignoredCount == 0
+                    ? 'Not highlighted, skipped by Tab. Long-press a red link '
+                        'to add one'
+                    : '$ignoredCount word${ignoredCount == 1 ? '' : 's'} '
+                        'never highlighted or targeted',
+                onTap: () =>
+                    _openScreen(context, const IgnoredKillTargetsScreen()),
+              );
+            }),
+
+            if (!isMobile)
+              _DrawerNavTile(
+                icon: const Icon(Icons.sports_esports, size: 20),
+                title: 'Play Mode',
+                subtitle: 'Keyboard play, pressed-key overlay',
+                onTap: () =>
+                    _openScreen(context, const PlayModeSettingsScreen()),
+              ),
+
+            const SizedBox(height: 8),
             // ── Input Wrap ──
             Row(
               children: [
@@ -1295,6 +1203,72 @@ class SettingsDrawer extends ConsumerWidget {
                   : '${settings.inputWrapWidth}',
               onChanged: (v) => notifier.setInputWrapWidth(v.round()),
             ),
+
+            const Divider(height: 24),
+
+            // History and About sit in the toolbar on desktop.
+            _DrawerSectionHeader(title: 'Session', icon: Icons.save),
+            const SizedBox(height: 4),
+            _DrawerToggle(
+              label: 'Session Logging',
+              icon: Icons.save,
+              value: settings.loggingEnabled,
+              onChanged: (_) => notifier.toggleLogging(),
+            ),
+
+            if (settings.loggingEnabled)
+              Padding(
+                padding: const EdgeInsets.only(left: 40, bottom: 4),
+                child: Text(
+                  ref.read(logServiceProvider).currentLogName ?? '',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: theme.colorScheme.onSurface.withAlpha(100),
+                    fontFamily: 'JetBrainsMono',
+                  ),
+                ),
+              ),
+            if (isMobile) ...[
+              _DrawerNavTile(
+                icon: const Icon(Icons.history, size: 20),
+                title: 'Command History',
+                onTap: () => _openScreen(context, const HistoryScreen()),
+              ),
+              _DrawerNavTile(
+                icon: const Icon(Icons.info_outline, size: 20),
+                title: 'About',
+                onTap: () => _openScreen(context, const AboutScreen()),
+              ),
+            ],
+
+            // ── Support ── (store-backed platforms only)
+            if (kSupportTiersAvailable) ...[
+              const Divider(height: 24),
+              _DrawerSectionHeader(title: 'Support', icon: Icons.favorite),
+              const SizedBox(height: 8),
+              Consumer(builder: (context, ref, _) {
+                final sub = ref.watch(subscriptionProvider);
+                final subtitle = sub.isActive
+                    ? 'Supporting: ${sub.activeTier!.displayName}'
+                    : 'Optional monthly tiers — nothing gated';
+                return ListTile(
+                  leading: const Icon(Icons.favorite_border, size: 20),
+                  title: const Text('Support Tiers'),
+                  subtitle: Text(subtitle),
+                  trailing: const Icon(Icons.chevron_right, size: 18),
+                  dense: true,
+                  onTap: () {
+                    Navigator.of(context).pop(); // close drawer
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SupportScreen(),
+                      ),
+                    );
+                  },
+                );
+              }),
+
+            ],
           ],
         ),
         ),

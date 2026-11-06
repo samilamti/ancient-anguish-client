@@ -211,6 +211,32 @@ void main() {
     });
   });
 
+  group('onlyInCombat', () {
+    final fighter = door.copyWith(id: 'fighter', onlyInCombat: true);
+
+    test('fires in combat and is passed over outside it', () {
+      final engine = CommandTriggerEngine([fighter]);
+      expect(engine.onLine(doorLine, now: at(3000), lastInteraction: t0),
+          isNull);
+      expect(engine.matchNow(doorLine, now: t0), isNull);
+      expect(engine.matchNow(doorLine, now: t0, inCombat: true),
+          'open oak door');
+    });
+
+    test('a fight ending during the fire delay drops the match', () {
+      final engine = CommandTriggerEngine([fighter]);
+      engine.onLine(doorLine,
+          now: at(3000), lastInteraction: t0, inCombat: true);
+      expect(engine.takePending(now: at(4000), lastInteraction: t0), isNull);
+      expect(engine.hasPending, isFalse);
+    });
+
+    test('round-trips through JSON, omitted when false', () {
+      expect(door.toJson().containsKey('onlyInCombat'), isFalse);
+      expect(TextLinkRule.fromJson(fighter.toJson()).onlyInCombat, isTrue);
+    });
+  });
+
   group('skipWhileMoving', () {
     test('is on by default, including for rules saved before it existed', () {
       expect(door.skipWhileMoving, isTrue);
@@ -387,6 +413,15 @@ void main() {
           engine.onVitals(hp(70), hp(50),
               now: at(3000), lastInteraction: t0, inCombat: true),
           isNull);
+    });
+
+    test('onlyInCombat applies to meter rules', () {
+      final engine =
+          CommandTriggerEngine([potion.copyWith(onlyInCombat: true)]);
+      expect(engine.matchVitalsNow(hp(70), hp(50), now: t0), isNull);
+      expect(
+          engine.matchVitalsNow(hp(70), hp(50), now: at(10), inCombat: true),
+          'drink potion');
     });
 
     test('instant mode shares the rate limit with lines', () {

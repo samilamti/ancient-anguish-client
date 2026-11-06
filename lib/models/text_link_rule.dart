@@ -37,6 +37,10 @@ class TextLinkRule {
   /// (`battleStateProvider.inBattle`). Ignored by text links.
   final bool skipInCombat;
 
+  /// Command triggers only: fire only while a fight is in progress, the
+  /// mirror of [skipInCombat]. Ignored by text links.
+  final bool onlyInCombat;
+
   /// Command triggers only: don't fire while the player is walking between
   /// rooms (see `MovementTracker`). On by default. Ignored by text links.
   final bool skipWhileMoving;
@@ -61,6 +65,7 @@ class TextLinkRule {
     this.caseSensitive = true,
     this.favorite = false,
     this.skipInCombat = false,
+    this.onlyInCombat = false,
     this.skipWhileMoving = true,
     this.alwaysOn = false,
     this.meter,
@@ -101,6 +106,7 @@ class TextLinkRule {
     bool? caseSensitive,
     bool? favorite,
     bool? skipInCombat,
+    bool? onlyInCombat,
     bool? skipWhileMoving,
     bool? alwaysOn,
     MeterCondition? meter,
@@ -114,6 +120,7 @@ class TextLinkRule {
       caseSensitive: caseSensitive ?? this.caseSensitive,
       favorite: favorite ?? this.favorite,
       skipInCombat: skipInCombat ?? this.skipInCombat,
+      onlyInCombat: onlyInCombat ?? this.onlyInCombat,
       skipWhileMoving: skipWhileMoving ?? this.skipWhileMoving,
       alwaysOn: alwaysOn ?? this.alwaysOn,
       meter: meter ?? this.meter,
@@ -129,6 +136,7 @@ class TextLinkRule {
         'caseSensitive': caseSensitive,
         if (favorite) 'favorite': true,
         if (skipInCombat) 'skipInCombat': true,
+        if (onlyInCombat) 'onlyInCombat': true,
         if (!skipWhileMoving) 'skipWhileMoving': false,
         if (alwaysOn) 'alwaysOn': true,
         if (meter != null) 'meter': meter!.toJson(),
@@ -143,6 +151,7 @@ class TextLinkRule {
         caseSensitive: json['caseSensitive'] as bool? ?? true,
         favorite: json['favorite'] as bool? ?? false,
         skipInCombat: json['skipInCombat'] as bool? ?? false,
+        onlyInCombat: json['onlyInCombat'] as bool? ?? false,
         skipWhileMoving: json['skipWhileMoving'] as bool? ?? true,
         alwaysOn: json['alwaysOn'] as bool? ?? false,
         meter: MeterCondition.fromJson(json['meter']),

@@ -37,8 +37,8 @@ import '../../models/text_link_rule.dart';
 /// second in instant mode, where the shared cooldown doesn't apply.
 ///
 /// Rules can opt out of situations: [TextLinkRule.skipInCombat] while the
-/// caller reports `inCombat`, [TextLinkRule.skipWhileMoving] while it reports
-/// `moving`. Such a rule is passed over, and its pending match is dropped if
+/// caller reports `inCombat`, [TextLinkRule.onlyInCombat] while it does not,
+/// [TextLinkRule.skipWhileMoving] while it reports `moving`. Such a rule is passed over, and its pending match is dropped if
 /// the situation has arisen by the time it would be sent.
 ///
 /// Meter triggers ([TextLinkRule.meter]) go through [onVitals] and
@@ -235,5 +235,7 @@ class CommandTriggerEngine {
   }
 
   static bool _sitsOut(TextLinkRule rule, bool inCombat, bool moving) =>
-      (inCombat && rule.skipInCombat) || (moving && rule.skipWhileMoving);
+      (inCombat && rule.skipInCombat) ||
+      (!inCombat && rule.onlyInCombat) ||
+      (moving && rule.skipWhileMoving);
 }

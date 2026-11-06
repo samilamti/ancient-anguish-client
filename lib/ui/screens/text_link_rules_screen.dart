@@ -534,6 +534,7 @@ class _TextLinkRuleEditScreenState
   String? _previewMatch;
   String? _previewCommand;
   late bool _skipInCombat;
+  late bool _onlyInCombat;
   late bool _skipWhileMoving;
   late bool _alwaysOn;
 
@@ -550,6 +551,7 @@ class _TextLinkRuleEditScreenState
     super.initState();
     final e = widget.existing;
     _skipInCombat = e?.skipInCombat ?? false;
+    _onlyInCombat = e?.onlyInCombat ?? false;
     _skipWhileMoving = e?.skipWhileMoving ?? true;
     _alwaysOn = e?.alwaysOn ?? false;
     _meter = e?.meter;
@@ -678,6 +680,7 @@ class _TextLinkRuleEditScreenState
       caseSensitive: widget.existing?.caseSensitive ?? true,
       favorite: widget.existing?.favorite ?? false,
       skipInCombat: _skipInCombat,
+      onlyInCombat: _onlyInCombat,
       skipWhileMoving: _skipWhileMoving,
       alwaysOn: _alwaysOn,
       meter: meter,
@@ -793,7 +796,22 @@ class _TextLinkRuleEditScreenState
               title: const Text('Not during combat'),
               subtitle: const Text("Don't fire while a fight is going on"),
               value: _skipInCombat,
-              onChanged: (v) => setState(() => _skipInCombat = v),
+              // The two combat switches contradict each other, so turning
+              // one on turns the other off.
+              onChanged: (v) => setState(() {
+                _skipInCombat = v;
+                if (v) _onlyInCombat = false;
+              }),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Only in combat'),
+              subtitle: const Text('Fire only while a fight is going on'),
+              value: _onlyInCombat,
+              onChanged: (v) => setState(() {
+                _onlyInCombat = v;
+                if (v) _skipInCombat = false;
+              }),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

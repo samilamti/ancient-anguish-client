@@ -895,8 +895,6 @@ class SettingsDrawer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(settingsProvider);
-    final notifier = ref.read(settingsProvider.notifier);
     final theme = Theme.of(context);
     return Drawer(
       child: EscapeDismiss(
@@ -912,340 +910,47 @@ class SettingsDrawer extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
-            _DrawerSectionHeader(title: 'Appearance', icon: Icons.palette),
-            const SizedBox(height: 8),
-            RadioGroup<String>(
-              groupValue: settings.themeMode,
-              onChanged: (v) => notifier.setThemeMode(v!),
-              child: Column(
-                children: [
-                  for (final entry in {
-                    'rpg': 'RPG Fantasy',
-                    'classic': 'Classic Dark',
-                    'highContrast': 'High Contrast',
-                    'paper': 'Paper (Light)',
-                    'custom': 'Custom',
-                  }.entries)
-                    RadioListTile<String>(
-                      title: Text(entry.value,
-                          style: const TextStyle(fontSize: 14)),
-                      value: entry.key,
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                ],
-              ),
+            _DrawerNavTile(
+              icon: const Icon(Icons.palette, size: 20),
+              title: 'Appearance',
+              subtitle: 'Theme, font size, line spacing',
+              onTap: () => _openScreen(context,
+                  _SettingsSection(title: 'Appearance', children: _appearance)),
             ),
-
-            if (settings.themeMode == 'custom')
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Column(
-                  children: [
-                    for (final entry in {
-                      'primary': 'Primary',
-                      'secondary': 'Secondary',
-                      'surface': 'Surface',
-                      'onSurface': 'On Surface',
-                      'background': 'Background',
-                    }.entries)
-                      _DrawerColorTile(
-                        label: entry.value,
-                        colorValue: settings.customThemeColors[entry.key] ??
-                            AppSettings.defaultCustomColors[entry.key]!,
-                        onChanged: (v) =>
-                            notifier.setCustomThemeColor(entry.key, v),
-                      ),
-                  ],
-                ),
-              ),
-
-            const SizedBox(height: 12),
-
-            // ── Font Size ──
-            Row(
-              children: [
-                const Icon(Icons.text_fields, size: 18),
-                const SizedBox(width: 8),
-                Text('Font Size', style: theme.textTheme.bodyMedium),
-                const Spacer(),
-                Text(
-                  '${settings.fontSize.round()}pt',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontFamily: 'JetBrainsMono',
-                    color: theme.colorScheme.onSurface.withAlpha(160),
-                  ),
-                ),
-              ],
-            ),
-            Slider(
-              value: settings.fontSize,
-              min: 8.0,
-              max: 32.0,
-              divisions: 24,
-              label: '${settings.fontSize.round()}pt',
-              onChanged: (v) => notifier.setFontSize(v),
-            ),
-
-            // ── Line Spacing ──
-            // Discrete steps rather than a free slider: the point is legible
-            // gaps, and a percentage of the font size keeps that true at any
-            // font size. Sits next to Font Size because they are read together.
-            Row(
-              children: [
-                const Icon(Icons.format_line_spacing, size: 18),
-                const SizedBox(width: 8),
-                Text('Line Spacing', style: theme.textTheme.bodyMedium),
-                const Spacer(),
-                Text(
-                  settings.lineSpacing.label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontFamily: 'JetBrainsMono',
-                    color: theme.colorScheme.onSurface.withAlpha(160),
-                  ),
-                ),
-              ],
-            ),
-            Slider(
-              value: LineSpacing.values.indexOf(settings.lineSpacing).toDouble(),
-              min: 0,
-              max: (LineSpacing.values.length - 1).toDouble(),
-              divisions: LineSpacing.values.length - 1,
-              label: settings.lineSpacing.label,
-              onChanged: (v) =>
-                  notifier.setLineSpacing(LineSpacing.values[v.round()]),
-            ),
-
             _DrawerNavTile(
               icon: const Icon(Icons.dashboard_customize, size: 20),
               title: 'Layout',
               subtitle: isMobile
                   ? 'Quick commands, D-Pad, HUD stats'
                   : 'Social windows, compass, HUD stats',
-              onTap: () =>
-                  _openScreen(context, LayoutSettingsScreen(isMobile: isMobile)),
+              onTap: () => _openScreen(
+                  context, LayoutSettingsScreen(isMobile: isMobile)),
             ),
-
-            const Divider(height: 24),
-
-            _DrawerSectionHeader(title: 'Output', icon: Icons.subject),
-            const SizedBox(height: 8),
-            // ── Battle Text ──
-            Row(
-              children: [
-                const Icon(Icons.gavel, size: 18),
-                const SizedBox(width: 8),
-                Text('Battle Text', style: theme.textTheme.bodyMedium),
-              ],
-            ),
-            RadioGroup<BattleFilterMode>(
-              groupValue: settings.battleFilterMode,
-              onChanged: (v) => notifier.setBattleFilterMode(v!),
-              child: Column(
-                children: [
-                  for (final mode in BattleFilterMode.values)
-                    RadioListTile<BattleFilterMode>(
-                      title: Text(
-                        mode.label,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      subtitle: Text(
-                        mode.description,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: theme.colorScheme.onSurface.withAlpha(140),
-                        ),
-                      ),
-                      value: mode,
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                ],
-              ),
-            ),
-
-            _DrawerToggle(
-              label: 'Emoji Parsing',
-              icon: Icons.emoji_emotions,
-              value: settings.emojiParsingEnabled,
-              onChanged: (_) => notifier.toggleEmojiParsing(),
-            ),
-
-            _DrawerToggle(
-              label: 'Emoji Maps',
-              icon: Icons.map,
-              value: settings.emojiMapsEnabled,
-              onChanged: (_) => notifier.toggleEmojiMaps(),
-            ),
-
-            _DrawerToggle(
-              label: 'Sheets',
-              icon: Icons.table_chart,
-              value: settings.sheetsEnabled,
-              onChanged: (_) => notifier.toggleSheets(),
-            ),
-
-            _DrawerToggle(
-              label: 'Achievements',
-              icon: Icons.emoji_events_outlined,
-              value: settings.achievementsEnabled,
-              onChanged: (_) => notifier.toggleAchievements(),
-            ),
-
-            const Divider(height: 24),
-
-            // Immersions / Aliases / Areas sit in the toolbar on desktop.
-            _DrawerSectionHeader(title: 'Commands', icon: Icons.keyboard),
-            const SizedBox(height: 4),
-            if (isMobile) ...[
-              _DrawerNavTile(
-                icon: const Text('🎨', style: TextStyle(fontSize: 18)),
-                title: 'Immersions',
-                onTap: () => _openScreen(
-                    context, const TriggerSettingsScreen()),
-              ),
-              _DrawerNavTile(
-                icon: const Text('🔡', style: TextStyle(fontSize: 18)),
-                title: 'Command Aliases',
-                onTap: () => _openScreen(
-                    context, const AliasSettingsScreen()),
-              ),
-              _DrawerNavTile(
-                icon: const Icon(Icons.landscape, size: 20),
-                title: 'Area Configuration',
-                onTap: () => _openScreen(
-                    context, const AreaConfigurationScreen()),
-              ),
-            ],
-
             _DrawerNavTile(
-              icon: const Icon(Icons.link, size: 20),
-              title: 'Text Link Rules',
-              subtitle: 'MUD output → tappable commands',
-              onTap: () =>
-                  _openScreen(context, const TextLinkRulesScreen()),
+              icon: const Icon(Icons.subject, size: 20),
+              title: 'Output',
+              subtitle: 'Battle text, emoji, maps, sheets, achievements',
+              onTap: () => _openScreen(context,
+                  _SettingsSection(title: 'Output', children: _output)),
             ),
-
-            // Local-only: present just when the gitignored marker asset was
-            // bundled into this build.
-            Consumer(builder: (context, ref, _) {
-              final available =
-                  ref.watch(localFeaturesAvailableProvider).value ?? false;
-              if (!available) return const SizedBox.shrink();
-              return _DrawerNavTile(
-                icon: const Icon(Icons.bolt, size: 20),
-                title: 'Command Triggers',
-                subtitle: 'Local only · 3s idle, 1s delay',
-                onTap: () => _openScreen(
-                  context,
-                  const TextLinkRulesScreen(kind: RuleListKind.commandTrigger),
-                ),
-              );
-            }),
-
-            Consumer(builder: (context, ref, _) {
-              final ignoredCount = ref.watch(
-                settingsProvider.select((s) => s.ignoredKillTargets.length),
-              );
-              return _DrawerNavTile(
-                icon: const Icon(Icons.link_off, size: 20),
-                title: 'Ignored targets',
-                subtitle: ignoredCount == 0
-                    ? 'Not highlighted, skipped by Tab. Long-press a red link '
-                        'to add one'
-                    : '$ignoredCount word${ignoredCount == 1 ? '' : 's'} '
-                        'never highlighted or targeted',
-                onTap: () =>
-                    _openScreen(context, const IgnoredKillTargetsScreen()),
-              );
-            }),
-
-            if (!isMobile)
-              _DrawerNavTile(
-                icon: const Icon(Icons.sports_esports, size: 20),
-                title: 'Play Mode',
-                subtitle: 'Keyboard play, pressed-key overlay',
-                onTap: () =>
-                    _openScreen(context, const PlayModeSettingsScreen()),
-              ),
-
-            const SizedBox(height: 8),
-            // ── Input Wrap ──
-            Row(
-              children: [
-                const Icon(Icons.wrap_text, size: 18),
-                const SizedBox(width: 8),
-                Text('Line Wrap', style: theme.textTheme.bodyMedium),
-                const Spacer(),
-                Text(
-                  settings.inputWrapWidth == 0
-                      ? 'Off'
-                      : '${settings.inputWrapWidth}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontFamily: 'JetBrainsMono',
-                    color: theme.colorScheme.onSurface.withAlpha(160),
-                  ),
-                ),
-              ],
+            _DrawerNavTile(
+              icon: const Icon(Icons.keyboard, size: 20),
+              title: 'Commands',
+              subtitle: isMobile
+                  ? 'Immersions, aliases, links, triggers, wrap'
+                  : 'Links, triggers, ignored targets, play mode, wrap',
+              onTap: () => _openScreen(context,
+                  _SettingsSection(title: 'Commands', children: _commands)),
             ),
-            Slider(
-              value: settings.inputWrapWidth.toDouble(),
-              min: 0,
-              max: 200,
-              divisions: 200,
-              label: settings.inputWrapWidth == 0
-                  ? 'Off'
-                  : '${settings.inputWrapWidth}',
-              onChanged: (v) => notifier.setInputWrapWidth(v.round()),
+            _DrawerNavTile(
+              icon: const Icon(Icons.save, size: 20),
+              title: 'Session',
+              subtitle: isMobile ? 'Logging, history, about' : 'Session logging',
+              onTap: () => _openScreen(context,
+                  _SettingsSection(title: 'Session', children: _session)),
             ),
-
-            const Divider(height: 24),
-
-            // History and About sit in the toolbar on desktop.
-            _DrawerSectionHeader(title: 'Session', icon: Icons.save),
-            const SizedBox(height: 4),
-            _DrawerToggle(
-              label: 'Session Logging',
-              icon: Icons.save,
-              value: settings.loggingEnabled,
-              onChanged: (_) => notifier.toggleLogging(),
-            ),
-
-            if (settings.loggingEnabled)
-              Padding(
-                padding: const EdgeInsets.only(left: 40, bottom: 4),
-                child: Text(
-                  ref.read(logServiceProvider).currentLogName ?? '',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: theme.colorScheme.onSurface.withAlpha(100),
-                    fontFamily: 'JetBrainsMono',
-                  ),
-                ),
-              ),
-            if (isMobile) ...[
-              _DrawerNavTile(
-                icon: const Icon(Icons.history, size: 20),
-                title: 'Command History',
-                onTap: () => _openScreen(context, const HistoryScreen()),
-              ),
-              _DrawerNavTile(
-                icon: const Icon(Icons.info_outline, size: 20),
-                title: 'About',
-                onTap: () => _openScreen(context, const AboutScreen()),
-              ),
-            ],
-
-            // ── Support ── (store-backed platforms only)
+            // Store-backed platforms only.
             if (kSupportTiersAvailable) ...[
-              const Divider(height: 24),
-              _DrawerSectionHeader(title: 'Support', icon: Icons.favorite),
-              const SizedBox(height: 8),
               Consumer(builder: (context, ref, _) {
                 final sub = ref.watch(subscriptionProvider);
                 final subtitle = sub.isActive
@@ -1257,6 +962,7 @@ class SettingsDrawer extends ConsumerWidget {
                   subtitle: Text(subtitle),
                   trailing: const Icon(Icons.chevron_right, size: 18),
                   dense: true,
+                  contentPadding: EdgeInsets.zero,
                   onTap: () {
                     Navigator.of(context).pop(); // close drawer
                     Navigator.of(context).push(
@@ -1275,30 +981,372 @@ class SettingsDrawer extends ConsumerWidget {
       ),
     );
   }
-}
 
-class _DrawerSectionHeader extends StatelessWidget {
-  final String title;
-  final IconData icon;
+  /// Theme, font size and line spacing.
+  List<Widget> _appearance(
+          BuildContext context,
+          WidgetRef ref,
+          AppSettings settings,
+          SettingsNotifier notifier,
+          ThemeData theme) =>
+      [
+      RadioGroup<String>(
+        groupValue: settings.themeMode,
+        onChanged: (v) => notifier.setThemeMode(v!),
+        child: Column(
+          children: [
+            for (final entry in {
+              'rpg': 'RPG Fantasy',
+              'classic': 'Classic Dark',
+              'highContrast': 'High Contrast',
+              'paper': 'Paper (Light)',
+              'custom': 'Custom',
+            }.entries)
+              RadioListTile<String>(
+                title: Text(entry.value,
+                    style: const TextStyle(fontSize: 14)),
+                value: entry.key,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+          ],
+        ),
+      ),
 
-  const _DrawerSectionHeader({required this.title, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: theme.colorScheme.primary),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.primary,
+      if (settings.themeMode == 'custom')
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(
+            children: [
+              for (final entry in {
+                'primary': 'Primary',
+                'secondary': 'Secondary',
+                'surface': 'Surface',
+                'onSurface': 'On Surface',
+                'background': 'Background',
+              }.entries)
+                _DrawerColorTile(
+                  label: entry.value,
+                  colorValue: settings.customThemeColors[entry.key] ??
+                      AppSettings.defaultCustomColors[entry.key]!,
+                  onChanged: (v) =>
+                      notifier.setCustomThemeColor(entry.key, v),
+                ),
+            ],
           ),
         ),
+
+      const SizedBox(height: 12),
+
+      // ── Font Size ──
+      Row(
+        children: [
+          const Icon(Icons.text_fields, size: 18),
+          const SizedBox(width: 8),
+          Text('Font Size', style: theme.textTheme.bodyMedium),
+          const Spacer(),
+          Text(
+            '${settings.fontSize.round()}pt',
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'JetBrainsMono',
+              color: theme.colorScheme.onSurface.withAlpha(160),
+            ),
+          ),
+        ],
+      ),
+      Slider(
+        value: settings.fontSize,
+        min: 8.0,
+        max: 32.0,
+        divisions: 24,
+        label: '${settings.fontSize.round()}pt',
+        onChanged: (v) => notifier.setFontSize(v),
+      ),
+
+      // ── Line Spacing ──
+      // Discrete steps rather than a free slider: the point is legible
+      // gaps, and a percentage of the font size keeps that true at any
+      // font size. Sits next to Font Size because they are read together.
+      Row(
+        children: [
+          const Icon(Icons.format_line_spacing, size: 18),
+          const SizedBox(width: 8),
+          Text('Line Spacing', style: theme.textTheme.bodyMedium),
+          const Spacer(),
+          Text(
+            settings.lineSpacing.label,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'JetBrainsMono',
+              color: theme.colorScheme.onSurface.withAlpha(160),
+            ),
+          ),
+        ],
+      ),
+      Slider(
+        value: LineSpacing.values.indexOf(settings.lineSpacing).toDouble(),
+        min: 0,
+        max: (LineSpacing.values.length - 1).toDouble(),
+        divisions: LineSpacing.values.length - 1,
+        label: settings.lineSpacing.label,
+        onChanged: (v) =>
+            notifier.setLineSpacing(LineSpacing.values[v.round()]),
+      ),
+      ];
+
+  /// How MUD output is filtered and decorated.
+  List<Widget> _output(
+          BuildContext context,
+          WidgetRef ref,
+          AppSettings settings,
+          SettingsNotifier notifier,
+          ThemeData theme) =>
+      [
+      // ── Battle Text ──
+      Row(
+        children: [
+          const Icon(Icons.gavel, size: 18),
+          const SizedBox(width: 8),
+          Text('Battle Text', style: theme.textTheme.bodyMedium),
+        ],
+      ),
+      RadioGroup<BattleFilterMode>(
+        groupValue: settings.battleFilterMode,
+        onChanged: (v) => notifier.setBattleFilterMode(v!),
+        child: Column(
+          children: [
+            for (final mode in BattleFilterMode.values)
+              RadioListTile<BattleFilterMode>(
+                title: Text(
+                  mode.label,
+                  style: const TextStyle(fontSize: 14),
+                ),
+                subtitle: Text(
+                  mode.description,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: theme.colorScheme.onSurface.withAlpha(140),
+                  ),
+                ),
+                value: mode,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+          ],
+        ),
+      ),
+
+      _DrawerToggle(
+        label: 'Emoji Parsing',
+        icon: Icons.emoji_emotions,
+        value: settings.emojiParsingEnabled,
+        onChanged: (_) => notifier.toggleEmojiParsing(),
+      ),
+
+      _DrawerToggle(
+        label: 'Emoji Maps',
+        icon: Icons.map,
+        value: settings.emojiMapsEnabled,
+        onChanged: (_) => notifier.toggleEmojiMaps(),
+      ),
+
+      _DrawerToggle(
+        label: 'Sheets',
+        icon: Icons.table_chart,
+        value: settings.sheetsEnabled,
+        onChanged: (_) => notifier.toggleSheets(),
+      ),
+
+      _DrawerToggle(
+        label: 'Achievements',
+        icon: Icons.emoji_events_outlined,
+        value: settings.achievementsEnabled,
+        onChanged: (_) => notifier.toggleAchievements(),
+      ),
+      ];
+
+  /// Everything that shapes what gets sent.
+  List<Widget> _commands(
+          BuildContext context,
+          WidgetRef ref,
+          AppSettings settings,
+          SettingsNotifier notifier,
+          ThemeData theme) =>
+      [
+      // Immersions / Aliases / Areas sit in the toolbar on desktop.
+      if (isMobile) ...[
+        _DrawerNavTile(
+          icon: const Text('🎨', style: TextStyle(fontSize: 18)),
+          title: 'Immersions',
+          onTap: () => _openScreen(
+              context, const TriggerSettingsScreen()),
+        ),
+        _DrawerNavTile(
+          icon: const Text('🔡', style: TextStyle(fontSize: 18)),
+          title: 'Command Aliases',
+          onTap: () => _openScreen(
+              context, const AliasSettingsScreen()),
+        ),
+        _DrawerNavTile(
+          icon: const Icon(Icons.landscape, size: 20),
+          title: 'Area Configuration',
+          onTap: () => _openScreen(
+              context, const AreaConfigurationScreen()),
+        ),
       ],
+
+      _DrawerNavTile(
+        icon: const Icon(Icons.link, size: 20),
+        title: 'Text Link Rules',
+        subtitle: 'MUD output → tappable commands',
+        onTap: () =>
+            _openScreen(context, const TextLinkRulesScreen()),
+      ),
+
+      // Local-only: present just when the gitignored marker asset was
+      // bundled into this build.
+      Consumer(builder: (context, ref, _) {
+        final available =
+            ref.watch(localFeaturesAvailableProvider).value ?? false;
+        if (!available) return const SizedBox.shrink();
+        return _DrawerNavTile(
+          icon: const Icon(Icons.bolt, size: 20),
+          title: 'Command Triggers',
+          subtitle: 'Local only · 3s idle, 1s delay',
+          onTap: () => _openScreen(
+            context,
+            const TextLinkRulesScreen(kind: RuleListKind.commandTrigger),
+          ),
+        );
+      }),
+
+      Consumer(builder: (context, ref, _) {
+        final ignoredCount = ref.watch(
+          settingsProvider.select((s) => s.ignoredKillTargets.length),
+        );
+        return _DrawerNavTile(
+          icon: const Icon(Icons.link_off, size: 20),
+          title: 'Ignored targets',
+          subtitle: ignoredCount == 0
+              ? 'Not highlighted, skipped by Tab. Long-press a red link '
+                  'to add one'
+              : '$ignoredCount word${ignoredCount == 1 ? '' : 's'} '
+                  'never highlighted or targeted',
+          onTap: () =>
+              _openScreen(context, const IgnoredKillTargetsScreen()),
+        );
+      }),
+
+      if (!isMobile)
+        _DrawerNavTile(
+          icon: const Icon(Icons.sports_esports, size: 20),
+          title: 'Play Mode',
+          subtitle: 'Keyboard play, pressed-key overlay',
+          onTap: () =>
+              _openScreen(context, const PlayModeSettingsScreen()),
+        ),
+
+      const SizedBox(height: 8),
+      // ── Input Wrap ──
+      Row(
+        children: [
+          const Icon(Icons.wrap_text, size: 18),
+          const SizedBox(width: 8),
+          Text('Line Wrap', style: theme.textTheme.bodyMedium),
+          const Spacer(),
+          Text(
+            settings.inputWrapWidth == 0
+                ? 'Off'
+                : '${settings.inputWrapWidth}',
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'JetBrainsMono',
+              color: theme.colorScheme.onSurface.withAlpha(160),
+            ),
+          ),
+        ],
+      ),
+      Slider(
+        value: settings.inputWrapWidth.toDouble(),
+        min: 0,
+        max: 200,
+        divisions: 200,
+        label: settings.inputWrapWidth == 0
+            ? 'Off'
+            : '${settings.inputWrapWidth}',
+        onChanged: (v) => notifier.setInputWrapWidth(v.round()),
+      ),
+      ];
+
+  /// Logging, plus History and About on phones.
+  List<Widget> _session(
+          BuildContext context,
+          WidgetRef ref,
+          AppSettings settings,
+          SettingsNotifier notifier,
+          ThemeData theme) =>
+      [
+      _DrawerToggle(
+        label: 'Session Logging',
+        icon: Icons.save,
+        value: settings.loggingEnabled,
+        onChanged: (_) => notifier.toggleLogging(),
+      ),
+
+      if (settings.loggingEnabled)
+        Padding(
+          padding: const EdgeInsets.only(left: 40, bottom: 4),
+          child: Text(
+            ref.read(logServiceProvider).currentLogName ?? '',
+            style: TextStyle(
+              fontSize: 10,
+              color: theme.colorScheme.onSurface.withAlpha(100),
+              fontFamily: 'JetBrainsMono',
+            ),
+          ),
+        ),
+      if (isMobile) ...[
+        _DrawerNavTile(
+          icon: const Icon(Icons.history, size: 20),
+          title: 'Command History',
+          onTap: () => _openScreen(context, const HistoryScreen()),
+        ),
+        _DrawerNavTile(
+          icon: const Icon(Icons.info_outline, size: 20),
+          title: 'About',
+          onTap: () => _openScreen(context, const AboutScreen()),
+        ),
+      ],
+      ];
+}
+
+/// One Settings section, opened from the drawer as its own sheet.
+class _SettingsSection extends ConsumerWidget {
+  final String title;
+  final List<Widget> Function(BuildContext, WidgetRef, AppSettings,
+      SettingsNotifier, ThemeData) children;
+
+  const _SettingsSection({required this.title, required this.children});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return EscapeDismiss(
+      child: Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          children: children(
+            context,
+            ref,
+            ref.watch(settingsProvider),
+            ref.read(settingsProvider.notifier),
+            Theme.of(context),
+          ),
+        ),
+      ),
     );
   }
 }

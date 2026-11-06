@@ -44,8 +44,10 @@ void main() {
         (tester) async {
       final container = await pumpDrawer(tester, size: size);
 
+      await tester.tap(find.text('Appearance'));
+      await tester.pumpAndSettle();
       await tester.scrollUntilVisible(find.text('Line Spacing'), 200,
-          scrollable: find.byType(Scrollable).first);
+          scrollable: find.byType(Scrollable).last);
       await tester.pumpAndSettle();
 
       expect(find.text('Line Spacing'), findsOneWidget);
@@ -71,16 +73,12 @@ void main() {
       (tester) async {
     final container = await pumpDrawer(tester, size: const Size(1280, 800));
 
-    for (final section in ['Appearance', 'Output', 'Commands', 'Session']) {
-      await tester.scrollUntilVisible(find.text(section), 200,
-          scrollable: find.byType(Scrollable).first);
+    for (final section in ['Appearance', 'Layout', 'Output', 'Commands', 'Session']) {
       expect(find.text(section), findsOneWidget);
     }
-    expect(find.text('Social Windows'), findsNothing);
-    expect(find.text('Navigation Compass'), findsNothing);
+    // The drawer is a menu: no switches until a section is opened.
+    expect(find.byType(Switch), findsNothing);
 
-    await tester.scrollUntilVisible(find.text('Layout'), -200,
-        scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Layout'));
     await tester.pumpAndSettle();
 
@@ -92,4 +90,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(settingsProvider).compassEnabled, !before);
   });
+
+  for (final (section, control) in [
+    ('Output', 'Emoji Maps'),
+    ('Commands', 'Text Link Rules'),
+    ('Session', 'Session Logging'),
+  ]) {
+    testWidgets('$section opens as its own sheet', (tester) async {
+      await pumpDrawer(tester, size: const Size(375, 812));
+      expect(find.text(control), findsNothing);
+      await tester.tap(find.text(section));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppBar, section), findsOneWidget);
+      expect(find.text(control), findsOneWidget);
+    });
+  }
 }

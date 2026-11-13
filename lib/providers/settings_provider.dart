@@ -47,6 +47,12 @@ class AppSettings {
   final bool playModeKeyOverlay; // flash each play-mode key and its command
   final List<String?> actionBarAliasIds; // 10 play-mode slots → alias IDs
   final List<String?> actionBarCommands; // commands typed in play mode, auto-slotted
+  final List<String> autoHuntTargets; // Auto Hunt: creatures to kill (local only)
+  final List<String> autoHuntAvoid; // Auto Hunt: creatures to walk away from
+  final int autoHuntStepSeconds; // Auto Hunt: pause between rooms
+
+  /// Auto Hunt's starting avoid list.
+  static const List<String> defaultAutoHuntAvoid = ['hill giant'];
 
   /// Maximum number of alias rules that can be pinned to the D-Pad's
   /// quick-slot column at once.
@@ -103,6 +109,9 @@ class AppSettings {
     this.playModeKeyOverlay = true,
     this.actionBarAliasIds = emptyActionBar,
     this.actionBarCommands = emptyActionBar,
+    this.autoHuntTargets = const [],
+    this.autoHuntAvoid = defaultAutoHuntAvoid,
+    this.autoHuntStepSeconds = 6,
   });
 
   /// Number of action-bar slots (keys 1…9, 0).
@@ -145,6 +154,9 @@ class AppSettings {
     bool? playModeKeyOverlay,
     List<String?>? actionBarAliasIds,
     List<String?>? actionBarCommands,
+    List<String>? autoHuntTargets,
+    List<String>? autoHuntAvoid,
+    int? autoHuntStepSeconds,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -185,6 +197,9 @@ class AppSettings {
       playModeKeyOverlay: playModeKeyOverlay ?? this.playModeKeyOverlay,
       actionBarAliasIds: actionBarAliasIds ?? this.actionBarAliasIds,
       actionBarCommands: actionBarCommands ?? this.actionBarCommands,
+      autoHuntTargets: autoHuntTargets ?? this.autoHuntTargets,
+      autoHuntAvoid: autoHuntAvoid ?? this.autoHuntAvoid,
+      autoHuntStepSeconds: autoHuntStepSeconds ?? this.autoHuntStepSeconds,
     );
   }
 
@@ -224,6 +239,9 @@ class AppSettings {
         'playModeKeyOverlay': playModeKeyOverlay,
         'actionBarAliasIds': actionBarAliasIds,
         'actionBarCommands': actionBarCommands,
+        'autoHuntTargets': autoHuntTargets,
+        'autoHuntAvoid': autoHuntAvoid,
+        'autoHuntStepSeconds': autoHuntStepSeconds,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -283,6 +301,17 @@ class AppSettings {
       playModeKeyOverlay: json['playModeKeyOverlay'] as bool? ?? true,
       actionBarAliasIds: _actionBarFromJson(json['actionBarAliasIds']),
       actionBarCommands: _actionBarFromJson(json['actionBarCommands']),
+      autoHuntTargets: json['autoHuntTargets'] != null
+          ? List<String>.unmodifiable(
+              List<String>.from(json['autoHuntTargets'] as List))
+          : const [],
+      // A saved empty list stays empty: the player cleared the default.
+      autoHuntAvoid: json['autoHuntAvoid'] != null
+          ? List<String>.unmodifiable(
+              List<String>.from(json['autoHuntAvoid'] as List))
+          : defaultAutoHuntAvoid,
+      autoHuntStepSeconds:
+          (json['autoHuntStepSeconds'] as num?)?.toInt().clamp(2, 60) ?? 6,
     );
   }
 
@@ -553,6 +582,34 @@ class SettingsNotifier extends Notifier<AppSettings> {
     if (state.playModeEnabled == enabled) return;
     state = state.copyWith(playModeEnabled: enabled);
     _saveSettings();
+  }
+
+  /// Auto Hunt's target list. Entries are normalized like kill targets.
+  void setAutoHuntTargets(List<String> targets) {
+    state = state.copyWith(autoHuntTargets: _normalizedList(targets));
+    _saveSettings();
+  }
+
+  /// Auto Hunt's avoid list.
+  void setAutoHuntAvoid(List<String> avoid) {
+    state = state.copyWith(autoHuntAvoid: _normalizedList(avoid));
+    _saveSettings();
+  }
+
+  void setAutoHuntStepSeconds(int seconds) {
+    final clamped = seconds.clamp(2, 60);
+    if (state.autoHuntStepSeconds == clamped) return;
+    state = state.copyWith(autoHuntStepSeconds: clamped);
+    _saveSettings();
+  }
+
+  static List<String> _normalizedList(List<String> raw) {
+    final out = <String>[];
+    for (final entry in raw) {
+      final n = entry.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (n.isNotEmpty && !out.contains(n)) out.add(n);
+    }
+    return List.unmodifiable(out);
   }
 
   void setPlayModeKeyOverlay(bool enabled) {

@@ -14,6 +14,7 @@ import '../../models/line_spacing.dart';
 import '../../models/social_message.dart';
 import '../../models/support_tier.dart';
 import '../../providers/audio_provider.dart';
+import '../../providers/auto_hunt_provider.dart';
 import '../../providers/battle_stats_provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/game_state_provider.dart';
@@ -43,6 +44,7 @@ import '../widgets/terminal/play_mode.dart';
 import '../widgets/terminal/target_chip.dart';
 import '../widgets/terminal/terminal_view.dart';
 import 'about_screen.dart';
+import 'auto_hunt_settings_screen.dart';
 import 'layout_settings_screen.dart';
 import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
@@ -228,6 +230,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   onPressed: () =>
                       ref.read(instantTriggersProvider.notifier).toggle(),
                   active: ref.watch(instantTriggersProvider),
+                ),
+              if (!isMobile &&
+                  (ref.watch(localFeaturesAvailableProvider).value ?? false))
+                _ToolbarItem(
+                  icon: Icons.travel_explore,
+                  label: 'Auto Hunt',
+                  onPressed: () =>
+                      ref.read(autoHuntProvider.notifier).toggle(),
+                  active: ref.watch(autoHuntProvider).running,
                 ),
               // Keyboard play mode (WASD, action bar). No play mode on phones.
               if (!isMobile)
@@ -1220,6 +1231,22 @@ class SettingsDrawer extends ConsumerWidget {
             context,
             const TextLinkRulesScreen(kind: RuleListKind.commandTrigger),
           ),
+        );
+      }),
+
+      // Local-only, like Command Triggers.
+      Consumer(builder: (context, ref, _) {
+        final available =
+            ref.watch(localFeaturesAvailableProvider).value ?? false;
+        if (!available) return const SizedBox.shrink();
+        final hunt = ref.watch(autoHuntProvider);
+        return _DrawerNavTile(
+          icon: const Icon(Icons.travel_explore, size: 20),
+          title: 'Auto Hunt',
+          subtitle: hunt.running
+              ? 'On · ${hunt.status}'
+              : 'Local only · targets, avoid list, pace',
+          onTap: () => _openScreen(context, const AutoHuntSettingsScreen()),
         );
       }),
 

@@ -39,6 +39,7 @@ import '../services/alias/alias_highlighting_controller.dart';
 import '../services/command_history_service.dart';
 import '../services/platform/window_service.dart';
 import 'achievements_provider.dart';
+import 'auto_hunt_provider.dart';
 import 'audio_provider.dart';
 import 'auth_provider.dart';
 import 'storage_provider.dart';
@@ -616,6 +617,10 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
             // value is the target this line announced, if any.
             final npcTarget =
                 ref.read(roomTargetsProvider.notifier).processLine(plainText);
+            // Auto Hunt reads the same room blocks (no-op while it's off).
+            if (_loginDetected) {
+              ref.read(autoHuntProvider.notifier).onLine(plainText);
+            }
 
             // Normal trigger processing. A battle-HUD gag is applied here
             // rather than by `continue`ing earlier, so a gagged combat line
@@ -762,6 +767,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         _promptFlushTimer?.cancel();
         _promptFlushTimer = null;
         _cancelTriggerFire();
+        ref.read(autoHuntProvider.notifier).stop(reason: 'disconnected');
         ref.read(outputParserProvider).reset();
         ref.read(gameStateProvider.notifier).reset();
         ref.read(battleStateProvider.notifier).reset();

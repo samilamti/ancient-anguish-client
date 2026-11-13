@@ -30,6 +30,7 @@ import '../../providers/social_panel_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../widgets/audio/audio_controls.dart';
 import '../widgets/compass/compass_overlay.dart';
+import '../widgets/hunt/auto_hunt_window.dart';
 import '../widgets/compass/compass_strip.dart';
 import '../widgets/common/notification_overlay.dart';
 import '../widgets/login/login_dialog.dart';
@@ -44,7 +45,6 @@ import '../widgets/terminal/play_mode.dart';
 import '../widgets/terminal/target_chip.dart';
 import '../widgets/terminal/terminal_view.dart';
 import 'about_screen.dart';
-import 'auto_hunt_settings_screen.dart';
 import 'layout_settings_screen.dart';
 import 'alias_settings_screen.dart';
 import 'area_configuration_screen.dart';
@@ -439,6 +439,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             // covers the terminal fullscreen when the user taps a social
             // tab button in the AppBar.
             const Positioned.fill(child: SocialWindowsOverlay()),
+
+            // Auto Hunt's floating window (local-only); open while it runs.
+            const Positioned.fill(child: AutoHuntWindowOverlay()),
 
             // Login dialog overlay.
             if (ref.watch(loginProvider) is LoginPromptDetected) ...[
@@ -1246,7 +1249,10 @@ class SettingsDrawer extends ConsumerWidget {
           subtitle: hunt.running
               ? 'On · ${hunt.status}'
               : 'Local only · targets, avoid list, pace',
-          onTap: () => _openScreen(context, const AutoHuntSettingsScreen()),
+          onTap: () {
+            Navigator.of(context).pop();
+            ref.read(autoHuntWindowProvider.notifier).open();
+          },
         );
       }),
 

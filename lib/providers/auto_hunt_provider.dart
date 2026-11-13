@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'dart:ui' show Offset;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/hunt/auto_hunt_engine.dart';
@@ -65,9 +67,11 @@ class AutoHuntNotifier extends Notifier<AutoHuntState> {
     if (ref.read(localFeaturesAvailableProvider).value != true) return;
     final s = ref.read(settingsProvider);
     if (s.autoHuntTargets.isEmpty) {
+      // Open the window so the target can be added right there.
+      ref.read(autoHuntWindowProvider.notifier).open();
       ref
           .read(appNotificationsProvider.notifier)
-          .show('Auto Hunt: add a target first (Settings → Auto Hunt)');
+          .show('Auto Hunt: add a target first');
       return;
     }
     _engine = AutoHuntEngine(
@@ -78,6 +82,8 @@ class AutoHuntNotifier extends Notifier<AutoHuntState> {
     _reader = RoomBlockReader();
     _timer = Timer.periodic(tickInterval, (_) => _tick());
     state = const AutoHuntState(running: true, status: 'Starting');
+    // Its settings stay in view for as long as it runs.
+    ref.read(autoHuntWindowProvider.notifier).open();
   }
 
   void stop({String? reason}) {
@@ -132,4 +138,37 @@ class AutoHuntNotifier extends Notifier<AutoHuntState> {
       if (outgoing.trim().isNotEmpty) service.sendCommand(outgoing);
     }
   }
+}
+
+/// The floating Auto Hunt window: open or not, and where it was dragged.
+/// Session only; a relaunch starts closed at the default spot.
+class AutoHuntWindowState {
+  const AutoHuntWindowState({this.open = false, this.position = defaultPosition});
+
+  static const defaultPosition = Offset(16, 72);
+
+  final bool open;
+  final Offset position;
+}
+
+final autoHuntWindowProvider =
+    NotifierProvider<AutoHuntWindowNotifier, AutoHuntWindowState>(
+        AutoHuntWindowNotifier.new);
+
+class AutoHuntWindowNotifier extends Notifier<AutoHuntWindowState> {
+  @override
+  AutoHuntWindowState build() => const AutoHuntWindowState();
+
+  void open() =>
+      state = AutoHuntWindowState(open: true, position: state.position);
+
+  /// Closing the window while hunting also stops the hunt: the settings are
+  /// meant to be on screen whenever it runs.
+  void close() {
+    ref.read(autoHuntProvider.notifier).stop();
+    state = AutoHuntWindowState(position: state.position);
+  }
+
+  void moveBy(Offset delta) => state =
+      AutoHuntWindowState(open: state.open, position: state.position + delta);
 }

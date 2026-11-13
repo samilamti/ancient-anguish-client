@@ -110,7 +110,12 @@ class RoomBlockReader {
     return _lines.length >= maxLines ? _finish() : null;
   }
 
-  /// Ends the current block, if any, and returns it.
+  /// Ends the current block now, if any, and returns it. The owner calls
+  /// this once output has gone quiet: `look` output is not always followed
+  /// by a blank line or a recognisable prompt, and waiting for the next
+  /// room's header would hand the hunter a room it has already left.
+  RoomSighting? flush() => _finish();
+
   RoomSighting? _finish() {
     final exits = _exits;
     _exits = null;

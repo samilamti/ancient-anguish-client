@@ -32,11 +32,22 @@ class AutoHuntNotifier extends Notifier<AutoHuntState> {
   AutoHuntEngine? _engine;
   Timer? _timer;
 
+  /// Fires once the MUD has been quiet for [quietGap]: the room just printed
+  /// is complete and goes to the engine.
+  Timer? _quiet;
+
+  /// Long enough for one room's output split over a few packets, short
+  /// against the engine's one-second pause before attacking.
+  static const quietGap = Duration(milliseconds: 300);
+
   RoomBlockReader _reader = RoomBlockReader();
 
   @override
   AutoHuntState build() {
-    ref.onDispose(() => _timer?.cancel());
+    ref.onDispose(() {
+      _timer?.cancel();
+      _quiet?.cancel();
+    });
     ref.listen<AppSettings>(settingsProvider, (_, s) {
       _engine?.configure(
         targets: s.autoHuntTargets,
@@ -72,6 +83,8 @@ class AutoHuntNotifier extends Notifier<AutoHuntState> {
   void stop({String? reason}) {
     _timer?.cancel();
     _timer = null;
+    _quiet?.cancel();
+    _quiet = null;
     _engine = null;
     if (!state.running) return;
     state = AutoHuntState(status: reason ?? 'Off');
@@ -88,6 +101,12 @@ class AutoHuntNotifier extends Notifier<AutoHuntState> {
     if (engine == null) return;
     final room = _reader.feed(plainText);
     if (room != null) engine.onRoom(room, DateTime.now());
+    _quiet?.cancel();
+    _quiet = Timer(quietGap, () {
+      _quiet = null;
+      final pending = _reader.flush();
+      if (pending != null) _engine?.onRoom(pending, DateTime.now());
+    });
   }
 
   void _tick() {

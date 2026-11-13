@@ -208,4 +208,60 @@ void main() {
       ]);
     });
   });
+
+  group('look output with no blank line before the next room', () {
+    const lookLines = [
+      'You walk through the forest of pines in the valley in the mountains.',
+      'Further to the north and the south you see the mountains rise high above you.',
+      'The valley continues to the west. Close by to the north are some woods. There',
+      'is a little sign on a tree.',
+      ' Obvious directions are:',
+      '  north, east, west.',
+      'A little spider.',
+    ];
+    const nextRoom = [
+      'Forest (e,s,w,ne)',
+      'A swarm of five wasps.',
+      "A wasps' nest.",
+    ];
+
+    test('flushing on quiet hands over each room while the hunter is in it',
+        () {
+      final r = RoomBlockReader();
+      for (final l in lookLines) {
+        expect(r.feed(l), isNull);
+      }
+      final spiderRoom = r.flush()!;
+      expect(spiderRoom.exits, ['n', 'e', 'w']);
+      expect(spiderRoom.lines, ['A little spider.']);
+
+      for (final l in nextRoom) {
+        // The header no longer drags the spider room along with it.
+        expect(r.feed(l), isNull);
+      }
+      final forest = r.flush()!;
+      expect(forest.exits, ['e', 's', 'w', 'ne']);
+      expect(forest.lines, isNot(contains('A little spider.')));
+    });
+
+    test('in the wasp room the hunter never sends kill spider', () {
+      final r = RoomBlockReader();
+      final e = engine();
+      for (final l in lookLines) {
+        r.feed(l);
+      }
+      e.onRoom(r.flush()!, at(0));
+      expect(e.tick(now: at(1), inCombat: false), 'kill spider');
+      // The spider fled before the fight began; the hunter moved on east.
+      expect(e.tick(now: at(6), inCombat: false), isNull);
+      expect(e.tick(now: at(7), inCombat: false), isIn(['n', 'e', 'w']));
+      for (final l in nextRoom) {
+        r.feed(l);
+      }
+      e.onRoom(r.flush()!, at(8));
+      for (var t = 8; t < 30; t++) {
+        expect(e.tick(now: at(t), inCombat: false), isNot('kill spider'));
+      }
+    });
+  });
 }

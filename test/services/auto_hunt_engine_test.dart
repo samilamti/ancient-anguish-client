@@ -141,4 +141,71 @@ void main() {
     expect(cleared.autoHuntTargets, ['tick']);
     expect(cleared.autoHuntStepSeconds, 6);
   });
+
+  group('RoomBlockReader', () {
+    List<RoomSighting> readAll(List<String> lines) {
+      final r = RoomBlockReader();
+      return [
+        for (final l in lines) ?r.feed(l),
+      ];
+    }
+
+    const forestLook = [
+      'You walk through the forest of pines in the valley in the mountains.',
+      'Further to the north and the south you see the mountains rise high above you.',
+      'The valley continues to the west. Close by to the north are some woods. There',
+      'is a little sign on a tree. ',
+      ' Obvious directions are:',
+      '  north, east, west.',
+      'A little spider.',
+      '',
+    ];
+
+    test('reads spelled-out exits from look output', () {
+      final rooms = readAll(forestLook);
+      expect(rooms, hasLength(1));
+      expect(rooms.single.exits, ['n', 'e', 'w']);
+      expect(rooms.single.lines, ['A little spider.']);
+    });
+
+    test('the hunter attacks the spider from a look, then walks n/e/w', () {
+      final e = engine();
+      final room = readAll(forestLook).single;
+      e.onRoom(room, at(0));
+      expect(e.tick(now: at(1), inCombat: false), 'kill spider');
+      final e2 = engine(targets: const ['tick']);
+      e2.onRoom(room, at(0));
+      expect(['n', 'e', 'w'], contains(e2.tick(now: at(6), inCombat: false)));
+    });
+
+    test('the description, which mentions north and woods, is not a sighting',
+        () {
+      final rooms = readAll(forestLook.take(4).toList());
+      expect(rooms, isEmpty);
+    });
+
+    test('exits on the same line, one exit, and a list split over lines', () {
+      expect(readAll(['Obvious directions are: north and southwest.', 'A tick', ''])
+          .single.exits, ['n', 'sw']);
+      expect(readAll(['There is one obvious exit: west.', '']).single.exits,
+          ['w']);
+      expect(readAll(['Obvious directions are:', '  north, south,', '  east.', '']).single.exits,
+          ['n', 's', 'e']);
+      expect(readAll(['There are no obvious exits.', '']).single.exits, isEmpty);
+    });
+
+    test('a short-exit header still works and ends at the prompt', () {
+      final rooms = readAll(['Dark cave (n,s)', 'A giant spider', '<HP 10>']);
+      expect(rooms.single.exits, ['n', 's']);
+      expect(rooms.single.lines, ['A giant spider']);
+    });
+
+    test('a new room ends the previous one', () {
+      final rooms = readAll(['A (n)', 'A tick', 'B (s)', 'A spider', '']);
+      expect(rooms.map((r) => r.exits), [
+        ['n'],
+        ['s'],
+      ]);
+    });
+  });
 }

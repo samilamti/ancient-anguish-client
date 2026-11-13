@@ -22,6 +22,109 @@ class RoomSighting {
   }
 }
 
+/// Turns MUD output, one line at a time, into [RoomSighting]s.
+///
+/// Two room shapes reach the hunter. Walking prints a header with short
+/// exits, `Forest path (n,e,w)`, and the block runs to the next blank or
+/// prompt line. `look` instead prints the description, then the exits spelled
+/// out on their own lines:
+///
+/// ```text
+///  Obvious directions are:
+///   north, east, west.
+/// A little spider.
+/// ```
+///
+/// The exit list runs until a line ends in a period, and the creatures
+/// follow it. Spelled-out directions are folded to the short form
+/// (`north` → `n`), so both shapes look the same to the engine.
+class RoomBlockReader {
+  static final _obvious = RegExp(
+    r'obvious\s+(?:exits?|directions?)\b[^:]*:?\s*(.*)$',
+    caseSensitive: false,
+  );
+
+  static const _short = {
+    'north': 'n', 'south': 's', 'east': 'e', 'west': 'w',
+    'northeast': 'ne', 'northwest': 'nw', 'southeast': 'se',
+    'southwest': 'sw', 'up': 'u', 'down': 'd',
+  };
+
+  /// Upper bound on a block's lines, so chatter after a room with no blank
+  /// line or prompt still lets the sighting go out.
+  static const maxLines = 40;
+
+  List<String>? _exits;
+  final List<String> _lines = [];
+
+  /// True while the spelled-out exit list is still being read.
+  bool _readingExits = false;
+
+  /// Folds `north`/`North`/`n` to `n`; anything else is kept lowercased.
+  static String shortDirection(String word) {
+    final w = word.trim().toLowerCase();
+    return _short[w] ?? w;
+  }
+
+  /// Splits `north, east and west.` into `[n, e, w]`.
+  static List<String> parseDirectionList(String text) => [
+        for (final part in text
+            .replaceAll(RegExp(r'[.:]'), ' ')
+            .split(RegExp(r',|\s+and\s+|\s+')))
+          if (part.trim().isNotEmpty) shortDirection(part),
+      ];
+
+  /// Feeds one plain-text line; returns a room when one has just finished.
+  RoomSighting? feed(String plainText) {
+    final line = plainText.trimRight();
+    final trimmed = line.trim();
+
+    final headerExits = RoomSighting.exitsOf(line);
+    if (headerExits != null) {
+      final done = _finish();
+      _exits = [for (final e in headerExits) shortDirection(e)];
+      return done;
+    }
+
+    final obvious = _obvious.firstMatch(trimmed);
+    if (obvious != null) {
+      // A look block has no header; the exit line is what opens it. Lines
+      // already collected under a header belong to the same room.
+      _exits = parseDirectionList(obvious.group(1)!);
+      _readingExits = !trimmed.endsWith('.');
+      return null;
+    }
+
+    if (_exits == null) return null;
+
+    if (_readingExits) {
+      _exits!.addAll(parseDirectionList(trimmed));
+      if (trimmed.endsWith('.') || trimmed.isEmpty) _readingExits = false;
+      return null;
+    }
+
+    if (trimmed.isEmpty || RoomLineClassifier.isPromptShape(line)) {
+      return _finish();
+    }
+    _lines.add(line);
+    return _lines.length >= maxLines ? _finish() : null;
+  }
+
+  /// Ends the current block, if any, and returns it.
+  RoomSighting? _finish() {
+    final exits = _exits;
+    _exits = null;
+    _readingExits = false;
+    if (exits == null) {
+      _lines.clear();
+      return null;
+    }
+    final room = RoomSighting(exits: exits, lines: List.of(_lines));
+    _lines.clear();
+    return room;
+  }
+}
+
 /// The decisions behind Auto Hunt: walk the world one room at a time through
 /// n/s/e/w exits, `kill` anything on the target list, and leave any room that
 /// holds something on the avoid list.

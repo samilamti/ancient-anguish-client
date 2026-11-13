@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/hunt/auto_hunt_engine.dart';
-import '../services/parser/room_line_classifier.dart';
 import 'alias_provider.dart';
 import 'battle_provider.dart';
 import 'connection_provider.dart';
@@ -33,9 +32,7 @@ class AutoHuntNotifier extends Notifier<AutoHuntState> {
   AutoHuntEngine? _engine;
   Timer? _timer;
 
-  // Room block capture, the same shape RoomTargetsNotifier reads.
-  List<String>? _blockExits;
-  final List<String> _blockLines = [];
+  RoomBlockReader _reader = RoomBlockReader();
 
   @override
   AutoHuntState build() {
@@ -67,8 +64,7 @@ class AutoHuntNotifier extends Notifier<AutoHuntState> {
       avoid: s.autoHuntAvoid,
       stepDelay: Duration(seconds: s.autoHuntStepSeconds),
     );
-    _blockExits = null;
-    _blockLines.clear();
+    _reader = RoomBlockReader();
     _timer = Timer.periodic(tickInterval, (_) => _tick());
     state = const AutoHuntState(running: true, status: 'Starting');
   }
@@ -90,31 +86,8 @@ class AutoHuntNotifier extends Notifier<AutoHuntState> {
   void onLine(String plainText) {
     final engine = _engine;
     if (engine == null) return;
-    final line = plainText.trimRight();
-    final exits = RoomSighting.exitsOf(line);
-    if (exits != null) {
-      _finishBlock(engine);
-      _blockExits = exits;
-      _blockLines.clear();
-      return;
-    }
-    if (_blockExits == null) return;
-    if (line.trim().isEmpty || RoomLineClassifier.isPromptShape(line)) {
-      _finishBlock(engine);
-      return;
-    }
-    _blockLines.add(line);
-  }
-
-  void _finishBlock(AutoHuntEngine engine) {
-    final exits = _blockExits;
-    if (exits == null) return;
-    engine.onRoom(
-      RoomSighting(exits: exits, lines: List.of(_blockLines)),
-      DateTime.now(),
-    );
-    _blockExits = null;
-    _blockLines.clear();
+    final room = _reader.feed(plainText);
+    if (room != null) engine.onRoom(room, DateTime.now());
   }
 
   void _tick() {

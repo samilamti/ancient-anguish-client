@@ -40,6 +40,7 @@ import '../services/command_history_service.dart';
 import '../services/platform/window_service.dart';
 import 'achievements_provider.dart';
 import 'auto_hunt_provider.dart';
+import 'kata_provider.dart';
 import 'audio_provider.dart';
 import 'auth_provider.dart';
 import 'storage_provider.dart';
@@ -583,6 +584,10 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
                     startsRound: !battleRoundCounted,
                   );
               ref.read(targetProvider.notifier).onBattleLine(battleMatch);
+              // Katas start on the first blow and stop on a kill or death.
+              if (_loginDetected) {
+                ref.read(kataProvider.notifier).onCombatLine(battleMatch.kind);
+              }
               battleRoundCounted = true;
               if (battleMatch.isFilterable) {
                 switch (settings.battleFilterMode) {
@@ -768,6 +773,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         _promptFlushTimer = null;
         _cancelTriggerFire();
         ref.read(autoHuntProvider.notifier).stop(reason: 'disconnected');
+        ref.read(kataProvider.notifier).disarm();
         ref.read(outputParserProvider).reset();
         ref.read(gameStateProvider.notifier).reset();
         ref.read(battleStateProvider.notifier).reset();

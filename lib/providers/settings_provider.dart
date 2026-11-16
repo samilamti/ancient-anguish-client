@@ -50,6 +50,7 @@ class AppSettings {
   final List<String> autoHuntTargets; // Auto Hunt: creatures to kill (local only)
   final List<String> autoHuntAvoid; // Auto Hunt: creatures to walk away from
   final int autoHuntStepSeconds; // Auto Hunt: pause between rooms
+  final List<String> kataSlots; // Katas: 10 combat actions, one per second (local only)
 
   /// Auto Hunt's starting avoid list.
   static const List<String> defaultAutoHuntAvoid = ['hill giant'];
@@ -112,7 +113,13 @@ class AppSettings {
     this.autoHuntTargets = const [],
     this.autoHuntAvoid = defaultAutoHuntAvoid,
     this.autoHuntStepSeconds = 6,
+    this.kataSlots = emptyKata,
   });
+
+  /// Number of Kata slots (one action per second of a fight).
+  static const int kataSlotCount = 10;
+
+  static const List<String> emptyKata = ['', '', '', '', '', '', '', '', '', ''];
 
   /// Number of action-bar slots (keys 1…9, 0).
   static const int actionBarSlots = 10;
@@ -157,6 +164,7 @@ class AppSettings {
     List<String>? autoHuntTargets,
     List<String>? autoHuntAvoid,
     int? autoHuntStepSeconds,
+    List<String>? kataSlots,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -200,6 +208,7 @@ class AppSettings {
       autoHuntTargets: autoHuntTargets ?? this.autoHuntTargets,
       autoHuntAvoid: autoHuntAvoid ?? this.autoHuntAvoid,
       autoHuntStepSeconds: autoHuntStepSeconds ?? this.autoHuntStepSeconds,
+      kataSlots: kataSlots ?? this.kataSlots,
     );
   }
 
@@ -242,6 +251,7 @@ class AppSettings {
         'autoHuntTargets': autoHuntTargets,
         'autoHuntAvoid': autoHuntAvoid,
         'autoHuntStepSeconds': autoHuntStepSeconds,
+        'kataSlots': kataSlots,
       };
 
   /// Deserializes settings from JSON, with defaults for missing fields.
@@ -312,7 +322,17 @@ class AppSettings {
           : defaultAutoHuntAvoid,
       autoHuntStepSeconds:
           (json['autoHuntStepSeconds'] as num?)?.toInt().clamp(2, 60) ?? 6,
+      kataSlots: _kataFromJson(json['kataSlots']),
     );
+  }
+
+  /// Reads the Kata back as exactly [kataSlotCount] strings.
+  static List<String> _kataFromJson(Object? raw) {
+    if (raw is! List) return emptyKata;
+    return List<String>.unmodifiable([
+      for (var i = 0; i < kataSlotCount; i++)
+        i < raw.length && raw[i] is String ? (raw[i] as String).trim() : '',
+    ]);
   }
 
   /// Reads a slot list back as exactly [actionBarSlots] entries.
@@ -593,6 +613,17 @@ class SettingsNotifier extends Notifier<AppSettings> {
   /// Auto Hunt's avoid list.
   void setAutoHuntAvoid(List<String> avoid) {
     state = state.copyWith(autoHuntAvoid: _normalizedList(avoid));
+    _saveSettings();
+  }
+
+  /// One Kata slot; an empty string leaves that second idle.
+  void setKataSlot(int index, String command) {
+    if (index < 0 || index >= AppSettings.kataSlotCount) return;
+    final trimmed = command.trim();
+    if (state.kataSlots[index] == trimmed) return;
+    final slots = [...state.kataSlots];
+    slots[index] = trimmed;
+    state = state.copyWith(kataSlots: List.unmodifiable(slots));
     _saveSettings();
   }
 

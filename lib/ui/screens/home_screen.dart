@@ -15,6 +15,7 @@ import '../../models/social_message.dart';
 import '../../models/support_tier.dart';
 import '../../providers/audio_provider.dart';
 import '../../providers/auto_hunt_provider.dart';
+import '../../providers/kata_provider.dart';
 import '../../providers/battle_stats_provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/game_state_provider.dart';
@@ -31,6 +32,7 @@ import '../../providers/subscription_provider.dart';
 import '../widgets/audio/audio_controls.dart';
 import '../widgets/compass/compass_overlay.dart';
 import '../widgets/hunt/auto_hunt_window.dart';
+import '../widgets/kata/kata_window.dart';
 import '../widgets/compass/compass_strip.dart';
 import '../widgets/common/notification_overlay.dart';
 import '../widgets/login/login_dialog.dart';
@@ -240,6 +242,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       ref.read(autoHuntProvider.notifier).toggle(),
                   active: ref.watch(autoHuntProvider).running,
                 ),
+              if (!isMobile &&
+                  (ref.watch(localFeaturesAvailableProvider).value ?? false))
+                _ToolbarItem(
+                  icon: Icons.sports_martial_arts,
+                  label: 'Katas',
+                  onPressed: () => ref.read(kataProvider.notifier).toggle(),
+                  active: ref.watch(kataProvider).armed,
+                ),
               // Keyboard play mode (WASD, action bar). No play mode on phones.
               if (!isMobile)
                 _ToolbarItem(
@@ -442,6 +452,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
             // Auto Hunt's floating window (local-only); open while it runs.
             const Positioned.fill(child: AutoHuntWindowOverlay()),
+
+            // Katas' floating window (local-only).
+            const Positioned.fill(child: KataWindowOverlay()),
 
             // Login dialog overlay.
             if (ref.watch(loginProvider) is LoginPromptDetected) ...[
@@ -1252,6 +1265,25 @@ class SettingsDrawer extends ConsumerWidget {
           onTap: () {
             Navigator.of(context).pop();
             ref.read(autoHuntWindowProvider.notifier).open();
+          },
+        );
+      }),
+
+      // Local-only, like Auto Hunt.
+      Consumer(builder: (context, ref, _) {
+        final available =
+            ref.watch(localFeaturesAvailableProvider).value ?? false;
+        if (!available) return const SizedBox.shrink();
+        final kata = ref.watch(kataProvider);
+        return _DrawerNavTile(
+          icon: const Icon(Icons.sports_martial_arts, size: 20),
+          title: 'Katas',
+          subtitle: kata.armed
+              ? 'On · runs in every fight'
+              : 'Local only · one action per second in battle',
+          onTap: () {
+            Navigator.of(context).pop();
+            ref.read(kataWindowProvider.notifier).open();
           },
         );
       }),

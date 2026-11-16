@@ -18,6 +18,7 @@ import '../../../providers/play_mode_provider.dart';
 import '../../../providers/recent_words_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/social_panel_provider.dart';
+import '../../../providers/speed_walk_provider.dart';
 import '../../../models/social_panel_state.dart';
 import '../../screens/alias_settings_screen.dart' show openAliasEditor;
 import '../../screens/text_link_rules_screen.dart'
@@ -27,6 +28,7 @@ import '../../../services/alias/alias_command.dart';
 import '../../../services/command_counterparts.dart';
 import '../../../services/command_loops.dart';
 import '../../../services/repeat_command.dart';
+import '../../../services/speedwalk/speed_walk.dart';
 import '../../../services/parser/emoji_parser.dart';
 import 'action_bar.dart' show autoAddTypedCommand;
 import 'play_mode.dart';
@@ -109,12 +111,17 @@ class _InputBarState extends ConsumerState<InputBar> {
     // Expand aliases — may produce multiple commands (semicolons). A
     // local-only `#15 buy beer;drink beer` expands its body once and repeats
     // the result.
-    final repeat = ref.read(localFeaturesAvailableProvider).value == true
-        ? RepeatCommand.parse(command)
-        : null;
-    final expanded = repeat == null
-        ? aliasEngine.expand(command)
-        : repeat.repeat(aliasEngine.expand(repeat.body));
+    final local = ref.read(localFeaturesAvailableProvider).value == true;
+    final repeat = local ? RepeatCommand.parse(command) : null;
+    // Local-only speed walk: `21ne` sends 21 norths and an east, and the
+    // walker hides the rooms on the way. Moves skip alias expansion.
+    final walk = local && repeat == null ? SpeedWalkPath.parse(command) : null;
+    if (walk != null) ref.read(speedWalkProvider.notifier).begin(walk);
+    final expanded = walk != null
+        ? walk.moves
+        : repeat == null
+            ? aliasEngine.expand(command)
+            : repeat.repeat(aliasEngine.expand(repeat.body));
     final settings = ref.read(settingsProvider);
     // Break commands (e.g. `breakdo`) to drop into history after a loop
     // command like `dotimes` is sent. Collected as a set so a multi-command

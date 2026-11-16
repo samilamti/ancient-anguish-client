@@ -41,6 +41,7 @@ import '../services/platform/window_service.dart';
 import 'achievements_provider.dart';
 import 'auto_hunt_provider.dart';
 import 'kata_provider.dart';
+import 'speed_walk_provider.dart';
 import 'audio_provider.dart';
 import 'auth_provider.dart';
 import 'storage_provider.dart';
@@ -327,6 +328,9 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
 
           for (final line in newLines) {
             final plainText = line.plainText;
+
+            // A speed walk hides the rooms on the way, unparsed.
+            if (_speedWalkSwallows(plainText)) continue;
 
             // Read per line: an earlier line in this batch may have started
             // the fight.
@@ -774,6 +778,7 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
         _cancelTriggerFire();
         ref.read(autoHuntProvider.notifier).stop(reason: 'disconnected');
         ref.read(kataProvider.notifier).disarm();
+        ref.read(speedWalkProvider.notifier).cancel();
         ref.read(outputParserProvider).reset();
         ref.read(gameStateProvider.notifier).reset();
         ref.read(battleStateProvider.notifier).reset();
@@ -1222,6 +1227,15 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     return _PromptMatch(values: values, remainder: remainder);
   }
 
+  /// True when a speed walk is running and [plainText] is one of the lines
+  /// it hides. A prompt glued to the front is stripped first, so a room
+  /// header arriving behind one still counts.
+  bool _speedWalkSwallows(String plainText) {
+    if (!ref.read(speedWalkProvider)) return false;
+    final text = _extractPrompt(plainText)?.remainder ?? plainText;
+    return ref.read(speedWalkProvider.notifier).swallow(text);
+  }
+
   /// Marks login as complete (called by [LoginNotifier] after credentials are
   /// sent, so prompt line gagging activates).
   void setLoginDetected() => _loginDetected = true;
@@ -1362,6 +1376,8 @@ class TerminalBufferNotifier extends Notifier<List<StyledLine>> {
     // holding, so close that first — both to render the sheet at once and to
     // keep this line from jumping ahead of the output it followed.
     _flushSheetCaptureToBuffer();
+
+    if (_speedWalkSwallows(plainText)) return;
 
     // Login dialog: detect "Password:" prompt.
     if (plainText.contains('Password:')) {

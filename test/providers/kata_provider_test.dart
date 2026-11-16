@@ -45,6 +45,8 @@ void main() {
       setUpContainer(async, ['kick', '', 'punch']);
       final kata = c.read(kataProvider.notifier);
       expect(c.read(kataProvider).armed, isTrue);
+      // Switching on with saved slots still shows the window.
+      expect(c.read(kataWindowProvider).open, isTrue);
       expect(service.sent, isEmpty);
 
       kata.onCombatLine(BattleLineKind.yourHit);

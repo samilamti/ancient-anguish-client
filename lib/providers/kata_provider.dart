@@ -56,8 +56,9 @@ class KataNotifier extends Notifier<KataState> {
   void arm() {
     if (state.armed) return;
     if (ref.read(localFeaturesAvailableProvider).value != true) return;
+    // The slots stay in view whenever Katas are switched on, like Auto Hunt.
+    ref.read(kataWindowProvider.notifier).open();
     if (KataEngine(ref.read(settingsProvider).kataSlots).isEmpty) {
-      ref.read(kataWindowProvider.notifier).open();
       ref
           .read(appNotificationsProvider.notifier)
           .show('Katas: fill in at least one action first');
